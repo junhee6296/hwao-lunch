@@ -1,0 +1,38 @@
+{
+  "days": {
+    "2026-04-17": [
+      {
+        "orgRole": "d",
+        "name": "d",
+        "qrToken": "u029n1l089a",
+        "tokenExpiresAt": 1776412667078,
+        "attended": true,
+        "scannedAt": "2026-04-17T07:55:10.664Z"
+      },
+      {
+        "orgRole": "ㅇ",
+        "name": "ㅇ",
+        "qrToken": "3l0w45wzmnx",
+        "tokenExpiresAt": 1776413236609,
+        "attended": false,
+        "scannedAt": null
+      },
+      {
+        "orgRole": "dd",
+        "name": "dd",
+        "qrToken": "vm7px5ji69s",
+        "tokenExpiresAt": 1776413567208,
+        "attended": true,
+        "scannedAt": "2026-04-17T08:12:06.085Z"
+      },
+      {
+        "orgRole": "ㅇㅇㅇㅇ",
+        "name": "ㅇㅇㅇ",
+        "qrToken": "aem4ikgwd9",
+        "tokenExpiresAt": 1776414296871,
+        "attended": true,
+        "scannedAt": "2026-04-17T08:22:20.606Z"
+      }
+    ]
+  }
+}

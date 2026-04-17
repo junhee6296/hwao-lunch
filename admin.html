@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>점심 식사자 관리 : 화성오산교육청</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+  <link rel="stylesheet" href="CSS/style.css">
+</head>
+<body class="bg-gray-100">
+  
+  <div id="login-section" class="min-h-screen flex items-center justify-center bg-gray-50">
+    <div class="bg-white p-10 rounded-3xl shadow-xl w-full max-w-md border border-gray-100">
+      <h2 class="text-3xl font-black mb-8 text-center text-gray-800">🔐 관리자 로그인</h2>
+      <div id="step-email">
+        <label class="input-label">이메일 주소</label>
+        <input type="email" id="adminEmail" class="form-input mb-6" placeholder="등록된 관리자 이메일">
+        <button id="btn-request-code" class="btn btn-primary w-full h-16 rounded-xl">인증번호 요청</button>
+      </div>
+      <div id="step-code" class="hidden mt-4">
+        <label class="input-label">인증번호 6자리</label>
+        <input type="text" id="adminCode" class="form-input mb-6" placeholder="메일로 받은 번호 입력">
+        <button id="btn-verify-code" class="btn btn-primary w-full h-16 rounded-xl">로그인 확인</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="admin-dashboard" class="hidden min-h-screen flex flex-col">
+    <header class="bg-white border-b-2 border-gray-200 px-6 py-4 flex justify-between items-center shadow-sm relative">
+      <div class="flex items-center gap-4">
+        <h1 class="text-3xl font-black text-gray-900">🍽️ 점심 식사자 관리</h1>
+        <div class="flex items-center bg-blue-50 px-4 py-2 rounded-xl border border-blue-100">
+          <label class="font-bold text-blue-700 mr-2">조회 날짜:</label>
+          <input type="date" id="date-selector" class="bg-transparent font-bold text-blue-800 outline-none">
+        </div>
+      </div>
+      <div class="flex gap-2 items-center">
+        <a href="/qr.html" class="mr-4 text-gray-500 hover:text-green-600 font-bold flex items-center gap-1 transition-colors">📱 QR 발급화면</a>
+        <button id="btn-export-monthly" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-md">📅 월별 시트</button>
+        <button id="btn-export-daily" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-md">📥 일별 시트</button>
+      </div>
+    </header>
+
+    <main class="flex-1 flex flex-col lg:flex-row gap-6 p-6">
+      <section class="flex-1 flex flex-col gap-4">
+        <div class="bg-white p-4 rounded-3xl shadow-lg border border-gray-200 overflow-hidden">
+          <div id="reader" class="w-full bg-black rounded-2xl overflow-hidden aspect-video"></div>
+          <div id="scan-result-panel" class="mt-4 p-8 text-center rounded-2xl bg-gray-50 border-2 border-dashed border-gray-300">
+             <p id="scan-msg" class="text-3xl font-bold text-gray-400">QR 코드를 카메라에 보여주세요</p>
+             <p id="scan-sub-msg" class="text-xl text-gray-500 mt-2">인식 시 자동으로 식사 명단에 등록됩니다</p>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div class="bg-white p-6 rounded-2xl shadow-md border-b-4 border-green-500">
+            <p class="text-gray-500 font-bold">오늘 현재 식수</p>
+            <h3 id="stat-count" class="text-5xl font-black text-gray-900 mt-2">0명</h3>
+          </div>
+          <div class="bg-white p-6 rounded-2xl shadow-md border-b-4 border-blue-500">
+            <p class="text-gray-500 font-bold">최근 식사자</p>
+            <h3 id="recent-diner" class="text-2xl font-bold text-blue-600 mt-2 truncate">-</h3>
+          </div>
+        </div>
+      </section>
+
+      <aside class="w-full lg:w-1/3 bg-white rounded-3xl shadow-lg border border-gray-200 flex flex-col overflow-hidden">
+        <div class="p-6 border-b border-gray-100 bg-gray-50">
+          <h2 class="text-2xl font-black text-gray-800">📋 실시간 식사 명단</h2>
+        </div>
+        <div class="flex-1 overflow-y-auto">
+          <table class="w-full text-left">
+            <thead class="bg-gray-50 sticky top-0">
+              <tr>
+                <th class="p-4 font-bold text-gray-600 border-b">부서</th>
+                <th class="p-4 font-bold text-gray-600 border-b">이름</th>
+                <th class="p-4 font-bold text-gray-600 border-b text-center">시간</th>
+              </tr>
+            </thead>
+            <tbody id="diner-table-body" class="divide-y divide-gray-100"></tbody>
+          </table>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <script type="module" src="JS/admin_app.js"></script>
+</body>
+</html>
