@@ -82,7 +82,23 @@
         <button id="btn-reissue-qr" class="btn btn-primary w-full h-16 rounded-xl font-bold">QR 다시 발급받기</button>
       </div>
     </main>
-
+      <div id="ios-install-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm transition-opacity">
+            <div class="bg-white rounded-3xl p-6 max-w-sm w-full text-center shadow-2xl">
+              <div class="text-4xl mb-2">🍎</div>
+              <h3 class="text-xl font-extrabold text-gray-900 mb-2">아이폰 앱 설치 방법</h3>
+              <p class="text-gray-500 text-sm mb-6">애플 정책상 아이폰은 아래 방법으로만<br>바탕화면 추가가 가능합니다.</p>
+              
+              <div class="bg-gray-50 rounded-2xl p-5 mb-6 text-left text-sm text-gray-700 leading-relaxed border border-gray-100">
+                <p class="mb-3">1. 화면 하단의 <b class="text-blue-600">[공유]</b> 아이콘(네모에 위로 화살표 ⬆️)을 누릅니다.</p>
+                <p>2. 메뉴를 조금 위로 올려서 <b class="text-blue-600">[홈 화면에 추가]</b> ➕ 를 선택합니다.</p>
+              </div>
+              
+              <button id="btn-close-ios-modal" class="btn btn-primary w-full h-14 rounded-2xl font-bold text-lg shadow-md shadow-green-100">
+                확인했습니다
+              </button>
+            </div>
+          </div>
+          
     <footer class="py-6 text-center text-gray-400 text-sm">
       © 화성오산교육지원청 기획경영과 2026. All rights reserved.
     </footer>

@@ -17,27 +17,33 @@ document.addEventListener('DOMContentLoaded', () => {
 let deferredPrompt;
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
-  deferredPrompt = e; // 안드로이드 환경에서 설치 프롬프트 보관
+  deferredPrompt = e; 
 });
 
 document.getElementById('btn-add-shortcut')?.addEventListener('click', async () => {
   if (deferredPrompt) {
-    // 1. 안드로이드: 시스템 설치 팝업 바로 띄우기
+    // 🤖 안드로이드 (갤럭시 등) : 즉시 '앱 설치' 시스템 팝업 호출
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      console.log('바로가기 설치 수락됨');
-    }
+    if (outcome === 'accepted') console.log('안드로이드 설치 수락됨');
     deferredPrompt = null;
   } else {
-    // 2. 아이폰(iOS) 또는 브라우저에서 직접 지원하지 않는 경우 가이드 띄우기
+    // 🍎 아이폰(iOS) 또는 PC 환경 감지
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    
     if (isIOS) {
-      alert('🍎 아이폰(iOS) 바로가기 추가 방법:\n\n1. 화면 하단의 [공유] 아이콘(네모에 위로 향한 화살표)을 누르세요.\n2. 메뉴를 올려서 [홈 화면에 추가]를 선택해주세요.');
+      // 아이폰일 경우 예쁜 커스텀 가이드 팝업 띄우기
+      document.getElementById('ios-install-modal').classList.remove('hidden');
     } else {
-      alert('🤖 안드로이드 바로가기 추가 방법:\n\n1. 브라우저 우측 상단의 메뉴(점 3개)를 누르세요.\n2. [홈 화면에 추가] 또는 [앱 설치]를 선택해주세요.');
+      // 그 외 환경 (PC 등)
+      alert('브라우저 우측 상단 메뉴에서 [홈 화면에 추가] 또는 [앱 설치]를 선택해주세요.');
     }
   }
+});
+
+// 아이폰 팝업 닫기 버튼 로직
+document.getElementById('btn-close-ios-modal')?.addEventListener('click', () => {
+  document.getElementById('ios-install-modal').classList.add('hidden');
 });
 // ==========================================
 
