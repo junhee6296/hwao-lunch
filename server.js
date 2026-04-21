@@ -12,6 +12,11 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(__dirname));
 
+//기본 접속 html 설정
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'qr.html'));
+});
+
 const dbPath = path.join(__dirname, 'data.json');
 let db = { days: {} };
 
