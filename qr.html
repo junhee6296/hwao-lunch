@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>화성오산교육청 : 점심체크 QR</title>
   
+  <link rel="manifest" href="/manifest.json">
+  
   <script>
     const originalWarn = console.warn;
     console.warn = (...args) => {
@@ -13,7 +15,6 @@
     };
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
-  
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <link rel="stylesheet" href="CSS/style.css">
   <style>
@@ -23,13 +24,16 @@
 </head>
 <body class="bg-gray-50">
   <div class="max-w-4xl mx-auto min-h-screen flex flex-col bg-white shadow-xl">
-    <header class="py-10 px-4 border-b-2 border-green-100 text-center">
-      <h1 class="text-4xl font-extrabold text-gray-900">🍽️ 점심 체크 전용 QR</h1>
-      <p class="text-xl text-gray-500 mt-2">부서와 이름을 입력하고 QR을 보여주세요</p>
-      
-      <a href="/admin.html" class="absolute top-6 right-6 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-2 px-4 rounded-xl transition-all shadow-sm text-sm flex items-center gap-2">
+    
+    <div class="flex justify-end pt-4 px-4 bg-white">
+      <a href="/admin.html" class="bg-gray-100 hover:bg-gray-200 text-gray-500 font-bold py-1.5 px-3 rounded-lg text-xs flex items-center gap-1 shadow-sm transition-colors">
         ⚙️ 관리자 스캐너
       </a>
+    </div>
+
+    <header class="pb-8 pt-2 px-4 border-b-2 border-green-100 text-center">
+      <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900 leading-tight">🍽️ 점심 체크 전용 QR</h1>
+      <p class="text-lg sm:text-xl text-gray-500 mt-2 break-keep">부서와 이름을 입력하고 QR을 보여주세요</p>
     </header>
 
     <main class="flex-1 p-6 flex flex-col items-center justify-center">
@@ -48,8 +52,8 @@
           오늘의 점심 QR 생성
         </button>
 
-        <button id="pwa-install-btn" class="hidden mt-8 w-full py-4 bg-gray-100 text-gray-600 font-bold rounded-xl flex items-center justify-center gap-2 border border-gray-200">
-          📱 스마트폰 바탕화면에 추가하기
+        <button id="btn-add-shortcut" type="button" class="mt-4 w-full h-14 bg-blue-50 text-blue-600 font-bold rounded-2xl flex items-center justify-center gap-2 border border-blue-100 shadow-sm active:scale-95 transition-transform">
+          📱 스마트폰 홈 화면에 바로가기 추가
         </button>
       </div>
 
