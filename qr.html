@@ -4,11 +4,20 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>화성오산교육청 : 점심체크 QR</title>
+  
+  <script>
+    const originalWarn = console.warn;
+    console.warn = (...args) => {
+      if (typeof args[0] === 'string' && args[0].includes('cdn.tailwindcss.com')) return;
+      originalWarn(...args);
+    };
+  </script>
   <script src="https://cdn.tailwindcss.com"></script>
+  
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <link rel="stylesheet" href="CSS/style.css">
   <style>
-    :root { --primary-color: #059669; } /* 점심체크용 초록색 테마 */
+    :root { --primary-color: #059669; }
     .btn-primary { background-color: var(--primary-color) !important; }
   </style>
 </head>
@@ -54,7 +63,7 @@
     </main>
 
     <footer class="py-6 text-center text-gray-400 text-sm">
-      © 화성오산교육청 점심체크 시스템
+      © 화성오산교육지원청 기획경영과
     </footer>
   </div>
 

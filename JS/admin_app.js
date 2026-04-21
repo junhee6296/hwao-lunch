@@ -3,9 +3,7 @@ import { API_BASE_URL, getTodayStr } from './config.js';
 let html5QrCode;
 let loggedInEmail = '';
 
-// ==========================================
-// 1. 관리자 로그인 로직 (팝업 경고 및 3회 오류 처리)
-// ==========================================
+// 1. 관리자 로그인 로직
 async function requestAuthCode() {
   const emailInput = document.getElementById('adminEmail');
   const email = emailInput.value.trim();
@@ -23,7 +21,6 @@ async function requestAuthCode() {
     document.getElementById('step-code').classList.remove('hidden');
     alert('✅ 메일로 인증번호가 발송되었습니다.');
   } else { 
-    // 🌟 이메일 불일치 경고 팝업
     alert(`⚠️ ${data.message}`); 
     emailInput.value = '';
     emailInput.focus();
@@ -46,12 +43,10 @@ async function verifyAuthCode() {
     document.getElementById('admin-dashboard').classList.remove('hidden');
     initDashboard();
   } else { 
-    // 🌟 인증번호 불일치 및 3회 초과 경고 팝업
     alert(`⚠️ ${data.message}`); 
     codeInput.value = '';
     codeInput.focus();
 
-    // 🌟 3회 초과 시 이메일 입력창으로 돌아가기
     if(data.action === 'reset') {
       document.getElementById('step-code').classList.add('hidden');
       document.getElementById('step-email').classList.remove('hidden');
@@ -59,7 +54,7 @@ async function verifyAuthCode() {
   }
 }
 
-// 2. 대시보드 초기화 (이하 로직 기존과 동일)
+// 2. 대시보드 초기화
 function initDashboard() {
   const datePicker = document.getElementById('date-selector');
   datePicker.value = getTodayStr();
@@ -97,10 +92,20 @@ async function loadDiners(date) {
   }
 }
 
+// 3. QR 스캐너 (🌟 동적 네모 영역 & 플로팅 디자인 피드백)
 let isScanningAction = false;
 function startScanner() {
   html5QrCode = new Html5Qrcode("reader");
-  html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 300 }, async (decodedText) => {
+  
+  const qrBoxFunction = function(videoWidth, videoHeight) {
+      const minEdge = Math.min(videoWidth, videoHeight);
+      return { width: Math.floor(minEdge * 0.5), height: Math.floor(minEdge * 0.5) }; 
+  };
+
+  html5QrCode.start({ facingMode: "environment" }, { 
+    fps: 10, 
+    qrbox: qrBoxFunction
+  }, async (decodedText) => {
     if (isScanningAction) return;
     isScanningAction = true;
     
@@ -108,25 +113,37 @@ function startScanner() {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ qrToken: decodedText })
     });
     const result = await res.json();
+    
     const scanMsg = document.getElementById('scan-msg');
+    const scanPanel = document.getElementById('scan-result-panel');
 
     if (res.ok) {
-      scanMsg.textContent = `✅ [${result.orgRole || '-'}] ${result.name || '알수없음'}님 등록되었습니다!`;
-      scanMsg.className = "text-4xl font-black text-green-600";
+      // 성공 시 초록색 테두리 효과
+      scanMsg.textContent = `✅ [${result.orgRole || '-'}] ${result.name || '알수없음'}님!`;
+      scanMsg.className = "text-2xl lg:text-3xl font-black text-green-600";
+      scanPanel.classList.remove('border-transparent', 'border-red-400');
+      scanPanel.classList.add('border-green-400', 'bg-green-50/95');
       loadDiners(document.getElementById('date-selector').value);
     } else {
+      // 실패 시 빨간색 테두리 효과
       scanMsg.textContent = `❌ ${result.message}`;
-      scanMsg.className = "text-3xl font-bold text-red-500";
+      scanMsg.className = "text-xl lg:text-2xl font-bold text-red-500";
+      scanPanel.classList.remove('border-transparent', 'border-green-400', 'bg-green-50/95');
+      scanPanel.classList.add('border-red-400', 'bg-red-50/95');
     }
 
     setTimeout(() => {
-      scanMsg.textContent = "QR 코드를 카메라에 보여주세요";
-      scanMsg.className = "text-3xl font-bold text-gray-400";
+      // 3초 후 기본 상태 복구
+      scanMsg.textContent = "QR 코드를 보여주세요";
+      scanMsg.className = "text-xl lg:text-2xl font-bold text-gray-700";
+      scanPanel.classList.remove('border-green-400', 'bg-green-50/95', 'border-red-400', 'bg-red-50/95');
+      scanPanel.classList.add('border-transparent');
       isScanningAction = false;
     }, 3000);
   });
 }
 
+// 4. 엑셀 다운로드 
 const formatTime = (isoString) => isoString ? new Date(isoString).toLocaleTimeString('ko-KR') : '-';
 function applyExcelStyle(ws, rowCount) {
   ws['!cols'] = [{ wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 22 }];
