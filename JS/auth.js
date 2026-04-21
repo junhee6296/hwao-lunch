@@ -23,12 +23,14 @@ function startAuthTimer(elementId, durationSec) {
   }, 1000);
 }
 
+
 export function initAuth() {
   const btnRequest = document.getElementById('btn-request-code');
   const btnVerify = document.getElementById('btn-verify-code');
 
   if (!btnRequest) return;
 
+  // 인증 모달
   btnRequest.addEventListener('click', async () => {
     const email = document.getElementById('adminEmail').value.trim();
     if (!email) return alert('이메일을 입력해주세요.');
