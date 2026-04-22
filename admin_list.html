@@ -2,36 +2,50 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <title>식사자 명단 관리 : 화성오산교육청</title>
+  <title>명단 관리 : 화성오산교육청</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="CSS/style.css">
 </head>
 <body class="bg-gray-100 p-6">
-  <div class="max-w-2xl mx-auto bg-white rounded-3xl shadow-xl overflow-hidden">
+  <div class="max-w-5xl mx-auto bg-white rounded-3xl shadow-xl overflow-hidden">
     <header class="p-6 border-b bg-gray-50 flex justify-between items-center">
-      <h1 class="text-2xl font-black text-gray-800">👥 이용자 명단 관리</h1>
+      <h1 class="text-2xl font-black text-gray-800">👥 이용자 명단 및 식사 기간 관리</h1>
       <a href="/admin.html" class="text-gray-500 hover:text-gray-800 font-bold text-sm">⬅️ 돌아가기</a>
     </header>
 
-    <div class="p-6 border-b bg-white">
+    <div class="p-6 border-b bg-white grid grid-cols-1 md:grid-cols-4 gap-3">
+      <input type="text" id="new-org" class="border p-3 rounded-xl" placeholder="부서명">
+      <input type="text" id="new-name" class="border p-3 rounded-xl" placeholder="이름">
+      <select id="new-type" class="border p-3 rounded-xl font-bold">
+        <option value="daily">일식 (1일)</option>
+        <option value="monthly">월식 (이번달 전체)</option>
+      </select>
+      <button id="btn-add-user" class="bg-green-600 text-white px-6 rounded-xl font-bold h-full">신규 명단 추가</button>
+    </div>
+
+    <div class="px-6 py-3 bg-blue-50 border-b flex justify-between items-center">
+      <div class="flex gap-4 items-center">
+        <input type="checkbox" id="check-all" class="w-5 h-5">
+        <span class="text-sm font-bold text-blue-700">전체 선택</span>
+      </div>
       <div class="flex gap-2">
-        <input type="text" id="new-org" class="flex-1 border p-3 rounded-xl" placeholder="부서명">
-        <input type="text" id="new-name" class="flex-1 border p-3 rounded-xl" placeholder="이름">
-        <button id="btn-add-user" class="bg-green-600 text-white px-6 rounded-xl font-bold">추가</button>
+        <button onclick="bulkExtend('daily')" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold">선택 1일 연장</button>
+        <button onclick="bulkExtend('monthly')" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold">선택 다음달 연장</button>
+        <button onclick="bulkDelete()" class="bg-red-500 text-white px-4 py-2 rounded-lg text-sm font-bold">선택 삭제</button>
       </div>
     </div>
 
-    <div class="p-6 h-[500px] overflow-y-auto">
+    <div class="p-6 h-[600px] overflow-y-auto">
       <table class="w-full">
-        <thead>
+        <thead class="bg-gray-50 sticky top-0">
           <tr class="text-left text-gray-500 border-b">
-            <th class="pb-3">부서</th>
-            <th class="pb-3">이름</th>
-            <th class="pb-3 text-right">관리</th>
+            <th class="p-3 w-10"></th>
+            <th class="p-3">부서 / 이름</th>
+            <th class="p-3">구분</th>
+            <th class="p-3 text-center">명단 마감일</th>
+            <th class="p-3 text-right">기간 연장 / 관리</th>
           </tr>
         </thead>
-        <tbody id="user-list-body">
-          </tbody>
+        <tbody id="user-list-body"></tbody>
       </table>
     </div>
   </div>
@@ -41,38 +55,97 @@
 
     async function loadUsers() {
       const res = await fetch(`${API_BASE_URL}/admin/allowed-users`);
-      const users = await res.json();
+      let users = await res.json();
+      
+      // 🌟 부서(ㄱ~ㅎ) -> 이름(ㄱ~ㅎ) 순 정렬
+      users.sort((a, b) => {
+        if (a.orgRole !== b.orgRole) return a.orgRole.localeCompare(b.orgRole, 'ko');
+        return a.name.localeCompare(b.name, 'ko');
+      });
+
       const tbody = document.getElementById('user-list-body');
-      tbody.innerHTML = users.map((u, idx) => `
-        <tr class="border-b">
-          <td class="py-4">${u.orgRole}</td>
-          <td class="py-4 font-bold">${u.name}</td>
-          <td class="py-4 text-right">
-            <button onclick="deleteUser(${idx})" class="text-red-500 font-bold">삭제</button>
+      tbody.innerHTML = users.map((u, idx) => {
+        const isExpired = new Date(u.endDate) < new Date(new Date().setHours(0,0,0,0));
+        return `
+        <tr class="border-b hover:bg-gray-50 ${isExpired ? 'bg-red-50' : ''}">
+          <td class="p-3"><input type="checkbox" class="user-check w-5 h-5" data-index="${idx}"></td>
+          <td class="p-3">
+            <div class="text-xs text-gray-400">${u.orgRole}</div>
+            <div class="font-bold text-gray-800">${u.name}</div>
+          </td>
+          <td class="p-3">
+            <span class="px-2 py-1 rounded text-xs font-bold ${u.mealType === 'monthly' ? 'bg-indigo-100 text-indigo-700' : 'bg-orange-100 text-orange-700'}">
+              ${u.mealType === 'monthly' ? '월식' : '일식'}
+            </span>
+          </td>
+          <td class="p-3 text-center font-mono ${isExpired ? 'text-red-600 font-bold' : 'text-gray-600'}">
+            ${u.endDate} ${isExpired ? '(만료)' : ''}
+          </td>
+          <td class="p-3 text-right flex justify-end gap-2">
+            <button onclick="extendUser(${idx}, 'daily')" class="text-xs bg-white border border-blue-500 text-blue-600 px-2 py-1 rounded hover:bg-blue-50 font-bold">+1일</button>
+            <button onclick="extendUser(${idx}, 'monthly')" class="text-xs bg-white border border-indigo-500 text-indigo-600 px-2 py-1 rounded hover:bg-indigo-50 font-bold">+1개월</button>
+            <button onclick="deleteUser(${idx})" class="ml-2 text-red-400 hover:text-red-600 text-xs">삭제</button>
           </td>
         </tr>
-      `).join('');
+      `}).join('');
     }
 
+    // 신규 추가
     document.getElementById('btn-add-user').onclick = async () => {
       const orgRole = document.getElementById('new-org').value.trim();
       const name = document.getElementById('new-name').value.trim();
+      const mealType = document.getElementById('new-type').value;
       if(!orgRole || !name) return alert('정보를 입력하세요.');
 
-      const res = await fetch(`${API_BASE_URL}/admin/allowed-users`, {
+      await fetch(`${API_BASE_URL}/admin/allowed-users`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orgRole, name })
+        body: JSON.stringify({ orgRole, name, mealType })
       });
-      if(res.ok) {
-        document.getElementById('new-org').value = '';
-        document.getElementById('new-name').value = '';
-        loadUsers();
-      }
+      loadUsers();
+    };
+
+    // 개별 연장
+    window.extendUser = async (index, type) => {
+      await fetch(`${API_BASE_URL}/admin/allowed-users/extend`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ indexes: [index], type })
+      });
+      loadUsers();
+    };
+
+    // 일괄 선택/해제
+    document.getElementById('check-all').onchange = (e) => {
+      document.querySelectorAll('.user-check').forEach(cb => cb.checked = e.target.checked);
+    };
+
+    // 일괄 연장
+    window.bulkExtend = async (type) => {
+      const indexes = Array.from(document.querySelectorAll('.user-check:checked')).map(cb => parseInt(cb.dataset.index));
+      if(indexes.length === 0) return alert('대상을 선택하세요.');
+      await fetch(`${API_BASE_URL}/admin/allowed-users/extend`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ indexes, type })
+      });
+      loadUsers();
     };
 
     window.deleteUser = async (index) => {
       if(!confirm('정말 삭제하시겠습니까?')) return;
-      await fetch(`${API_BASE_URL}/admin/allowed-users/${index}`, { method: 'DELETE' });
+      await fetch(`${API_BASE_URL}/admin/allowed-users`, { 
+        method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ indexes: [index] }) 
+      });
+      loadUsers();
+    };
+
+    window.bulkDelete = async () => {
+      const indexes = Array.from(document.querySelectorAll('.user-check:checked')).map(cb => parseInt(cb.dataset.index));
+      if(indexes.length === 0) return alert('대상을 선택하세요.');
+      if(!confirm('선택한 명단을 모두 삭제하시겠습니까?')) return;
+      await fetch(`${API_BASE_URL}/admin/allowed-users`, { 
+        method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ indexes }) 
+      });
       loadUsers();
     };
 
