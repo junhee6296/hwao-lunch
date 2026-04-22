@@ -108,45 +108,54 @@
     </main>
   </div>
 
-  <main class="flex-1 flex flex-col lg:flex-row gap-4 lg:gap-6 p-4 lg:p-6 overflow-hidden">
-    <section class="flex-1 flex flex-col gap-4">
-      <div class="bg-black rounded-3xl shadow-lg border relative overflow-hidden flex-1 flex items-center justify-center">
-        
-        <button id="btn-flip" class="absolute top-4 left-4 z-[60] bg-white/80 hover:bg-white p-2 rounded-lg shadow text-xs font-bold transition-all">
-          🔄 카메라 전환
-        </button>
+  <script type="module" src="JS/admin_app.js"></script>
 
-        <div id="reader" class="w-full h-full"></div>
-        
-        <div id="scan-result-panel" class="absolute bottom-6 left-1/2 -translate-x-1/2 w-11/12 max-w-md p-4 text-center rounded-2xl bg-white/95 shadow-2xl z-50">
-          <p id="scan-msg" class="text-xl font-bold text-gray-700">QR 코드를 보여주세요</p>
-        </div>
-      </div>
-    </section>
-  </main>
-  
-  <script>
-    // 🌟 [중요] 카메라 반전 및 좌우 반전 보정 로직
-    document.getElementById('btn-flip').onclick = async () => {
-      // 1. 기존 스캐너가 있다면 종료 (에러 방지)
-      if (window.html5QrCode && window.html5QrCode.isScanning) {
-        await window.html5QrCode.stop();
-      }
-      
-      // 2. 방향 전환
-      window.currentFacingMode = window.currentFacingMode === "user" ? "environment" : "user";
-      
-      // 3. 재시작 (admin_app.js에 정의된 시작 함수 호출)
-      if (typeof startScanner === 'function') {
-        startScanner(window.currentFacingMode);
-      }
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const flipBtn = document.getElementById('custom-flip-btn');
+      let isFlipped = false;
 
-      // 4. 전면 카메라일 때만 시각적 좌우 반전 적용 (CSS)
-      setTimeout(() => {
-        const video = document.querySelector('#reader video');
-        if (video) video.style.transform = window.currentFacingMode === 'user' ? 'scaleX(-1)' : 'scaleX(1)';
-      }, 500);
-    };
+      flipBtn.addEventListener('click', async () => {
+        // 1. 전/후면 모드 토글
+        isFlipped = !isFlipped;
+        const newFacingMode = isFlipped ? "user" : "environment";
+
+        // 2. 현재 실행 중인 스캐너 인스턴스 확인 (admin_app.js에서 생성한 객체 찾기)
+        // 보통 라이브러리는 내부적으로 비디오 스트림을 관리하므로 스트림을 껐다 켜야 함
+        if (window.html5QrCode && window.html5QrCode.isScanning) {
+          try {
+            await window.html5QrCode.stop(); // 현재 카메라 중지
+            
+            // 3. admin_app.js에 정의된 시작 함수를 새 방향으로 호출
+            // (함수명이 다를 경우 해당 파일의 시작 함수명으로 변경 필요)
+            if (typeof window.startScanner === 'function') {
+              window.startScanner(newFacingMode);
+            } else {
+              // 함수가 글로벌로 노출되지 않은 경우 페이지 새로고침 없이 강제 재시작 시도
+              location.reload(); 
+              return;
+            }
+          } catch (err) {
+            console.error("카메라 전환 실패:", err);
+          }
+        }
+
+        // 4. 시각적 거울 모드 보정 (인식률 저하 방지용)
+        // CSS 반전은 '화면'만 반전시키고, 라이브러리가 읽는 '이미지 데이터'는 원본을 유지함
+        setTimeout(() => {
+          const videoElement = document.querySelector('#reader video');
+          if (videoElement) {
+            videoElement.style.transform = isFlipped ? 'scaleX(-1)' : 'scaleX(1)';
+          }
+        }, 500); // 카메라 리로딩 대기
+
+        // 5. 버튼 UI 업데이트
+        flipBtn.innerHTML = isFlipped ? "🔄 후면 카메라 전환" : "🔄 전면 카메라 전환";
+        flipBtn.className = isFlipped 
+          ? "absolute top-4 left-4 z-[60] bg-blue-600 text-white px-3 py-2 rounded-xl shadow-md text-sm font-bold flex items-center gap-1 active:scale-95 transition-transform"
+          : "absolute top-4 left-4 z-[60] bg-white/90 text-gray-800 px-3 py-2 rounded-xl shadow-md text-sm font-bold flex items-center gap-1 backdrop-blur active:scale-95 transition-transform hover:bg-gray-100";
+      });
+    });
   </script>
 
 </body>
