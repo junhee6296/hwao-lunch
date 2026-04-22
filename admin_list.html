@@ -4,71 +4,162 @@
   <meta charset="UTF-8">
   <title>명단 관리 : 화성오산교육청</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* 달력 아이콘 꾸미기 */
+    input[type="date"]::-webkit-calendar-picker-indicator {
+      cursor: pointer;
+      opacity: 0.6;
+      transition: 0.2s;
+    }
+    input[type="date"]::-webkit-calendar-picker-indicator:hover { opacity: 1; }
+  </style>
 </head>
 <body class="bg-gray-100 p-4 lg:p-6">
-  <div class="max-w-6xl mx-auto bg-white rounded-3xl shadow-xl overflow-hidden flex flex-col h-[90vh]">
-    <header class="p-6 border-b bg-gray-50 flex justify-between items-center shrink-0">
-      <div>
-        <h1 class="text-2xl font-black text-gray-800">👥 명단 관리 시스템</h1>
-        <p class="text-sm text-gray-500">부서명/이름으로 검색하거나 탭을 전환하세요.</p>
+  
+  <div id="auth-overlay" class="fixed inset-0 bg-gray-900 z-[100] flex items-center justify-center p-4">
+    <div class="bg-white p-8 rounded-3xl shadow-2xl max-w-sm w-full text-center">
+      <div class="text-4xl mb-4">🛡️</div>
+      <h2 class="text-xl font-black mb-2">명단 관리 보안 인증</h2>
+      <p class="text-gray-500 text-sm mb-6">최고 관리자 권한 확인을 위해<br>이메일 인증을 진행해 주세요.</p>
+      
+      <div class="mb-4 text-left">
+        <label class="block text-xs font-bold text-gray-500 mb-1">관리자 이메일</label>
+        <input type="email" id="admin-email" class="w-full border p-3 rounded-xl outline-none focus:border-blue-500" placeholder="admin@email.com">
       </div>
-      <a href="/admin.html" class="bg-white border px-4 py-2 rounded-xl shadow-sm font-bold text-sm hover:bg-gray-50">⬅️ 스캐너로 돌아가기</a>
+
+      <button id="btn-request-auth" class="w-full py-3 bg-blue-600 hover:bg-blue-700 transition text-white rounded-xl font-bold mb-3">인증번호 발송</button>
+      
+      <div id="auth-input-group" class="hidden">
+        <input type="text" id="2fa-code" class="w-full border-2 border-gray-100 p-3 rounded-xl text-center text-2xl tracking-widest mb-3 focus:border-blue-500 outline-none" placeholder="000000" maxlength="6">
+        <button id="btn-verify-auth" class="w-full py-3 bg-gray-800 hover:bg-black transition text-white rounded-xl font-bold">인증 확인</button>
+      </div>
+      <a href="/admin.html" class="block mt-4 text-sm text-gray-400 underline">스캐너로 돌아가기</a>
+    </div>
+  </div>
+
+  <div id="main-content" class="max-w-6xl mx-auto bg-white rounded-3xl shadow-xl overflow-hidden flex flex-col h-[90vh] hidden">
+    <header class="p-6 border-b bg-gray-50 flex justify-between items-center shrink-0">
+      <h1 class="text-2xl font-black text-gray-800">👥 명단 및 기간 통합 관리</h1>
+      <a href="/admin.html" class="text-sm font-bold text-gray-500 bg-white border px-4 py-2 rounded-xl shadow-sm hover:bg-gray-100">⬅️ 스캐너로 이동</a>
     </header>
 
-    <div class="p-4 border-b bg-white flex flex-col md:flex-row gap-4 items-center shrink-0">
-      <div class="relative w-full md:w-64">
-        <input type="text" id="search-input" class="w-full border-2 border-blue-100 p-2.5 pl-10 rounded-xl focus:border-blue-400 outline-none transition-all" placeholder="부서 또는 이름 검색...">
-        <span class="absolute left-3 top-3">🔍</span>
+    <div class="flex border-b bg-white shrink-0">
+      <button onclick="switchTab('daily')" id="tab-daily" class="flex-1 py-4 font-black text-blue-600 border-b-4 border-blue-600">🌞 일식 명단 관리</button>
+      <button onclick="switchTab('monthly')" id="tab-monthly" class="flex-1 py-4 font-bold text-gray-400 bg-gray-50 hover:bg-gray-100">🌙 월식 명단 관리</button>
+    </div>
+
+    <div class="p-4 border-b flex flex-col md:flex-row gap-4 bg-white items-center shrink-0">
+      <div class="relative w-full md:w-64 shrink-0">
+        <input type="text" id="search-input" class="w-full border-2 border-gray-200 p-2.5 pl-10 rounded-xl focus:border-blue-400 outline-none transition-all text-sm" placeholder="부서 또는 이름 검색">
+        <span class="absolute left-3 top-2.5 opacity-50">🔍</span>
       </div>
-      <div class="flex-1 flex gap-2 w-full">
-        <input type="text" id="new-org" class="flex-1 border p-2.5 rounded-xl text-sm" placeholder="부서">
-        <input type="text" id="new-name" class="flex-1 border p-2.5 rounded-xl text-sm" placeholder="이름">
-        <select id="new-type" class="border p-2.5 rounded-xl font-bold text-sm">
-          <option value="daily">일식</option>
-          <option value="monthly">월식</option>
-        </select>
-        <button id="btn-add-user" class="bg-green-600 text-white px-4 rounded-xl font-bold text-sm shrink-0">추가</button>
+
+      <div class="flex-1 w-full bg-blue-50/50 p-2 rounded-xl border border-blue-100 flex flex-wrap md:flex-nowrap gap-2 items-center">
+        <div class="text-xs font-bold text-blue-800 px-2 shrink-0" id="form-title">일식 등록</div>
+        <input type="text" id="new-org" class="flex-1 border p-2.5 rounded-lg text-sm" placeholder="부서명">
+        <input type="text" id="new-name" class="flex-1 border p-2.5 rounded-lg text-sm" placeholder="이름">
+        
+        <div id="daily-date-wrapper" class="relative flex-1 flex items-center bg-white border rounded-lg overflow-hidden">
+          <input type="text" id="daily-date-text" class="w-full p-2.5 text-sm outline-none" placeholder="날짜 (예: 0331)" maxlength="4">
+          <input type="date" id="daily-date-picker" class="absolute right-2 opacity-0 w-8 h-full cursor-pointer">
+          <span class="pointer-events-none mr-3 text-gray-400">📅</span>
+        </div>
+
+        <button id="btn-add-user" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg font-bold text-sm shrink-0 shadow-sm transition">명단 추가</button>
       </div>
     </div>
 
-    <div class="flex border-b bg-gray-50 shrink-0">
-      <button onclick="switchTab('daily')" id="tab-daily" class="flex-1 py-4 font-black text-blue-600 border-b-4 border-blue-600 bg-white">일식 명단 (Daily)</button>
-      <button onclick="switchTab('monthly')" id="tab-monthly" class="flex-1 py-4 font-bold text-gray-500 hover:bg-gray-100">월식 명단 (Monthly)</button>
-    </div>
-
-    <div class="px-6 py-3 bg-gray-50 border-b flex justify-between items-center shrink-0">
-      <div class="flex gap-4 items-center">
-        <input type="checkbox" id="check-all" class="w-5 h-5">
-        <span class="text-sm font-bold text-gray-600">전체 선택</span>
-      </div>
-      <div class="flex gap-2">
-        <button onclick="bulkExtend()" id="extend-label" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold shadow-md">선택 연장</button>
-        <button onclick="bulkDelete()" class="bg-red-500 text-white px-4 py-2 rounded-lg text-xs font-bold shadow-md">선택 삭제</button>
-      </div>
-    </div>
-
-    <div class="flex-1 overflow-y-auto">
-      <table class="w-full">
-        <thead class="bg-gray-100 sticky top-0 z-10">
-          <tr class="text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
-            <th class="p-4 w-12"></th>
-            <th class="p-4">소속 부서</th>
-            <th class="p-4">성함</th>
+    <div class="flex-1 overflow-y-auto bg-gray-50 relative">
+      <table class="w-full text-left">
+        <thead class="bg-white sticky top-0 z-10 text-xs font-bold text-gray-500 uppercase tracking-wider border-b">
+          <tr>
+            <th class="p-4 w-12 text-center"><input type="checkbox" id="check-all" class="w-4 h-4"></th>
+            <th class="p-4">소속 부서 / 성함</th>
+            <th class="p-4 text-center">시작 일</th>
             <th class="p-4 text-center">마감 기한</th>
-            <th class="p-4 text-right">관리</th>
+            <th class="p-4 text-right">기간 조절 / 삭제</th>
           </tr>
         </thead>
-        <tbody id="user-list-body" class="divide-y divide-gray-100"></tbody>
+        <tbody id="user-list-body" class="divide-y divide-gray-200"></tbody>
       </table>
+    </div>
+
+    <div class="p-4 bg-white border-t flex justify-between items-center shrink-0">
+      <button onclick="bulkDelete()" class="bg-red-50 hover:bg-red-100 text-red-500 px-4 py-2 rounded-xl font-bold text-sm border border-red-100 transition">🗑️ 선택 삭제</button>
+      <div class="flex gap-2">
+        <button onclick="bulkChange('shorten')" class="bg-orange-50 hover:bg-orange-100 text-orange-600 px-4 py-2 rounded-xl font-bold text-sm border border-orange-200 transition">➖ 선택 단축</button>
+        <button onclick="bulkChange('extend')" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-xl font-bold text-sm shadow-md transition">➕ 선택 연장</button>
+      </div>
     </div>
   </div>
 
   <script type="module">
     import { API_BASE_URL } from './JS/config.js';
-
+    
     let currentTab = 'daily';
     let allUsers = [];
 
+    // ==========================================
+    // 🔐 보안 인증 로직
+    // ==========================================
+    // 세션 스토리지를 확인해 이미 인증했으면 스킵
+    if(sessionStorage.getItem('adminAuthVerified') === 'true') {
+      document.getElementById('auth-overlay').classList.add('hidden');
+      document.getElementById('main-content').classList.remove('hidden');
+      loadUsers();
+    }
+
+    document.getElementById('btn-request-auth').onclick = async () => {
+      const email = document.getElementById('admin-email').value.trim();
+      if(!email) return alert('이메일을 입력하세요.');
+      const res = await fetch(`${API_BASE_URL}/admin/request-code`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ email })
+      });
+      if(res.ok) {
+        document.getElementById('btn-request-auth').classList.add('hidden');
+        document.getElementById('auth-input-group').classList.remove('hidden');
+        document.getElementById('admin-email').disabled = true;
+        alert('인증번호가 발송되었습니다.');
+      } else {
+        const data = await res.json();
+        alert(data.message);
+      }
+    };
+
+    document.getElementById('btn-verify-auth').onclick = async () => {
+      const email = document.getElementById('admin-email').value;
+      const code = document.getElementById('2fa-code').value;
+      const res = await fetch(`${API_BASE_URL}/admin/verify-code`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ email, code })
+      });
+      if(res.ok) {
+        sessionStorage.setItem('adminAuthVerified', 'true');
+        document.getElementById('auth-overlay').classList.add('hidden');
+        document.getElementById('main-content').classList.remove('hidden');
+        loadUsers();
+      } else {
+        alert('인증번호가 일치하지 않습니다.');
+      }
+    };
+
+    // ==========================================
+    // 📅 날짜 입력기 동기화 (0331 <-> 달력)
+    // ==========================================
+    const dateText = document.getElementById('daily-date-text');
+    const datePicker = document.getElementById('daily-date-picker');
+
+    // 달력 선택 시 텍스트 박스에 0331 형태로 삽입
+    datePicker.addEventListener('change', (e) => {
+      if(!e.target.value) return;
+      const [year, month, day] = e.target.value.split('-');
+      dateText.value = month + day;
+    });
+
+    // ==========================================
+    // 🍱 명단 관리 로직
+    // ==========================================
     async function loadUsers() {
       const res = await fetch(`${API_BASE_URL}/admin/allowed-users`);
       allUsers = await res.json();
@@ -76,107 +167,134 @@
     }
 
     function renderUsers() {
-      const searchTerm = document.getElementById('search-input').value.toLowerCase();
+      const search = document.getElementById('search-input').value.toLowerCase();
       const tbody = document.getElementById('user-list-body');
       
-      // 1. 탭 필터 + 검색 필터
-      let filtered = allUsers.filter(u => u.mealType === currentTab);
-      if (searchTerm) {
-        filtered = filtered.filter(u => u.orgRole.toLowerCase().includes(searchTerm) || u.name.toLowerCase().includes(searchTerm));
-      }
-
-      // 2. 정렬 (부서 -> 이름)
+      let filtered = allUsers.filter(u => u.mealType === currentTab && (u.name.toLowerCase().includes(search) || u.orgRole.toLowerCase().includes(search)));
       filtered.sort((a, b) => a.orgRole !== b.orgRole ? a.orgRole.localeCompare(b.orgRole, 'ko') : a.name.localeCompare(b.name, 'ko'));
 
-      tbody.innerHTML = filtered.map((u) => {
-        // 실제 인덱스를 찾기 위해 오리지널 배열에서의 인덱스 사용
-        const originalIdx = allUsers.findIndex(orig => orig.createdAt === u.createdAt);
-        const isExpired = new Date(u.endDate + "T23:59:59") < new Date();
-        
-        return `
-        <tr class="hover:bg-blue-50 transition-colors ${isExpired ? 'bg-red-50' : ''}">
-          <td class="p-4"><input type="checkbox" class="user-check w-5 h-5" data-index="${originalIdx}"></td>
-          <td class="p-4 text-sm text-gray-600">${u.orgRole}</td>
-          <td class="p-4 font-black text-gray-900">${u.name}</td>
-          <td class="p-4 text-center font-mono text-sm ${isExpired ? 'text-red-600 font-bold' : 'text-blue-600'}">
-            ${u.endDate} ${isExpired ? '⚠️' : '✅'}
-          </td>
-          <td class="p-4 text-right">
-            <button onclick="extendUser(${originalIdx})" class="text-xs font-bold bg-white border border-blue-500 text-blue-600 px-3 py-1.5 rounded-lg hover:bg-blue-500 hover:text-white transition-all">기간 연장</button>
-            <button onclick="deleteUser(${originalIdx})" class="ml-2 text-xs font-bold text-red-400 hover:text-red-600">삭제</button>
-          </td>
-        </tr>`;
-      }).join('');
+      const today = new Date().toISOString().split('T')[0];
 
-      // 버튼 문구 변경
-      document.getElementById('extend-label').textContent = currentTab === 'daily' ? '선택 1일 연장' : '선택 다음달 연장';
+      tbody.innerHTML = filtered.map(u => {
+        const originalIdx = allUsers.findIndex(o => o.createdAt === u.createdAt);
+        const isExpired = u.endDate < today;
+        return `
+          <tr class="hover:bg-blue-50/50 bg-white transition ${isExpired ? 'bg-red-50/30' : ''}">
+            <td class="p-4 text-center border-r"><input type="checkbox" class="user-check w-4 h-4 cursor-pointer" data-index="${originalIdx}"></td>
+            <td class="p-4 border-r">
+              <div class="text-xs text-gray-400 mb-0.5">${u.orgRole}</div>
+              <div class="font-bold text-gray-900">${u.name}</div>
+            </td>
+            <td class="p-4 text-center font-mono text-sm text-gray-500 border-r">${u.startDate}</td>
+            <td class="p-4 text-center font-mono text-sm border-r ${isExpired ? 'text-red-600 font-bold' : 'text-blue-600 font-bold'}">
+              ${u.endDate} ${isExpired ? '⚠️' : ''}
+            </td>
+            <td class="p-4 text-right">
+              <button onclick="changePeriod(${originalIdx}, 'shorten')" class="text-xs font-bold text-orange-500 bg-white border border-orange-200 px-3 py-1.5 rounded-lg hover:bg-orange-50 transition">단축</button>
+              <button onclick="changePeriod(${originalIdx}, 'extend')" class="text-xs font-bold text-blue-600 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-lg ml-1 hover:bg-blue-100 transition">연장</button>
+              <button onclick="deleteUser(${originalIdx})" class="text-xs font-bold text-gray-400 hover:text-red-500 ml-3 transition">삭제</button>
+            </td>
+          </tr>`;
+      }).join('');
     }
 
-    window.switchTab = (tab) => {
-      currentTab = tab;
-      document.getElementById('tab-daily').className = tab === 'daily' ? 'flex-1 py-4 font-black text-blue-600 border-b-4 border-blue-600 bg-white' : 'flex-1 py-4 font-bold text-gray-500 hover:bg-gray-100';
-      document.getElementById('tab-monthly').className = tab === 'monthly' ? 'flex-1 py-4 font-black text-indigo-600 border-b-4 border-indigo-600 bg-white' : 'flex-1 py-4 font-bold text-gray-500 hover:bg-gray-100';
-      renderUsers();
-    };
-
-    document.getElementById('search-input').oninput = renderUsers;
-
-    // 추가/연장/삭제 로직 (기존과 동일하되 인덱스 처리 주의)
+    // 명단 추가 버튼 클릭
     document.getElementById('btn-add-user').onclick = async () => {
       const orgRole = document.getElementById('new-org').value.trim();
       const name = document.getElementById('new-name').value.trim();
-      const mealType = document.getElementById('new-type').value;
-      if(!orgRole || !name) return alert('정보를 입력하세요.');
+      if(!orgRole || !name) return alert('부서와 이름을 입력하세요.');
+
+      let targetDate = null;
+      if (currentTab === 'daily') {
+        const dVal = dateText.value.trim();
+        if(dVal.length !== 4 || isNaN(dVal)) return alert("날짜를 0331과 같은 4자리 숫자로 입력하거나 달력을 선택하세요.");
+        const year = new Date().getFullYear();
+        targetDate = `${year}-${dVal.substring(0,2)}-${dVal.substring(2,4)}`;
+      }
+
       const res = await fetch(`${API_BASE_URL}/admin/allowed-users`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orgRole, name, mealType })
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ orgRole, name, mealType: currentTab, targetDate })
       });
-      if(res.ok) { loadUsers(); document.getElementById('new-name').value = ""; }
-    };
-
-    window.extendUser = async (idx) => {
-      await fetch(`${API_BASE_URL}/admin/allowed-users/extend`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ indexes: [idx], type: currentTab })
-      });
+      const data = await res.json();
+      if(!res.ok) return alert(data.message);
+      
+      document.getElementById('new-name').value = '';
+      if(currentTab === 'daily') dateText.value = '';
       loadUsers();
     };
 
-    window.bulkExtend = async () => {
+    // 개별 및 일괄 기간 업데이트
+    window.changePeriod = async (idx, action) => {
+      const res = await fetch(`${API_BASE_URL}/admin/allowed-users/update-period`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ indexes: [idx], action, type: currentTab })
+      });
+      if(!res.ok) alert((await res.json()).message);
+      loadUsers();
+    };
+
+    window.bulkChange = async (action) => {
       const indexes = Array.from(document.querySelectorAll('.user-check:checked')).map(cb => parseInt(cb.dataset.index));
-      if(indexes.length === 0) return alert('연장할 대상을 선택하세요.');
-      await fetch(`${API_BASE_URL}/admin/allowed-users/extend`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ indexes, type: currentTab })
+      if(indexes.length === 0) return alert('대상을 선택하세요.');
+      const res = await fetch(`${API_BASE_URL}/admin/allowed-users/update-period`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ indexes, action, type: currentTab })
       });
+      if(!res.ok) alert((await res.json()).message);
       loadUsers();
     };
 
+    // 개별 및 일괄 삭제
     window.deleteUser = async (idx) => {
-      if(!confirm('삭제하시겠습니까?')) return;
+      if(!confirm('정말 삭제하시겠습니까?')) return;
       await fetch(`${API_BASE_URL}/admin/allowed-users`, { 
-        method: 'DELETE', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ indexes: [idx] }) 
+        method: 'DELETE', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ indexes: [idx] }) 
       });
       loadUsers();
     };
 
     window.bulkDelete = async () => {
       const indexes = Array.from(document.querySelectorAll('.user-check:checked')).map(cb => parseInt(cb.dataset.index));
-      if(indexes.length === 0) return alert('삭제할 대상을 선택하세요.');
-      if(!confirm('일괄 삭제하시겠습니까?')) return;
+      if(indexes.length === 0) return alert('대상을 선택하세요.');
+      if(!confirm(`선택한 ${indexes.length}명의 명단을 삭제하시겠습니까?`)) return;
       await fetch(`${API_BASE_URL}/admin/allowed-users`, { 
-        method: 'DELETE', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ indexes }) 
+        method: 'DELETE', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ indexes }) 
       });
       loadUsers();
     };
 
+    // 전체 선택 체크박스
     document.getElementById('check-all').onchange = (e) => {
       document.querySelectorAll('.user-check').forEach(cb => cb.checked = e.target.checked);
     };
 
-    loadUsers();
+    // 탭 전환 로직 (폼 UI 동적 변경)
+    window.switchTab = (tab) => { 
+      currentTab = tab; 
+      
+      const tabDaily = document.getElementById('tab-daily');
+      const tabMonthly = document.getElementById('tab-monthly');
+      const dateWrapper = document.getElementById('daily-date-wrapper');
+      const formTitle = document.getElementById('form-title');
+      
+      if(tab === 'daily') {
+        tabDaily.className = 'flex-1 py-4 font-black text-blue-600 border-b-4 border-blue-600 bg-white';
+        tabMonthly.className = 'flex-1 py-4 font-bold text-gray-400 bg-gray-50 hover:bg-gray-100';
+        dateWrapper.classList.remove('hidden');
+        formTitle.textContent = '일식 등록';
+      } else {
+        tabMonthly.className = 'flex-1 py-4 font-black text-blue-600 border-b-4 border-blue-600 bg-white';
+        tabDaily.className = 'flex-1 py-4 font-bold text-gray-400 bg-gray-50 hover:bg-gray-100';
+        dateWrapper.classList.add('hidden');
+        formTitle.textContent = '월식 등록';
+      }
+      
+      document.getElementById('check-all').checked = false;
+      renderUsers(); 
+    };
+
+    document.getElementById('search-input').oninput = renderUsers;
   </script>
 </body>
 </html>

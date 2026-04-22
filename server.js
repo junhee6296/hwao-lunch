@@ -32,6 +32,11 @@ const loadFiles = () => {
   if (fs.existsSync(userListPath)) {
     try {
       allowedUsers = JSON.parse(fs.readFileSync(userListPath, 'utf-8'));
+      // 하위 호환성: 기존 명단에 startDate가 없으면 createdAt 또는 오늘로 설정
+      const today = getKSTDateStr();
+      allowedUsers.forEach(u => {
+        if (!u.startDate) u.startDate = u.createdAt ? u.createdAt.split('T')[0] : today;
+      });
     } catch (e) { allowedUsers = []; }
   }
 };
@@ -42,29 +47,23 @@ const saveUserList = () => fs.writeFileSync(userListPath, JSON.stringify(allowed
 loadFiles();
 
 // ==========================================
-// 📅 날짜 계산 유틸리티 (KST 기준 버그 수정)
+// 📅 날짜 계산 유틸리티 (KST 기준)
 // ==========================================
 const getKSTDateStr = (date = new Date()) => {
-  // 서버 환경에 상관없이 한국 시간(KST) 기준 YYYY-MM-DD 반환
   return new Intl.DateTimeFormat('ko-KR', {
     timeZone: 'Asia/Seoul',
     year: 'numeric', month: '2-digit', day: '2-digit'
   }).format(date).replace(/\. /g, '-').replace(/\./g, '');
 };
 
-const calculateEndDate = (type, baseDate = new Date()) => {
+const calculateMonthlyEndDate = (baseDate = new Date()) => {
   const d = new Date(baseDate);
-  if (type === 'daily') {
-    return getKSTDateStr(d);
-  } else if (type === 'monthly') {
-    // 해당 월의 마지막 날 계산 (다음 달의 0일)
-    const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-    return getKSTDateStr(lastDay);
-  }
+  const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+  return getKSTDateStr(lastDay);
 };
 
 // ==========================================
-// 📧 인증 및 보안 설정
+// 🔐 관리자 인증 및 2차 보안
 // ==========================================
 const adminEmails = process.env.ADMIN_EMAILS ? process.env.ADMIN_EMAILS.split(',').map(e => e.trim()) : [];
 let authCodes = {};
@@ -75,75 +74,113 @@ const transporter = nodemailer.createTransport({
 
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'qr.html')));
 
-// 관리자 로그인 API
 app.post('/api/admin/request-code', async (req, res) => {
   const { email } = req.body;
-  if (!adminEmails.includes(email)) return res.status(403).json({ message: '권한 없음' });
+  if (!adminEmails.includes(email)) return res.status(403).json({ message: '등록되지 않은 관리자 이메일입니다.' });
   const code = Math.floor(100000 + Math.random() * 900000).toString();
   authCodes[email] = { code, expires: Date.now() + 300000, attempts: 0 };
   try {
     await transporter.sendMail({
       from: process.env.EMAIL_USER, to: email,
-      subject: '[화성오산교육청] 관리자 인증번호', text: `인증번호: [${code}]`
+      subject: '[화성오산교육청] 시스템 보안 인증번호', text: `인증번호: [${code}]`
     });
-    res.json({ message: '발송 완료' });
+    res.json({ message: '인증 메일이 발송되었습니다.' });
   } catch (e) { res.status(500).json({ message: '메일 발송 실패' }); }
 });
 
 app.post('/api/admin/verify-code', (req, res) => {
   const { email, code } = req.body;
   const auth = authCodes[email];
-  if (!auth) return res.status(401).json({ message: '요청 없음', action: 'reset' });
+  if (!auth) return res.status(401).json({ message: '인증 요청 내역이 없습니다.', action: 'reset' });
   if (auth.code === code && auth.expires > Date.now()) {
-    delete authCodes[email]; res.json({ message: '성공' });
+    delete authCodes[email]; res.json({ message: '인증 성공' });
   } else {
     auth.attempts++;
-    if (auth.attempts >= 3) { delete authCodes[email]; res.status(401).json({ message: '만료', action: 'reset' }); }
-    else res.status(401).json({ message: `오류 (${auth.attempts}/3)` });
+    if (auth.attempts >= 3) { delete authCodes[email]; res.status(401).json({ message: '3회 오류로 만료', action: 'reset' }); }
+    else res.status(401).json({ message: `번호가 틀렸습니다. (${auth.attempts}/3)` });
   }
 });
 
 // ==========================================
-// 👥 명단 관리 API (일식/월식 지원)
+// 👥 명단 관리 (일식/월식 지원 및 등록)
 // ==========================================
 app.get('/api/admin/allowed-users', (req, res) => res.json(allowedUsers));
 
 app.post('/api/admin/allowed-users', (req, res) => {
-  const { orgRole, name, mealType } = req.body;
-  if (allowedUsers.some(u => u.name === name && u.orgRole === orgRole)) 
-    return res.status(409).json({ message: '중복 등록' });
+  const { orgRole, name, mealType, targetDate } = req.body;
+  
+  // 중복 검사 (이미 진행 중인 기간과 겹치는지 단순 방지)
+  if (allowedUsers.some(u => u.name === name && u.orgRole === orgRole && u.mealType === mealType && u.endDate >= getKSTDateStr())) {
+    return res.status(409).json({ message: '이미 유효한 명단에 등록된 사용자입니다.' });
+  }
+
+  let startDate, endDate;
+  if (mealType === 'daily') {
+    startDate = targetDate;
+    endDate = targetDate;
+  } else {
+    startDate = getKSTDateStr();
+    endDate = calculateMonthlyEndDate(new Date());
+  }
 
   allowedUsers.push({
-    orgRole, name, mealType,
-    endDate: calculateEndDate(mealType),
+    orgRole, name, mealType, startDate, endDate,
     createdAt: new Date().toISOString()
   });
   saveUserList();
   res.json({ message: '등록 성공' });
 });
 
-app.post('/api/admin/allowed-users/extend', (req, res) => {
-  const { indexes, type } = req.body;
-  const today = new Date();
-  
+// 🌟 기간 연장 및 단축 로직 (강력한 방어 코드 포함)
+app.post('/api/admin/allowed-users/update-period', (req, res) => {
+  const { indexes, action, type } = req.body; // action: 'extend' or 'shorten'
+  const todayStr = getKSTDateStr();
+  const thisMonthEnd = calculateMonthlyEndDate(new Date());
+  let errorMsg = null;
+
   indexes.forEach(idx => {
     const user = allowedUsers[idx];
     if (user) {
       const currentEnd = new Date(user.endDate + "T12:00:00");
-      const base = currentEnd < today ? today : currentEnd;
-
-      if (type === 'daily') {
-        base.setDate(base.getDate() + 1);
-        user.endDate = getKSTDateStr(base);
-      } else if (type === 'monthly') {
-        const nextMonthFirst = new Date(base.getFullYear(), base.getMonth() + 1, 1);
-        const nextMonthLast = new Date(nextMonthFirst.getFullYear(), nextMonthFirst.getMonth() + 1, 0);
-        user.endDate = getKSTDateStr(nextMonthLast);
+      
+      if (action === 'extend') {
+        const base = currentEnd < new Date() ? new Date() : currentEnd;
+        if (type === 'daily') {
+          base.setDate(base.getDate() + 1);
+          user.endDate = getKSTDateStr(base);
+        } else {
+          const nextMonthFirst = new Date(base.getFullYear(), base.getMonth() + 1, 1);
+          user.endDate = calculateMonthlyEndDate(nextMonthFirst);
+        }
+      } 
+      else if (action === 'shorten') {
+        if (type === 'daily') {
+          const shortenBase = new Date(currentEnd);
+          shortenBase.setDate(shortenBase.getDate() - 1);
+          const resultDate = getKSTDateStr(shortenBase);
+          
+          if (resultDate < todayStr) {
+            errorMsg = "단축 오류: 오늘 이전의 과거로 기간을 줄일 수 없습니다.";
+          } else {
+            user.endDate = resultDate;
+          }
+        } else {
+          // 월식 단축 제한: '이번 달 말일'보다 더 단축할 수 없음
+          if (user.endDate <= thisMonthEnd) {
+            errorMsg = "단축 오류: 월식은 이번 달까지만 단축할 수 있으며, 현재 적용 중인 이번 달 식사를 취소할 수 없습니다.";
+          } else {
+            const shortenBase = new Date(currentEnd);
+            shortenBase.setDate(0); // 이전 달의 마지막 날
+            user.endDate = getKSTDateStr(shortenBase);
+          }
+        }
       }
     }
   });
+
   saveUserList();
-  res.json({ message: '연장 완료' });
+  if (errorMsg) return res.status(400).json({ message: errorMsg });
+  res.json({ message: '기간 업데이트 완료' });
 });
 
 app.delete('/api/admin/allowed-users', (req, res) => {
@@ -154,15 +191,18 @@ app.delete('/api/admin/allowed-users', (req, res) => {
 });
 
 // ==========================================
-// 🍱 식사 기록 및 QR 로직
+// 🍱 식사 기록 및 QR 인증 로직
 // ==========================================
 app.post('/api/qr/generate', (req, res) => {
   const { eventId: date, orgRole, name } = req.body;
   const todayStr = getKSTDateStr();
 
   const user = allowedUsers.find(u => u.name === name && u.orgRole === orgRole);
-  if (!user) return res.status(403).json({ message: '미등록 사용자' });
-  if (user.endDate < todayStr) return res.status(403).json({ message: `기간 만료 (마감: ${user.endDate})` });
+  if (!user) return res.status(403).json({ message: '미등록 사용자입니다. 관리자에게 문의하세요.' });
+  
+  // 시작일 전이거나 마감일 후인 경우 차단
+  if (todayStr < user.startDate) return res.status(403).json({ message: `이용 시작일은 ${user.startDate} 부터입니다.` });
+  if (user.endDate < todayStr) return res.status(403).json({ message: `이용 기간이 만료되었습니다. (마감: ${user.endDate})` });
 
   if (!db.days[date]) db.days[date] = [];
   let diner = db.days[date].find(d => d.name === name && d.orgRole === orgRole);
@@ -172,7 +212,7 @@ app.post('/api/qr/generate', (req, res) => {
   if (!diner) {
     db.days[date].push({ orgRole, name, qrToken, tokenExpiresAt: expiresAt, attended: false, scannedAt: null });
   } else {
-    if (diner.attended) return res.status(409).json({ message: '오늘 이미 식사함' });
+    if (diner.attended) return res.status(409).json({ message: '오늘 이미 식사를 완료했습니다.' });
     diner.qrToken = qrToken; diner.tokenExpiresAt = expiresAt;
   }
   saveDB();
@@ -182,11 +222,11 @@ app.post('/api/qr/generate', (req, res) => {
 app.post('/api/qr/scan', (req, res) => {
   const { qrToken } = req.body;
   const today = getKSTDateStr();
-  if (!db.days[today]) return res.status(404).json({ message: '데이터 없음' });
+  if (!db.days[today]) return res.status(404).json({ message: '데이터가 없습니다.' });
   
   const diner = db.days[today].find(d => d.qrToken === qrToken);
-  if (!diner || diner.tokenExpiresAt < Date.now()) return res.status(410).json({ message: '만료된 QR' });
-  if (diner.attended) return res.status(409).json({ message: '이미 처리됨' });
+  if (!diner || diner.tokenExpiresAt < Date.now()) return res.status(410).json({ message: '유효하지 않거나 만료된 QR입니다.' });
+  if (diner.attended) return res.status(409).json({ message: '이미 처리된 QR입니다.' });
 
   diner.attended = true;
   diner.scannedAt = new Date().toISOString();
@@ -194,7 +234,6 @@ app.post('/api/qr/scan', (req, res) => {
   res.json({ message: 'success', name: diner.name, orgRole: diner.orgRole });
 });
 
-// 명단 조회 및 월별 통계
 app.get('/api/events/:date/attendees', (req, res) => res.json(db.days[req.params.date] || []));
 app.get('/api/events/month/:yearMonth', (req, res) => {
   const { yearMonth } = req.params;
@@ -205,4 +244,4 @@ app.get('/api/events/month/:yearMonth', (req, res) => {
   res.json(result);
 });
 
-app.listen(port, () => console.log(`🚀 Lunch Server Port: ${port}`));
+app.listen(port, () => console.log(`🚀 Lunch Server Running on Port: ${port}`));
