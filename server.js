@@ -14,13 +14,45 @@ app.use(express.json());
 app.use(express.static(__dirname));
 
 // ==========================================
-// 💾 데이터베이스 경로 및 초기화
+// 💾 데이터베이스 초기화 및 자동 삭제 로직
 // ==========================================
 const dbPath = path.join(__dirname, 'data.json');
 const userListPath = path.join(__dirname, 'allowed_users.json');
 
 let db = { days: {} };
 let allowedUsers = [];
+
+const getKSTDateStr = (date = new Date()) => {
+  return new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date).replace(/\. /g, '-').replace(/\./g, '');
+};
+
+const calculateMonthlyEndDate = (baseDate = new Date()) => {
+  const d = new Date(baseDate);
+  return getKSTDateStr(new Date(d.getFullYear(), d.getMonth() + 1, 0));
+};
+
+const saveDB = () => fs.writeFileSync(dbPath, JSON.stringify(db, null, 2), 'utf-8');
+const saveUserList = () => fs.writeFileSync(userListPath, JSON.stringify(allowedUsers, null, 2), 'utf-8');
+
+// 🌟 [핵심] 마감일 + 5일 경과 유저 자동 삭제 로직
+const cleanupExpiredUsers = () => {
+  const todayStr = getKSTDateStr();
+  let changed = false;
+  
+  allowedUsers = allowedUsers.filter(u => {
+    const endDate = new Date(u.endDate + "T12:00:00");
+    const deleteDate = new Date(endDate);
+    deleteDate.setDate(deleteDate.getDate() + 5); // 마감일 + 5일
+    const deleteDateStr = getKSTDateStr(deleteDate);
+    
+    if (todayStr >= deleteDateStr) {
+      changed = true;
+      return false; // 배열에서 제거 (삭제)
+    }
+    return true; // 유지
+  });
+  if (changed) saveUserList();
+};
 
 const loadFiles = () => {
   if (fs.existsSync(dbPath)) {
@@ -33,30 +65,15 @@ const loadFiles = () => {
       allowedUsers.forEach(u => { if (!u.startDate) u.startDate = u.createdAt ? u.createdAt.split('T')[0] : today; });
     } catch (e) { allowedUsers = []; }
   }
+  cleanupExpiredUsers(); // 서버 시작 시 자동 청소
 };
-
-const saveDB = () => fs.writeFileSync(dbPath, JSON.stringify(db, null, 2), 'utf-8');
-const saveUserList = () => fs.writeFileSync(userListPath, JSON.stringify(allowedUsers, null, 2), 'utf-8');
 
 loadFiles();
 
 // ==========================================
-// 📅 날짜 계산 유틸리티 (KST 기준)
+// 🔐 권한 분리 인증 로직 (.env 연동)
 // ==========================================
-const getKSTDateStr = (date = new Date()) => {
-  return new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date).replace(/\. /g, '-').replace(/\./g, '');
-};
-
-const calculateMonthlyEndDate = (baseDate = new Date()) => {
-  const d = new Date(baseDate);
-  const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-  return getKSTDateStr(lastDay);
-};
-
-// ==========================================
-// 🔐 최고 관리자 인증 (.env 환경변수 분리)
-// ==========================================
-// 🌟 ADMIN_EMAILS -> SUPER_ADMIN_EMAILS 로 변경됨
+const adminEmails = process.env.ADMIN_EMAILS ? process.env.ADMIN_EMAILS.split(',').map(e => e.trim()) : [];
 const superAdminEmails = process.env.SUPER_ADMIN_EMAILS ? process.env.SUPER_ADMIN_EMAILS.split(',').map(e => e.trim()) : [];
 let authCodes = {};
 
@@ -65,23 +82,22 @@ const transporter = nodemailer.createTransport({
   auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
 });
 
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'qr.html')));
-
-app.post('/api/admin/request-code', async (req, res) => {
+// 공통 인증번호 발송/검증 로직
+const handleAuthRequest = async (req, res, allowedList, roleName) => {
   const { email } = req.body;
-  if (!superAdminEmails.includes(email)) return res.status(403).json({ message: '등록된 최고 관리자 이메일이 아닙니다.' });
+  if (!allowedList.includes(email)) return res.status(403).json({ message: `등록된 ${roleName} 이메일이 아닙니다.` });
   const code = Math.floor(100000 + Math.random() * 900000).toString();
   authCodes[email] = { code, expires: Date.now() + 300000, attempts: 0 };
   try {
     await transporter.sendMail({
       from: process.env.EMAIL_USER, to: email,
-      subject: '[화성오산교육청] 시스템 보안 인증번호', text: `인증번호: [${code}]`
+      subject: `[화성오산교육청] ${roleName} 보안 인증번호`, text: `인증번호: [${code}]`
     });
     res.json({ message: '인증 메일이 발송되었습니다.' });
   } catch (e) { res.status(500).json({ message: '메일 발송 실패' }); }
-});
+};
 
-app.post('/api/admin/verify-code', (req, res) => {
+const handleAuthVerify = (req, res) => {
   const { email, code } = req.body;
   const auth = authCodes[email];
   if (!auth) return res.status(401).json({ message: '인증 요청 내역이 없습니다.', action: 'reset' });
@@ -92,12 +108,24 @@ app.post('/api/admin/verify-code', (req, res) => {
     if (auth.attempts >= 3) { delete authCodes[email]; res.status(401).json({ message: '3회 오류로 만료', action: 'reset' }); }
     else res.status(401).json({ message: `번호가 틀렸습니다. (${auth.attempts}/3)` });
   }
-});
+};
+
+// 1. 일반 스캐너 관리자 (ADMIN_EMAILS)
+app.post('/api/admin/request-code', (req, res) => handleAuthRequest(req, res, adminEmails, '스캐너 관리자'));
+app.post('/api/admin/verify-code', handleAuthVerify);
+
+// 2. 최고 명단 관리자 (SUPER_ADMIN_EMAILS)
+app.post('/api/superadmin/request-code', (req, res) => handleAuthRequest(req, res, superAdminEmails, '최고 관리자'));
+app.post('/api/superadmin/verify-code', handleAuthVerify);
+
 
 // ==========================================
-// 👥 명단 관리 (일식/월식)
+// 👥 명단 관리 API
 // ==========================================
-app.get('/api/admin/allowed-users', (req, res) => res.json(allowedUsers));
+app.get('/api/admin/allowed-users', (req, res) => {
+  cleanupExpiredUsers(); // 명단 조회 시에도 만료 유저 정리
+  res.json(allowedUsers);
+});
 
 app.post('/api/admin/allowed-users', (req, res) => {
   const { orgRole, name, mealType, targetDate } = req.body;
@@ -124,7 +152,6 @@ app.post('/api/admin/allowed-users/update-period', (req, res) => {
     const user = allowedUsers[idx];
     if (user) {
       const currentEnd = new Date(user.endDate + "T12:00:00");
-      
       if (action === 'extend') {
         const base = currentEnd < new Date() ? new Date() : currentEnd;
         if (type === 'daily') {
@@ -133,25 +160,17 @@ app.post('/api/admin/allowed-users/update-period', (req, res) => {
           const nextMonthFirst = new Date(base.getFullYear(), base.getMonth() + 1, 1);
           user.endDate = calculateMonthlyEndDate(nextMonthFirst);
         }
-      } 
-      else if (action === 'shorten') {
+      } else if (action === 'shorten') {
         if (type === 'daily') {
           const shortenBase = new Date(currentEnd);
           shortenBase.setDate(shortenBase.getDate() - 1);
           const resultDate = getKSTDateStr(shortenBase);
-          
-          // 🌟 방어 로직: "등록된 시작일"과 "오늘" 중 더 늦은 날짜를 최소 단축 기준일로 설정
           const minAllowedDate = user.startDate > todayStr ? user.startDate : todayStr;
-          
-          if (resultDate < minAllowedDate) {
-            errorMsg = `단축 오류: 시작일(${user.startDate}) 또는 오늘 이전으로 단축할 수 없습니다.`;
-          } else {
-            user.endDate = resultDate;
-          }
+          if (resultDate < minAllowedDate) errorMsg = `단축 오류: 시작일(${user.startDate}) 또는 오늘 이전으로 단축할 수 없습니다.`;
+          else user.endDate = resultDate;
         } else {
-          if (user.endDate <= thisMonthEnd) {
-            errorMsg = "단축 오류: 월식은 이번 달까지만 단축할 수 있습니다.";
-          } else {
+          if (user.endDate <= thisMonthEnd) errorMsg = "단축 오류: 월식은 이번 달까지만 단축할 수 있습니다.";
+          else {
             const shortenBase = new Date(currentEnd);
             shortenBase.setDate(0); 
             user.endDate = getKSTDateStr(shortenBase);
@@ -172,14 +191,14 @@ app.delete('/api/admin/allowed-users', (req, res) => {
 });
 
 // ==========================================
-// 🍱 식사 기록 및 QR 인증 로직
+// 🍱 식사 기록 및 QR 인증 로직 (기존과 동일)
 // ==========================================
 app.post('/api/qr/generate', (req, res) => {
   const { eventId: date, orgRole, name } = req.body;
   const todayStr = getKSTDateStr();
 
   const user = allowedUsers.find(u => u.name === name && u.orgRole === orgRole);
-  if (!user) return res.status(403).json({ message: '미등록 사용자입니다. 관리자에게 문의하세요.' });
+  if (!user) return res.status(403).json({ message: '미등록 사용자입니다.' });
   if (todayStr < user.startDate) return res.status(403).json({ message: `이용 시작일은 ${user.startDate} 부터입니다.` });
   if (user.endDate < todayStr) return res.status(403).json({ message: `이용 기간이 만료되었습니다. (마감: ${user.endDate})` });
 

@@ -5,12 +5,7 @@
   <title>명단 관리 : 화성오산교육청</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    /* 달력 아이콘 꾸미기 */
-    input[type="date"]::-webkit-calendar-picker-indicator {
-      cursor: pointer;
-      opacity: 0.6;
-      transition: 0.2s;
-    }
+    input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; opacity: 0.6; transition: 0.2s; }
     input[type="date"]::-webkit-calendar-picker-indicator:hover { opacity: 1; }
   </style>
 </head>
@@ -18,13 +13,13 @@
   
   <div id="auth-overlay" class="fixed inset-0 bg-gray-900 z-[100] flex items-center justify-center p-4">
     <div class="bg-white p-8 rounded-3xl shadow-2xl max-w-sm w-full text-center">
-      <div class="text-4xl mb-4">🛡️</div>
-      <h2 class="text-xl font-black mb-2">명단 관리 보안 인증</h2>
-      <p class="text-gray-500 text-sm mb-6">최고 관리자 권한 확인을 위해<br>이메일 인증을 진행해 주세요.</p>
+      <div class="text-4xl mb-4">👑</div>
+      <h2 class="text-xl font-black mb-2">최고 관리자 인증</h2>
+      <p class="text-gray-500 text-sm mb-6">명단 데이터 관리를 위해<br>최고 권한 이메일 인증이 필요합니다.</p>
       
       <div class="mb-4 text-left">
-        <label class="block text-xs font-bold text-gray-500 mb-1">관리자 이메일</label>
-        <input type="email" id="admin-email" class="w-full border p-3 rounded-xl outline-none focus:border-blue-500" placeholder="admin@email.com">
+        <label class="block text-xs font-bold text-gray-500 mb-1">최고 관리자 이메일</label>
+        <input type="email" id="admin-email" class="w-full border p-3 rounded-xl outline-none focus:border-blue-500" placeholder="superadmin@email.com">
       </div>
 
       <button id="btn-request-auth" class="w-full py-3 bg-blue-600 hover:bg-blue-700 transition text-white rounded-xl font-bold mb-3">인증번호 발송</button>
@@ -37,7 +32,7 @@
     </div>
   </div>
 
-  <div id="main-content" class="max-w-6xl mx-auto bg-white rounded-3xl shadow-xl overflow-hidden flex flex-col h-[90vh] hidden">
+  <div id="main-content" class="max-w-7xl mx-auto bg-white rounded-3xl shadow-xl overflow-hidden flex flex-col h-[90vh] hidden">
     <header class="p-6 border-b bg-gray-50 flex justify-between items-center shrink-0">
       <h1 class="text-2xl font-black text-gray-800">👥 명단 및 기간 통합 관리</h1>
       <a href="/admin.html" class="text-sm font-bold text-gray-500 bg-white border px-4 py-2 rounded-xl shadow-sm hover:bg-gray-100">⬅️ 스캐너로 이동</a>
@@ -58,25 +53,24 @@
         <div class="text-xs font-bold text-blue-800 px-2 shrink-0" id="form-title">일식 등록</div>
         <input type="text" id="new-org" class="flex-1 border p-2.5 rounded-lg text-sm" placeholder="부서명">
         <input type="text" id="new-name" class="flex-1 border p-2.5 rounded-lg text-sm" placeholder="이름">
-        
         <div id="daily-date-wrapper" class="relative flex-1 flex items-center bg-white border rounded-lg overflow-hidden">
           <input type="text" id="daily-date-text" class="w-full p-2.5 text-sm outline-none" placeholder="날짜 (예: 0331)" maxlength="4">
           <input type="date" id="daily-date-picker" class="absolute right-2 opacity-0 w-8 h-full cursor-pointer">
           <span class="pointer-events-none mr-3 text-gray-400">📅</span>
         </div>
-
         <button id="btn-add-user" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg font-bold text-sm shrink-0 shadow-sm transition">명단 추가</button>
       </div>
     </div>
 
     <div class="flex-1 overflow-y-auto bg-gray-50 relative">
-      <table class="w-full text-left">
+      <table class="w-full text-left whitespace-nowrap">
         <thead class="bg-white sticky top-0 z-10 text-xs font-bold text-gray-500 uppercase tracking-wider border-b">
           <tr>
             <th class="p-4 w-12 text-center"><input type="checkbox" id="check-all" class="w-4 h-4"></th>
             <th class="p-4">소속 부서 / 성함</th>
             <th class="p-4 text-center">시작 일</th>
             <th class="p-4 text-center">마감 기한</th>
+            <th class="p-4 text-center bg-red-50 text-red-600">삭제 예정일 (남은 시간)</th>
             <th class="p-4 text-right">기간 조절 / 삭제</th>
           </tr>
         </thead>
@@ -99,11 +93,7 @@
     let currentTab = 'daily';
     let allUsers = [];
 
-    // ==========================================
-    // 🔐 보안 인증 로직
-    // ==========================================
-    // 세션 스토리지를 확인해 이미 인증했으면 스킵
-    if(sessionStorage.getItem('adminAuthVerified') === 'true') {
+    if(sessionStorage.getItem('superAdminAuthVerified') === 'true') {
       document.getElementById('auth-overlay').classList.add('hidden');
       document.getElementById('main-content').classList.remove('hidden');
       loadUsers();
@@ -112,54 +102,41 @@
     document.getElementById('btn-request-auth').onclick = async () => {
       const email = document.getElementById('admin-email').value.trim();
       if(!email) return alert('이메일을 입력하세요.');
-      const res = await fetch(`${API_BASE_URL}/admin/request-code`, {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ email })
+      // 🌟 최고 관리자 API 호출
+      const res = await fetch(`${API_BASE_URL}/superadmin/request-code`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ email })
       });
       if(res.ok) {
         document.getElementById('btn-request-auth').classList.add('hidden');
         document.getElementById('auth-input-group').classList.remove('hidden');
         document.getElementById('admin-email').disabled = true;
         alert('인증번호가 발송되었습니다.');
-      } else {
-        const data = await res.json();
-        alert(data.message);
-      }
+      } else alert((await res.json()).message);
     };
 
     document.getElementById('btn-verify-auth').onclick = async () => {
       const email = document.getElementById('admin-email').value;
       const code = document.getElementById('2fa-code').value;
-      const res = await fetch(`${API_BASE_URL}/admin/verify-code`, {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ email, code })
+      // 🌟 최고 관리자 API 호출
+      const res = await fetch(`${API_BASE_URL}/superadmin/verify-code`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ email, code })
       });
       if(res.ok) {
-        sessionStorage.setItem('adminAuthVerified', 'true');
+        sessionStorage.setItem('superAdminAuthVerified', 'true');
         document.getElementById('auth-overlay').classList.add('hidden');
         document.getElementById('main-content').classList.remove('hidden');
         loadUsers();
-      } else {
-        alert('인증번호가 일치하지 않습니다.');
-      }
+      } else alert('인증번호가 일치하지 않습니다.');
     };
 
-    // ==========================================
-    // 📅 날짜 입력기 동기화 (0331 <-> 달력)
-    // ==========================================
     const dateText = document.getElementById('daily-date-text');
     const datePicker = document.getElementById('daily-date-picker');
-
-    // 달력 선택 시 텍스트 박스에 0331 형태로 삽입
     datePicker.addEventListener('change', (e) => {
       if(!e.target.value) return;
       const [year, month, day] = e.target.value.split('-');
       dateText.value = month + day;
     });
 
-    // ==========================================
-    // 🍱 명단 관리 로직
-    // ==========================================
     async function loadUsers() {
       const res = await fetch(`${API_BASE_URL}/admin/allowed-users`);
       allUsers = await res.json();
@@ -173,11 +150,28 @@
       let filtered = allUsers.filter(u => u.mealType === currentTab && (u.name.toLowerCase().includes(search) || u.orgRole.toLowerCase().includes(search)));
       filtered.sort((a, b) => a.orgRole !== b.orgRole ? a.orgRole.localeCompare(b.orgRole, 'ko') : a.name.localeCompare(b.name, 'ko'));
 
-      const today = new Date().toISOString().split('T')[0];
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      const todayStr = new Date().toISOString().split('T')[0];
 
       tbody.innerHTML = filtered.map(u => {
         const originalIdx = allUsers.findIndex(o => o.createdAt === u.createdAt);
-        const isExpired = u.endDate < today;
+        const isExpired = u.endDate < todayStr;
+        
+        // 삭제 예정일(마감일 + 5일) 및 남은 시간 계산
+        const endDateObj = new Date(u.endDate + "T12:00:00");
+        const deleteDateObj = new Date(endDateObj);
+        deleteDateObj.setDate(deleteDateObj.getDate() + 5);
+        deleteDateObj.setHours(0,0,0,0);
+        
+        const deleteDateStr = `${deleteDateObj.getFullYear()}-${String(deleteDateObj.getMonth()+1).padStart(2,'0')}-${String(deleteDateObj.getDate()).padStart(2,'0')}`;
+        const diffTime = Math.round((deleteDateObj - today) / (1000 * 60 * 60 * 24));
+        
+        let dDayBadge = '';
+        if (diffTime > 0 && diffTime <= 5) dDayBadge = `<span class="text-red-500 font-bold ml-1">(D-${diffTime})</span>`;
+        else if (diffTime === 0) dDayBadge = `<span class="text-red-600 font-black ml-1 text-xs bg-red-100 px-1 rounded">(오늘 삭제)</span>`;
+        else dDayBadge = `<span class="text-gray-400 font-bold ml-1">(여유)</span>`;
+
         return `
           <tr class="hover:bg-blue-50/50 bg-white transition ${isExpired ? 'bg-red-50/30' : ''}">
             <td class="p-4 text-center border-r"><input type="checkbox" class="user-check w-4 h-4 cursor-pointer" data-index="${originalIdx}"></td>
@@ -189,6 +183,9 @@
             <td class="p-4 text-center font-mono text-sm border-r ${isExpired ? 'text-red-600 font-bold' : 'text-blue-600 font-bold'}">
               ${u.endDate} ${isExpired ? '⚠️' : ''}
             </td>
+            <td class="p-4 text-center font-mono text-sm border-r bg-red-50/20 text-gray-600">
+              ${deleteDateStr} ${dDayBadge}
+            </td>
             <td class="p-4 text-right">
               <button onclick="changePeriod(${originalIdx}, 'shorten')" class="text-xs font-bold text-orange-500 bg-white border border-orange-200 px-3 py-1.5 rounded-lg hover:bg-orange-50 transition">단축</button>
               <button onclick="changePeriod(${originalIdx}, 'extend')" class="text-xs font-bold text-blue-600 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-lg ml-1 hover:bg-blue-100 transition">연장</button>
@@ -198,12 +195,10 @@
       }).join('');
     }
 
-    // 명단 추가 버튼 클릭
     document.getElementById('btn-add-user').onclick = async () => {
       const orgRole = document.getElementById('new-org').value.trim();
       const name = document.getElementById('new-name').value.trim();
       if(!orgRole || !name) return alert('부서와 이름을 입력하세요.');
-
       let targetDate = null;
       if (currentTab === 'daily') {
         const dVal = dateText.value.trim();
@@ -211,24 +206,19 @@
         const year = new Date().getFullYear();
         targetDate = `${year}-${dVal.substring(0,2)}-${dVal.substring(2,4)}`;
       }
-
       const res = await fetch(`${API_BASE_URL}/admin/allowed-users`, {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ orgRole, name, mealType: currentTab, targetDate })
       });
-      const data = await res.json();
-      if(!res.ok) return alert(data.message);
-      
+      if(!res.ok) return alert((await res.json()).message);
       document.getElementById('new-name').value = '';
       if(currentTab === 'daily') dateText.value = '';
       loadUsers();
     };
 
-    // 개별 및 일괄 기간 업데이트
     window.changePeriod = async (idx, action) => {
       const res = await fetch(`${API_BASE_URL}/admin/allowed-users/update-period`, {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ indexes: [idx], action, type: currentTab })
+        method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ indexes: [idx], action, type: currentTab })
       });
       if(!res.ok) alert((await res.json()).message);
       loadUsers();
@@ -238,19 +228,15 @@
       const indexes = Array.from(document.querySelectorAll('.user-check:checked')).map(cb => parseInt(cb.dataset.index));
       if(indexes.length === 0) return alert('대상을 선택하세요.');
       const res = await fetch(`${API_BASE_URL}/admin/allowed-users/update-period`, {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ indexes, action, type: currentTab })
+        method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ indexes, action, type: currentTab })
       });
       if(!res.ok) alert((await res.json()).message);
       loadUsers();
     };
 
-    // 개별 및 일괄 삭제
     window.deleteUser = async (idx) => {
       if(!confirm('정말 삭제하시겠습니까?')) return;
-      await fetch(`${API_BASE_URL}/admin/allowed-users`, { 
-        method: 'DELETE', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ indexes: [idx] }) 
-      });
+      await fetch(`${API_BASE_URL}/admin/allowed-users`, { method: 'DELETE', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ indexes: [idx] }) });
       loadUsers();
     };
 
@@ -258,21 +244,16 @@
       const indexes = Array.from(document.querySelectorAll('.user-check:checked')).map(cb => parseInt(cb.dataset.index));
       if(indexes.length === 0) return alert('대상을 선택하세요.');
       if(!confirm(`선택한 ${indexes.length}명의 명단을 삭제하시겠습니까?`)) return;
-      await fetch(`${API_BASE_URL}/admin/allowed-users`, { 
-        method: 'DELETE', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ indexes }) 
-      });
+      await fetch(`${API_BASE_URL}/admin/allowed-users`, { method: 'DELETE', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ indexes }) });
       loadUsers();
     };
 
-    // 전체 선택 체크박스
     document.getElementById('check-all').onchange = (e) => {
       document.querySelectorAll('.user-check').forEach(cb => cb.checked = e.target.checked);
     };
 
-    // 탭 전환 로직 (폼 UI 동적 변경)
     window.switchTab = (tab) => { 
       currentTab = tab; 
-      
       const tabDaily = document.getElementById('tab-daily');
       const tabMonthly = document.getElementById('tab-monthly');
       const dateWrapper = document.getElementById('daily-date-wrapper');
@@ -281,15 +262,12 @@
       if(tab === 'daily') {
         tabDaily.className = 'flex-1 py-4 font-black text-blue-600 border-b-4 border-blue-600 bg-white';
         tabMonthly.className = 'flex-1 py-4 font-bold text-gray-400 bg-gray-50 hover:bg-gray-100';
-        dateWrapper.classList.remove('hidden');
-        formTitle.textContent = '일식 등록';
+        dateWrapper.classList.remove('hidden'); formTitle.textContent = '일식 등록';
       } else {
         tabMonthly.className = 'flex-1 py-4 font-black text-blue-600 border-b-4 border-blue-600 bg-white';
         tabDaily.className = 'flex-1 py-4 font-bold text-gray-400 bg-gray-50 hover:bg-gray-100';
-        dateWrapper.classList.add('hidden');
-        formTitle.textContent = '월식 등록';
+        dateWrapper.classList.add('hidden'); formTitle.textContent = '월식 등록';
       }
-      
       document.getElementById('check-all').checked = false;
       renderUsers(); 
     };
