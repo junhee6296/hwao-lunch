@@ -115,28 +115,47 @@
   <script type="module" src="JS/admin_app.js"></script>
 
   <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      const flipBtn = document. document.getElementById('custom-flip-btn');
-      let isFlipped = false;
+document.addEventListener('DOMContentLoaded', () => {
+  const flipBtn = document.getElementById('custom-flip-btn');
+  let isFlipped = false;
 
-      flipBtn.addEventListener('click', () => {
-        // html5-qrcode가 생성한 video 태그 찾기
-        const videoElement = document.querySelector('#reader video');
-        if (!videoElement) {
-          return alert('카메라가 아직 켜지지 않았거나 권한이 없습니다.');
-        }
-        
-        isFlipped = !isFlipped;
-        // 핵심 보정 기법: CSS transform으로 시각적 거울 모드 구현
-        // (Canvas는 원본을 캡처하므로 QR 인식 엔진은 반전되지 않은 원본 데이터를 읽게 됨 = 인식 오류 완벽 해결)
+  flipBtn.addEventListener('click', async () => {
+    // 1. 현재 실행 중인 스캐너가 있다면 중지
+    if (window.html5QrCode && window.html5QrCode.isScanning) {
+      try {
+        await window.html5QrCode.stop();
+      } catch (err) {
+        console.error("스캐너 중지 실패:", err);
+      }
+    }
+
+    // 2. 방향 전환 (user: 전면, environment: 후면)
+    isFlipped = !isFlipped;
+    const newFacingMode = isFlipped ? "user" : "environment";
+
+    // 3. 새로운 설정으로 스캐너 다시 시작 (기존 스캔 함수 호출)
+    // admin_app.js에 정의된 시작 함수명에 따라 다를 수 있으나, 
+    // 보통 startScanner(newFacingMode) 형태로 구현합니다.
+    if (typeof startScanner === 'function') {
+      startScanner(newFacingMode);
+    } else {
+      // 만약 함수화가 안 되어 있다면 페이지 새로고침으로 대응하거나 
+      // 직접 라이브러리 렌더링 코드를 넣어야 합니다.
+      location.reload(); 
+    }
+
+    // 4. 시각적 거울 모드 적용 (전면일 때만 좌우 반전)
+    setTimeout(() => {
+      const videoElement = document.querySelector('#reader video');
+      if (videoElement) {
         videoElement.style.transform = isFlipped ? 'scaleX(-1)' : 'scaleX(1)';
-        
-        // 버튼 색상 피드백
-        flipBtn.className = isFlipped 
-          ? "absolute top-4 left-4 z-[60] bg-blue-600 text-white px-3 py-2 rounded-xl shadow-md text-sm font-bold flex items-center gap-1 active:scale-95 transition-transform"
-          : "absolute top-4 left-4 z-[60] bg-white/90 text-gray-800 px-3 py-2 rounded-xl shadow-md text-sm font-bold flex items-center gap-1 backdrop-blur active:scale-95 transition-transform hover:bg-gray-100";
-      });
-    });
+      }
+    }, 500); // 카메라가 켜지는 시간을 고려한 딜레이
+
+    // 버튼 UI 업데이트
+    flipBtn.innerHTML = isFlipped ? "🔄 후면으로 전환" : "🔄 전면으로 전환";
+  });
+});
   </script>
 
 </body>
