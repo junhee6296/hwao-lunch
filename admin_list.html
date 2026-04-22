@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>식사자 명단 관리 : 화성오산교육청</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="CSS/style.css">
+</head>
+<body class="bg-gray-100 p-6">
+  <div class="max-w-2xl mx-auto bg-white rounded-3xl shadow-xl overflow-hidden">
+    <header class="p-6 border-b bg-gray-50 flex justify-between items-center">
+      <h1 class="text-2xl font-black text-gray-800">👥 이용자 명단 관리</h1>
+      <a href="/admin.html" class="text-gray-500 hover:text-gray-800 font-bold text-sm">⬅️ 돌아가기</a>
+    </header>
+
+    <div class="p-6 border-b bg-white">
+      <div class="flex gap-2">
+        <input type="text" id="new-org" class="flex-1 border p-3 rounded-xl" placeholder="부서명">
+        <input type="text" id="new-name" class="flex-1 border p-3 rounded-xl" placeholder="이름">
+        <button id="btn-add-user" class="bg-green-600 text-white px-6 rounded-xl font-bold">추가</button>
+      </div>
+    </div>
+
+    <div class="p-6 h-[500px] overflow-y-auto">
+      <table class="w-full">
+        <thead>
+          <tr class="text-left text-gray-500 border-b">
+            <th class="pb-3">부서</th>
+            <th class="pb-3">이름</th>
+            <th class="pb-3 text-right">관리</th>
+          </tr>
+        </thead>
+        <tbody id="user-list-body">
+          </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script type="module">
+    import { API_BASE_URL } from './JS/config.js';
+
+    async function loadUsers() {
+      const res = await fetch(`${API_BASE_URL}/admin/allowed-users`);
+      const users = await res.json();
+      const tbody = document.getElementById('user-list-body');
+      tbody.innerHTML = users.map((u, idx) => `
+        <tr class="border-b">
+          <td class="py-4">${u.orgRole}</td>
+          <td class="py-4 font-bold">${u.name}</td>
+          <td class="py-4 text-right">
+            <button onclick="deleteUser(${idx})" class="text-red-500 font-bold">삭제</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    document.getElementById('btn-add-user').onclick = async () => {
+      const orgRole = document.getElementById('new-org').value.trim();
+      const name = document.getElementById('new-name').value.trim();
+      if(!orgRole || !name) return alert('정보를 입력하세요.');
+
+      const res = await fetch(`${API_BASE_URL}/admin/allowed-users`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orgRole, name })
+      });
+      if(res.ok) {
+        document.getElementById('new-org').value = '';
+        document.getElementById('new-name').value = '';
+        loadUsers();
+      }
+    };
+
+    window.deleteUser = async (index) => {
+      if(!confirm('정말 삭제하시겠습니까?')) return;
+      await fetch(`${API_BASE_URL}/admin/allowed-users/${index}`, { method: 'DELETE' });
+      loadUsers();
+    };
+
+    loadUsers();
+  </script>
+</body>
+</html>
