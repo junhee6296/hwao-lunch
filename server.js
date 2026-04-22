@@ -238,4 +238,11 @@ app.get('/api/events/month/:yearMonth', (req, res) => {
   res.json(result);
 });
 
+/* =======================================
+기본 접속 html
+=========================================*/
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'qr.html'));
+});
+
 app.listen(port, () => console.log(`🚀 Lunch Server Running on Port: ${port}`));
