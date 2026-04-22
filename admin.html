@@ -68,10 +68,6 @@
         
         <div class="bg-black rounded-3xl shadow-lg border border-gray-200 flex-1 relative overflow-hidden flex items-center justify-center">
           
-          <button id="custom-flip-btn" class="absolute top-4 left-4 z-[60] bg-white/90 text-gray-800 px-3 py-2 rounded-xl shadow-md text-sm font-bold flex items-center gap-1 backdrop-blur active:scale-95 transition-transform hover:bg-gray-100">
-            🔄 전면/후면 전환
-          </button>
-          
           <div id="reader" class="w-full h-full"></div>
           
           <div id="scan-result-panel" class="absolute bottom-6 left-1/2 -translate-x-1/2 w-11/12 max-w-md p-4 text-center rounded-2xl bg-white/95 backdrop-blur shadow-2xl z-50 transition-all border-4 border-transparent">
@@ -112,40 +108,45 @@
     </main>
   </div>
 
-  <script type="module" src="JS/admin_app.js"></script>
+  <main class="flex-1 flex flex-col lg:flex-row gap-4 lg:gap-6 p-4 lg:p-6 overflow-hidden">
+    <section class="flex-1 flex flex-col gap-4">
+      <div class="bg-black rounded-3xl shadow-lg border relative overflow-hidden flex-1 flex items-center justify-center">
+        
+        <button id="btn-flip" class="absolute top-4 left-4 z-[60] bg-white/80 hover:bg-white p-2 rounded-lg shadow text-xs font-bold transition-all">
+          🔄 카메라 전환
+        </button>
 
-  <script>
-document.getElementById('custom-flip-btn').addEventListener('click', async () => {
-  const flipBtn = document.getElementById('custom-flip-btn');
+        <div id="reader" class="w-full h-full"></div>
+        
+        <div id="scan-result-panel" class="absolute bottom-6 left-1/2 -translate-x-1/2 w-11/12 max-w-md p-4 text-center rounded-2xl bg-white/95 shadow-2xl z-50">
+          <p id="scan-msg" class="text-xl font-bold text-gray-700">QR 코드를 보여주세요</p>
+        </div>
+      </div>
+    </section>
+  </main>
   
-  // 1. 현재 스캐너 중지 (페이지 새로고침 X)
-  if (html5QrCode && html5QrCode.isScanning) {
-    try {
-      await html5QrCode.stop();
-    } catch (err) {
-      console.error("스캐너 중지 실패:", err);
-    }
-  }
+  <script>
+    // 🌟 [중요] 카메라 반전 및 좌우 반전 보정 로직
+    document.getElementById('btn-flip').onclick = async () => {
+      // 1. 기존 스캐너가 있다면 종료 (에러 방지)
+      if (window.html5QrCode && window.html5QrCode.isScanning) {
+        await window.html5QrCode.stop();
+      }
+      
+      // 2. 방향 전환
+      window.currentFacingMode = window.currentFacingMode === "user" ? "environment" : "user";
+      
+      // 3. 재시작 (admin_app.js에 정의된 시작 함수 호출)
+      if (typeof startScanner === 'function') {
+        startScanner(window.currentFacingMode);
+      }
 
-  // 2. 방향 상태 전환
-  // 전면(user) <-> 후면(environment) 토글
-  window.currentFacingMode = (window.currentFacingMode === "user") ? "environment" : "user";
-
-  // 3. 스캐너 재시작 (기존에 정의된 스캐너 시작 함수 호출)
-  // 페이지가 새로고침되지 않으므로 인증 오버레이가 다시 뜨지 않습니다.
-  startScanner(window.currentFacingMode);
-
-  // 4. UI 및 미러링 효과 업데이트
-  const isFront = window.currentFacingMode === "user";
-  setTimeout(() => {
-    const videoElement = document.querySelector('#reader video');
-    if (videoElement) {
-      videoElement.style.transform = isFront ? 'scaleX(-1)' : 'scaleX(1)';
-    }
-  }, 500);
-
-  flipBtn.innerHTML = isFront ? "🔄 후면 카메라로 전환" : "🔄 전면 카메라로 전환";
-});
+      // 4. 전면 카메라일 때만 시각적 좌우 반전 적용 (CSS)
+      setTimeout(() => {
+        const video = document.querySelector('#reader video');
+        if (video) video.style.transform = window.currentFacingMode === 'user' ? 'scaleX(-1)' : 'scaleX(1)';
+      }, 500);
+    };
   </script>
 
 </body>
