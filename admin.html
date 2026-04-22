@@ -2,10 +2,22 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>QR 스캐너 : 화성오산교육청</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>점심 식사자 관리 : 화성오산교육청</title>
+  
+  <script>
+    const originalWarn = console.warn;
+    console.warn = (...args) => {
+      if (typeof args[0] === 'string' && args[0].includes('cdn.tailwindcss.com')) return;
+      originalWarn(...args);
+    };
+  </script>
   <script src="https://cdn.tailwindcss.com"></script>
+  
   <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+  <link rel="stylesheet" href="CSS/style.css">
+  
   <style>
     /* html5-qrcode 디자인 덮어쓰기 */
     #reader { width: 100% !important; height: 100% !important; border: none !important; background: black; }
@@ -13,102 +25,102 @@
     #reader video { object-fit: cover !important; width: 100% !important; height: 100% !important; transition: transform 0.3s ease; }
   </style>
 </head>
-<body class="bg-gray-100 flex flex-col min-h-screen">
+<body class="bg-gray-100">
   
-  <div id="auth-overlay" class="fixed inset-0 bg-gray-900 z-[100] flex items-center justify-center p-4">
-    <div class="bg-white p-8 rounded-3xl shadow-2xl max-w-sm w-full text-center">
-      <div class="text-4xl mb-4">🛡️</div>
-      <h2 class="text-xl font-black mb-2">스캐너 보안 인증</h2>
-      <p class="text-gray-500 text-sm mb-6">최고 관리자가 지정한 일반 관리자만<br>스캐너를 작동시킬 수 있습니다.</p>
+  <div id="login-section" class="min-h-screen flex items-center justify-center bg-gray-900 p-4 relative z-[100]">
+    <div class="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-sm text-center">
+      <div class="text-4xl mb-4">📷</div>
+      <h2 class="text-xl font-black mb-2">스캐너 보안 로그인</h2>
+      <p class="text-gray-500 text-sm mb-6">스캐너 작동을 위해<br>일반 관리자 인증을 진행해 주세요.</p>
       
-      <div class="mb-4 text-left">
+      <div id="step-email" class="mb-4 text-left">
         <label class="block text-xs font-bold text-gray-500 mb-1">관리자 이메일</label>
-        <input type="email" id="admin-email" class="w-full border p-3 rounded-xl outline-none focus:border-green-500" placeholder="admin@email.com">
+        <input type="email" id="adminEmail" class="w-full border p-3 rounded-xl outline-none focus:border-green-500" placeholder="admin@email.com">
+        <button id="btn-request-code" class="w-full py-3 mt-4 bg-green-600 hover:bg-green-700 transition text-white rounded-xl font-bold">인증번호 요청</button>
       </div>
 
-      <button id="btn-request-auth" class="w-full py-3 bg-green-600 hover:bg-green-700 transition text-white rounded-xl font-bold mb-3">인증번호 발송</button>
-      
-      <div id="auth-input-group" class="hidden">
-        <input type="text" id="2fa-code" class="w-full border-2 border-gray-100 p-3 rounded-xl text-center text-2xl tracking-widest mb-3 focus:border-green-500 outline-none" placeholder="000000" maxlength="6">
-        <button id="btn-verify-auth" class="w-full py-3 bg-gray-800 hover:bg-black transition text-white rounded-xl font-bold">인증 확인</button>
+      <div id="step-code" class="hidden text-left mt-2">
+        <input type="text" id="adminCode" class="w-full border-2 border-gray-100 p-3 rounded-xl text-center text-2xl tracking-widest mb-3 focus:border-green-500 outline-none" placeholder="000000" maxlength="6">
+        <button id="btn-verify-code" class="w-full py-3 bg-gray-800 hover:bg-black transition text-white rounded-xl font-bold">인증 확인 및 시작</button>
       </div>
-      <a href="/" class="block mt-4 text-sm text-gray-400 underline">홈으로 돌아가기</a>
     </div>
   </div>
 
-  <div id="main-content" class="max-w-7xl mx-auto bg-white rounded-3xl shadow-xl overflow-hidden flex flex-col h-[90vh] hidden">
-    <header class="p-6 border-b bg-gray-50 flex justify-between items-center shrink-0">
-      <h1 class="text-2xl font-black text-gray-800">📷 점심체크 스캐너</h1>
-      <a href="/admin_list" class="bg-gray-800 text-white text-xs font-bold py-2 px-3 rounded-lg shadow">👥 명단 관리</a>
+  <div id="admin-dashboard" class="hidden min-h-screen lg:h-screen flex flex-col bg-gray-100">
+    <header class="bg-white border-b-2 border-gray-200 px-6 py-4 flex justify-between items-center shadow-sm relative shrink-0">
+      <div class="flex items-center gap-4">
+        <h1 class="text-3xl font-black text-gray-900">🍽️ 점심 식사자 관리</h1>
+        <div class="flex items-center bg-blue-50 px-4 py-2 rounded-xl border border-blue-100">
+          <label class="font-bold text-blue-700 mr-2">조회 날짜:</label>
+          <input type="date" id="date-selector" class="bg-transparent font-bold text-blue-800 outline-none">
+        </div>
+      </div>
+      <div class="flex gap-2 items-center">
+        <a href="/qr.html" class="mr-4 text-gray-500 hover:text-green-600 font-bold flex items-center gap-1 transition-colors">📱 QR 발급화면</a>
+        <a href="/admin_list.html" class="bg-gray-800 hover:bg-black text-white font-bold py-3 px-6 rounded-xl transition-all shadow-md">👥 명단 관리하기</a>
+        <button id="btn-export-monthly" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-md">📅 월별 시트</button>
+        <button id="btn-export-daily" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-md">📥 일별 시트</button>
+      </div>
     </header>
 
-    <main class="flex-1 flex flex-col items-center justify-center p-4 relative">
-      <div class="relative w-full max-w-sm bg-black rounded-3xl overflow-hidden shadow-2xl aspect-square mb-6 border-8 border-gray-800">
-        <button id="custom-flip-btn" class="absolute top-4 left-4 z-[60] bg-white/80 text-gray-800 px-3 py-2 rounded-xl shadow-md text-sm font-bold active:scale-95 transition-transform hover:bg-white">
-          🔄 전면/후면
-        </button>
-
-        <div id="reader"></div>
+    <main class="flex-1 flex flex-col lg:flex-row gap-4 lg:gap-6 p-4 lg:p-6 min-h-0 overflow-auto lg:overflow-hidden">
+      <section class="flex-1 flex flex-col gap-4 min-h-[600px] lg:min-h-0">
         
-        <div class="absolute inset-0 border-[12px] border-black/30 pointer-events-none"></div>
-        <div class="absolute top-1/2 left-0 w-full h-1 bg-green-500/50 shadow-[0_0_15px_green] animate-pulse"></div>
-      </div>
+        <div class="bg-black rounded-3xl shadow-lg border border-gray-200 flex-1 relative overflow-hidden flex items-center justify-center">
+          
+          <button id="custom-flip-btn" class="absolute top-4 left-4 z-[60] bg-white/90 text-gray-800 px-3 py-2 rounded-xl shadow-md text-sm font-bold flex items-center gap-1 backdrop-blur active:scale-95 transition-transform hover:bg-gray-100">
+            🔄 전면/후면 전환
+          </button>
+          
+          <div id="reader" class="w-full h-full"></div>
+          
+          <div id="scan-result-panel" class="absolute bottom-6 left-1/2 -translate-x-1/2 w-11/12 max-w-md p-4 text-center rounded-2xl bg-white/95 backdrop-blur shadow-2xl z-50 transition-all border-4 border-transparent">
+             <p id="scan-msg" class="text-xl lg:text-2xl font-bold text-gray-700">QR 코드를 보여주세요</p>
+             <p id="scan-sub-msg" class="text-sm text-gray-500 mt-1">인식 시 자동으로 식사 명단에 등록됩니다</p>
+          </div>
+        </div>
+        
+        <div class="grid grid-cols-2 gap-4 shrink-0">
+          <div class="bg-white p-5 lg:p-6 rounded-2xl shadow-md border-b-4 border-green-500">
+            <p class="text-gray-500 font-bold">오늘 현재 식수</p>
+            <h3 id="stat-count" class="text-4xl lg:text-5xl font-black text-gray-900 mt-2">0명</h3>
+          </div>
+          <div class="bg-white p-5 lg:p-6 rounded-2xl shadow-md border-b-4 border-blue-500">
+            <p class="text-gray-500 font-bold">최근 식사자</p>
+            <h3 id="recent-diner" class="text-xl lg:text-2xl font-bold text-blue-600 mt-2 truncate">-</h3>
+          </div>
+        </div>
+      </section>
 
-      <div id="scan-result" class="w-full max-w-sm bg-white p-6 rounded-3xl shadow-lg text-center hidden border-b-8 border-green-500">
-        <div id="result-icon" class="text-6xl mb-2">🍱</div>
-        <h2 id="result-name" class="text-2xl font-black text-gray-900 mb-1">성공</h2>
-        <p id="result-dept" class="text-gray-500 text-sm font-bold mb-4"></p>
-        <p id="result-msg" class="text-lg font-bold text-green-600"></p>
-      </div>
+      <aside class="w-full lg:w-1/3 bg-white rounded-3xl shadow-lg border border-gray-200 flex flex-col shrink-0 lg:shrink overflow-hidden h-[500px] lg:h-auto">
+        <div class="p-5 lg:p-6 border-b border-gray-100 bg-gray-50 shrink-0">
+          <h2 class="text-2xl font-black text-gray-800">📋 실시간 식사 명단</h2>
+        </div>
+        <div class="flex-1 overflow-y-auto">
+          <table class="w-full text-left">
+            <thead class="bg-gray-50 sticky top-0">
+              <tr>
+                <th class="p-4 font-bold text-gray-600 border-b">부서</th>
+                <th class="p-4 font-bold text-gray-600 border-b">이름</th>
+                <th class="p-4 font-bold text-gray-600 border-b text-center">시간</th>
+              </tr>
+            </thead>
+            <tbody id="diner-table-body" class="divide-y divide-gray-100"></tbody>
+          </table>
+        </div>
+      </aside>
     </main>
   </div>
 
+  <script type="module" src="JS/admin_app.js"></script>
+
   <script type="module">
-    import { API_BASE_URL } from './JS/config.js';
-    import CameraManager from './JS/camera.js';
-    
-    // 세션 스토리지에서 인증 상태 확인
-    if(sessionStorage.getItem('scannerAuthVerified') === 'true') {
-      document.getElementById('auth-overlay').classList.add('hidden');
-      document.getElementById('main-content').classList.remove('hidden');
-      window.startScanner(); // 스캐너 자동 시작
-    }
+      import CameraManager from './JS/camera.js';
 
-    // 🔒 보안 인증 로직
-    document.getElementById('btn-request-auth').onclick = async () => {
-      const email = document.getElementById('admin-email').value.trim();
-      if(!email) return alert('이메일을 입력하세요.');
-      const res = await fetch(`${API_BASE_URL}/admin/request-code`, {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ email })
+      document.getElementById('custom-flip-btn').addEventListener('click', () => {
+          CameraManager.toggleCamera();
       });
-      if(res.ok) {
-        document.getElementById('btn-request-auth').classList.add('hidden');
-        document.getElementById('auth-input-group').classList.remove('hidden');
-        document.getElementById('admin-email').disabled = true;
-        alert('인증 메일이 발송되었습니다.');
-      } else alert((await res.json()).message);
-    };
-
-    document.getElementById('btn-verify-auth').onclick = async () => {
-      const email = document.getElementById('admin-email').value;
-      const code = document.getElementById('2fa-code').value;
-      const res = await fetch(`${API_BASE_URL}/admin/verify-code`, {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ email, code })
-      });
-      if(res.ok) {
-        sessionStorage.setItem('scannerAuthVerified', 'true');
-        document.getElementById('auth-overlay').classList.add('hidden');
-        document.getElementById('main-content').classList.remove('hidden');
-        window.startScanner(); // 인증 성공 시 스캐너 시작
-      } else alert('인증번호가 틀렸습니다.');
-    };
-
-    // 📷 카메라 전환 버튼 이벤트
-    document.getElementById('custom-flip-btn').addEventListener('click', () => {
-      CameraManager.toggleCamera();
-    });
   </script>
+
 </body>
 </html>
