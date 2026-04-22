@@ -117,48 +117,68 @@
 <script>
     document.addEventListener('DOMContentLoaded', () => {
       const flipBtn = document.getElementById('custom-flip-btn');
-      let isFlipped = false;
+      
+      // 카메라 상태에 따라 좌우 반전을 제어하는 함수
+      const applyMirrorEffect = () => {
+        const videoElement = document.querySelector('#reader video');
+        if (!videoElement) return;
+
+        // html5-qrcode의 현재 상태에서 facingMode 추출
+        // 직접 지정하거나 라이브러리가 선택한 모드를 기반으로 판단
+        const isFrontCamera = window.currentFacingMode === 'user';
+
+        if (isFrontCamera) {
+          // 전면/노트북 카메라는 거울 모드 적용
+          videoElement.style.transform = 'scaleX(-1)';
+        } else {
+          // 후면 카메라는 반전 제거 (정상 출력)
+          videoElement.style.transform = 'scaleX(1)';
+        }
+      };
 
       flipBtn.addEventListener('click', async () => {
         // 1. 전/후면 모드 토글
-        isFlipped = !isFlipped;
-        const newFacingMode = isFlipped ? "user" : "environment";
+        window.currentFacingMode = (window.currentFacingMode === 'user') ? 'environment' : 'user';
 
-        // 2. 현재 실행 중인 스캐너 인스턴스 확인 (admin_app.js에서 생성한 객체 찾기)
-        // 보통 라이브러리는 내부적으로 비디오 스트림을 관리하므로 스트림을 껐다 켜야 함
+        // 2. 현재 실행 중인 스캐너 중지 후 재시작 (인증 세션은 유지됨)
         if (window.html5QrCode && window.html5QrCode.isScanning) {
           try {
-            await window.html5QrCode.stop(); // 현재 카메라 중지
+            await window.html5QrCode.stop();
             
-            // 3. admin_app.js에 정의된 시작 함수를 새 방향으로 호출
-            // (함수명이 다를 경우 해당 파일의 시작 함수명으로 변경 필요)
+            // admin_app.js에 정의된 시작 함수 호출
             if (typeof window.startScanner === 'function') {
-              window.startScanner(newFacingMode);
-            } else {
-              // 함수가 글로벌로 노출되지 않은 경우 페이지 새로고침 없이 강제 재시작 시도
-              location.reload(); 
-              return;
+              window.startScanner(window.currentFacingMode);
             }
           } catch (err) {
             console.error("카메라 전환 실패:", err);
           }
         }
 
-        // 4. 시각적 거울 모드 보정 (인식률 저하 방지용)
-        // CSS 반전은 '화면'만 반전시키고, 라이브러리가 읽는 '이미지 데이터'는 원본을 유지함
-        setTimeout(() => {
-          const videoElement = document.querySelector('#reader video');
-          if (videoElement) {
-            videoElement.style.transform = isFlipped ? 'scaleX(-1)' : 'scaleX(1)';
-          }
-        }, 500); // 카메라 리로딩 대기
+        // 3. 카메라가 켜진 후 반전 효과 적용
+        // 비디오가 로드되는 시간을 고려해 약간의 지연 시간을 둡니다.
+        setTimeout(applyMirrorEffect, 500);
 
-        // 5. 버튼 UI 업데이트
-        flipBtn.innerHTML = isFlipped ? "🔄 후면 카메라 전환" : "🔄 전면 카메라 전환";
-        flipBtn.className = isFlipped 
+        // 버튼 UI 업데이트
+        const isFront = window.currentFacingMode === 'user';
+        flipBtn.innerHTML = isFront ? "🔄 후면 카메라로 전환" : "🔄 전면 카메라로 전환";
+        flipBtn.className = isFront 
           ? "absolute top-4 left-4 z-[60] bg-blue-600 text-white px-3 py-2 rounded-xl shadow-md text-sm font-bold flex items-center gap-1 active:scale-95 transition-transform"
           : "absolute top-4 left-4 z-[60] bg-white/90 text-gray-800 px-3 py-2 rounded-xl shadow-md text-sm font-bold flex items-center gap-1 backdrop-blur active:scale-95 transition-transform hover:bg-gray-100";
       });
+
+      // 처음 스캐너가 시작될 때도 반전 로직이 작동하도록 감시
+      const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+          if (mutation.addedNodes.length) {
+            applyMirrorEffect();
+          }
+        });
+      });
+
+      const readerElement = document.getElementById('reader');
+      if (readerElement) {
+        observer.observe(readerElement, { childList: true, subtree: true });
+      }
     });
   </script>
 
