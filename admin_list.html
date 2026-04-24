@@ -28,18 +28,18 @@
         <input type="text" id="2fa-code" class="w-full border-2 border-gray-100 p-3 rounded-xl text-center text-2xl tracking-widest mb-3 focus:border-blue-500 outline-none" placeholder="000000" maxlength="6">
         <button id="btn-verify-auth" class="w-full py-3 bg-gray-800 hover:bg-black transition text-white rounded-xl font-bold">인증 확인</button>
       </div>
-      <a href="/admin.html" class="block mt-4 text-sm text-gray-400 underline">스캐너로 돌아가기</a>
+      <a href="/admin" class="block mt-4 text-sm text-gray-400 underline">스캐너로 돌아가기</a>
     </div>
   </div>
 
   <div id="main-content" class="max-w-7xl mx-auto bg-white rounded-3xl shadow-xl overflow-hidden flex flex-col h-[90vh] hidden">
     <header class="p-6 border-b bg-gray-50 flex justify-between items-center shrink-0">
       <h1 class="text-2xl font-black text-gray-800">👥 명단 및 기간 통합 관리</h1>
-      <a href="/admin.html" class="text-sm font-bold text-gray-500 bg-white border px-4 py-2 rounded-xl shadow-sm hover:bg-gray-100">⬅️ 스캐너로 이동</a>
+      <a href="/admin" class="text-sm font-bold text-gray-500 bg-white border px-4 py-2 rounded-xl shadow-sm hover:bg-gray-100">⬅️ 스캐너로 이동</a>
     </header>
 
     <div class="flex border-b bg-white shrink-0">
-      <button onclick="switchTab('daily')" id="tab-daily" class="flex-1 py-4 font-black text-blue-600 border-b-4 border-blue-600">🌞 일식 명단 관리</button>
+      <button onclick="switchTab('daily')" id="tab-daily" class="flex-1 py-4 font-black text-blue-600 border-b-4 border-blue-600">🌞 일식 다중 날짜 관리</button>
       <button onclick="switchTab('monthly')" id="tab-monthly" class="flex-1 py-4 font-bold text-gray-400 bg-gray-50 hover:bg-gray-100">🌙 월식 명단 관리</button>
     </div>
 
@@ -53,8 +53,9 @@
         <div class="text-xs font-bold text-blue-800 px-2 shrink-0" id="form-title">일식 등록</div>
         <input type="text" id="new-org" class="flex-1 border p-2.5 rounded-lg text-sm" placeholder="부서명">
         <input type="text" id="new-name" class="flex-1 border p-2.5 rounded-lg text-sm" placeholder="이름">
-        <div id="daily-date-wrapper" class="relative flex-1 flex items-center bg-white border rounded-lg overflow-hidden">
-          <input type="text" id="daily-date-text" class="w-full p-2.5 text-sm outline-none" placeholder="날짜 (예: 0331)" maxlength="4">
+        
+        <div id="daily-date-wrapper" class="relative flex-1 flex items-center bg-white border rounded-lg overflow-hidden min-w-[200px]">
+          <input type="text" id="daily-date-text" class="w-full p-2.5 text-sm outline-none font-mono" placeholder="예: 0401, 0405">
           <input type="date" id="daily-date-picker" class="absolute right-2 opacity-0 w-8 h-full cursor-pointer">
           <span class="pointer-events-none mr-3 text-gray-400">📅</span>
         </div>
@@ -68,8 +69,8 @@
           <tr>
             <th class="p-4 w-12 text-center"><input type="checkbox" id="check-all" class="w-4 h-4"></th>
             <th class="p-4">소속 부서 / 성함</th>
-            <th class="p-4 text-center">시작 일</th>
-            <th class="p-4 text-center">마감 기한</th>
+            <th class="p-4 text-center">시작(최초) 일</th>
+            <th class="p-4 text-center" id="th-endDate">마감(최종) 기한</th>
             <th class="p-4 text-center bg-red-50 text-red-600">삭제 예정일 (남은 시간)</th>
             <th class="p-4 text-right">기간 조절 / 삭제</th>
           </tr>
@@ -80,7 +81,7 @@
 
     <div class="p-4 bg-white border-t flex justify-between items-center shrink-0">
       <button onclick="bulkDelete()" class="bg-red-50 hover:bg-red-100 text-red-500 px-4 py-2 rounded-xl font-bold text-sm border border-red-100 transition">🗑️ 선택 삭제</button>
-      <div class="flex gap-2">
+      <div id="monthly-bulk-actions" class="flex gap-2 hidden">
         <button onclick="bulkChange('shorten')" class="bg-orange-50 hover:bg-orange-100 text-orange-600 px-4 py-2 rounded-xl font-bold text-sm border border-orange-200 transition">➖ 선택 단축</button>
         <button onclick="bulkChange('extend')" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-xl font-bold text-sm shadow-md transition">➕ 선택 연장</button>
       </div>
@@ -93,6 +94,7 @@
     let currentTab = 'daily';
     let allUsers = [];
 
+    // 인증 확인
     if(sessionStorage.getItem('superAdminAuthVerified') === 'true') {
       document.getElementById('auth-overlay').classList.add('hidden');
       document.getElementById('main-content').classList.remove('hidden');
@@ -102,7 +104,6 @@
     document.getElementById('btn-request-auth').onclick = async () => {
       const email = document.getElementById('admin-email').value.trim();
       if(!email) return alert('이메일을 입력하세요.');
-      // 🌟 최고 관리자 API 호출
       const res = await fetch(`${API_BASE_URL}/superadmin/request-code`, {
         method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ email })
       });
@@ -117,7 +118,6 @@
     document.getElementById('btn-verify-auth').onclick = async () => {
       const email = document.getElementById('admin-email').value;
       const code = document.getElementById('2fa-code').value;
-      // 🌟 최고 관리자 API 호출
       const res = await fetch(`${API_BASE_URL}/superadmin/verify-code`, {
         method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ email, code })
       });
@@ -129,14 +129,45 @@
       } else alert('인증번호가 일치하지 않습니다.');
     };
 
+    // ==========================================
+    // 🌟 다중 날짜(Set)와 텍스트/달력 동기화 로직
+    // ==========================================
+    let selectedDailyDates = new Set();
     const dateText = document.getElementById('daily-date-text');
     const datePicker = document.getElementById('daily-date-picker');
+
+    function syncDatesToText() {
+      dateText.value = Array.from(selectedDailyDates).sort().join(', ');
+    }
+
+    function syncTextToDates() {
+      const val = dateText.value;
+      selectedDailyDates.clear();
+      // "0401, 0405" 같은 형태를 파싱하여 Set에 반영
+      const parts = val.split(',').map(s => s.trim()).filter(s => s.length === 4 && !isNaN(s));
+      parts.forEach(p => selectedDailyDates.add(p));
+    }
+
     datePicker.addEventListener('change', (e) => {
       if(!e.target.value) return;
       const [year, month, day] = e.target.value.split('-');
-      dateText.value = month + day;
+      const mmdd = month + day;
+      
+      // 달력에서 고른 날짜가 이미 있다면 제거(토글 방식), 없으면 추가
+      if (selectedDailyDates.has(mmdd)) {
+        selectedDailyDates.delete(mmdd);
+      } else {
+        selectedDailyDates.add(mmdd);
+      }
+      syncDatesToText();
+      e.target.value = ''; // 같은 날짜를 다시 클릭할 수 있도록 초기화
     });
 
+    dateText.addEventListener('input', syncTextToDates);
+
+    // ==========================================
+    // 👥 명단 및 렌더링 로직
+    // ==========================================
     async function loadUsers() {
       const res = await fetch(`${API_BASE_URL}/admin/allowed-users`);
       allUsers = await res.json();
@@ -158,7 +189,13 @@
         const originalIdx = allUsers.findIndex(o => o.createdAt === u.createdAt);
         const isExpired = u.endDate < todayStr;
         
-        // 삭제 예정일(마감일 + 5일) 및 남은 시간 계산
+        // 일식일 경우 여러 날짜를 쉼표로 예쁘게 출력
+        let dateDisplay = u.endDate;
+        if (u.mealType === 'daily' && u.validDates) {
+          dateDisplay = u.validDates.map(d => d.substring(5).replace('-','.')).join(', ');
+        }
+        
+        // 삭제 예정일(마지막 날짜 + 5일) 계산
         const endDateObj = new Date(u.endDate + "T12:00:00");
         const deleteDateObj = new Date(endDateObj);
         deleteDateObj.setDate(deleteDateObj.getDate() + 5);
@@ -172,6 +209,12 @@
         else if (diffTime === 0) dDayBadge = `<span class="text-red-600 font-black ml-1 text-xs bg-red-100 px-1 rounded">(오늘 삭제)</span>`;
         else dDayBadge = `<span class="text-gray-400 font-bold ml-1">(여유)</span>`;
 
+        // 🌟 버튼 렌더링 (월식은 연장/단축, 일식은 '날짜 변경')
+        const actionButtons = u.mealType === 'monthly' 
+          ? `<button onclick="changePeriod(${originalIdx}, 'shorten')" class="text-xs font-bold text-orange-500 bg-white border border-orange-200 px-3 py-1.5 rounded-lg hover:bg-orange-50 transition">단축</button>
+             <button onclick="changePeriod(${originalIdx}, 'extend')" class="text-xs font-bold text-blue-600 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-lg ml-1 hover:bg-blue-100 transition">연장</button>`
+          : `<button onclick="editDailyDates(${originalIdx})" class="text-xs font-bold text-blue-600 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-lg hover:bg-blue-100 transition shadow-sm">날짜 변경</button>`;
+
         return `
           <tr class="hover:bg-blue-50/50 bg-white transition ${isExpired ? 'bg-red-50/30' : ''}">
             <td class="p-4 text-center border-r"><input type="checkbox" class="user-check w-4 h-4 cursor-pointer" data-index="${originalIdx}"></td>
@@ -179,16 +222,15 @@
               <div class="text-xs text-gray-400 mb-0.5">${u.orgRole}</div>
               <div class="font-bold text-gray-900">${u.name}</div>
             </td>
-            <td class="p-4 text-center font-mono text-sm text-gray-500 border-r">${u.startDate}</td>
+            <td class="p-4 text-center font-mono text-sm text-gray-500 border-r">${u.mealType === 'daily' ? '-' : u.startDate}</td>
             <td class="p-4 text-center font-mono text-sm border-r ${isExpired ? 'text-red-600 font-bold' : 'text-blue-600 font-bold'}">
-              ${u.endDate} ${isExpired ? '⚠️' : ''}
+              ${dateDisplay} ${isExpired ? '⚠️' : ''}
             </td>
             <td class="p-4 text-center font-mono text-sm border-r bg-red-50/20 text-gray-600">
               ${deleteDateStr} ${dDayBadge}
             </td>
             <td class="p-4 text-right">
-              <button onclick="changePeriod(${originalIdx}, 'shorten')" class="text-xs font-bold text-orange-500 bg-white border border-orange-200 px-3 py-1.5 rounded-lg hover:bg-orange-50 transition">단축</button>
-              <button onclick="changePeriod(${originalIdx}, 'extend')" class="text-xs font-bold text-blue-600 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-lg ml-1 hover:bg-blue-100 transition">연장</button>
+              ${actionButtons}
               <button onclick="deleteUser(${originalIdx})" class="text-xs font-bold text-gray-400 hover:text-red-500 ml-3 transition">삭제</button>
             </td>
           </tr>`;
@@ -199,23 +241,51 @@
       const orgRole = document.getElementById('new-org').value.trim();
       const name = document.getElementById('new-name').value.trim();
       if(!orgRole || !name) return alert('부서와 이름을 입력하세요.');
-      let targetDate = null;
+      
+      let targetDates = [];
       if (currentTab === 'daily') {
-        const dVal = dateText.value.trim();
-        if(dVal.length !== 4 || isNaN(dVal)) return alert("날짜를 0331과 같은 4자리 숫자로 입력하거나 달력을 선택하세요.");
+        syncTextToDates();
+        if (selectedDailyDates.size === 0) return alert("날짜를 입력하거나 달력에서 선택하세요.");
         const year = new Date().getFullYear();
-        targetDate = `${year}-${dVal.substring(0,2)}-${dVal.substring(2,4)}`;
+        targetDates = Array.from(selectedDailyDates).map(dVal => `${year}-${dVal.substring(0,2)}-${dVal.substring(2,4)}`);
       }
+      
       const res = await fetch(`${API_BASE_URL}/admin/allowed-users`, {
         method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ orgRole, name, mealType: currentTab, targetDate })
+        body: JSON.stringify({ orgRole, name, mealType: currentTab, targetDates })
       });
       if(!res.ok) return alert((await res.json()).message);
+      
       document.getElementById('new-name').value = '';
-      if(currentTab === 'daily') dateText.value = '';
+      if(currentTab === 'daily') {
+        dateText.value = '';
+        selectedDailyDates.clear();
+      }
       loadUsers();
     };
 
+    // 🌟 일식 전용 날짜 변경 함수
+    window.editDailyDates = async (idx) => {
+      const user = allUsers[idx];
+      const currentStr = user.validDates ? user.validDates.map(d => d.substring(5,7) + d.substring(8,10)).join(', ') : '';
+      const newVal = prompt("새로운 식사 날짜들을 입력하세요 (예: 0401, 0405, 0406)", currentStr);
+      if (newVal === null) return;
+      
+      const parts = newVal.split(',').map(s => s.trim()).filter(s => s.length === 4 && !isNaN(s));
+      if (parts.length === 0) return alert("유효한 날짜가 하나 이상 있어야 합니다.");
+      
+      const year = new Date().getFullYear();
+      const targetDates = parts.map(dVal => `${year}-${dVal.substring(0,2)}-${dVal.substring(2,4)}`);
+
+      const res = await fetch(`${API_BASE_URL}/admin/allowed-users/update-dates`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ index: idx, targetDates })
+      });
+      if(!res.ok) alert((await res.json()).message);
+      loadUsers();
+    };
+
+    // 기존 월식 기간 조절 함수
     window.changePeriod = async (idx, action) => {
       const res = await fetch(`${API_BASE_URL}/admin/allowed-users/update-period`, {
         method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ indexes: [idx], action, type: currentTab })
@@ -252,21 +322,30 @@
       document.querySelectorAll('.user-check').forEach(cb => cb.checked = e.target.checked);
     };
 
+    // 🌟 탭 전환 (다중 날짜 모드 UI 대응)
     window.switchTab = (tab) => { 
       currentTab = tab; 
       const tabDaily = document.getElementById('tab-daily');
       const tabMonthly = document.getElementById('tab-monthly');
       const dateWrapper = document.getElementById('daily-date-wrapper');
       const formTitle = document.getElementById('form-title');
+      const bulkActions = document.getElementById('monthly-bulk-actions');
+      const thEndDate = document.getElementById('th-endDate');
       
       if(tab === 'daily') {
         tabDaily.className = 'flex-1 py-4 font-black text-blue-600 border-b-4 border-blue-600 bg-white';
         tabMonthly.className = 'flex-1 py-4 font-bold text-gray-400 bg-gray-50 hover:bg-gray-100';
-        dateWrapper.classList.remove('hidden'); formTitle.textContent = '일식 등록';
+        dateWrapper.classList.remove('hidden'); 
+        formTitle.textContent = '일식 다중 등록';
+        bulkActions.classList.add('hidden'); // 일식은 일괄 연장/단축 숨김
+        thEndDate.textContent = "지정 날짜 목록 (마지막 기준)";
       } else {
         tabMonthly.className = 'flex-1 py-4 font-black text-blue-600 border-b-4 border-blue-600 bg-white';
         tabDaily.className = 'flex-1 py-4 font-bold text-gray-400 bg-gray-50 hover:bg-gray-100';
-        dateWrapper.classList.add('hidden'); formTitle.textContent = '월식 등록';
+        dateWrapper.classList.add('hidden'); 
+        formTitle.textContent = '월식 등록';
+        bulkActions.classList.remove('hidden');
+        thEndDate.textContent = "마감 기한";
       }
       document.getElementById('check-all').checked = false;
       renderUsers(); 
