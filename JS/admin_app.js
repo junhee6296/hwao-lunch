@@ -4,10 +4,38 @@ import { API_BASE_URL, getTodayStr } from './config.js';
 window.html5QrCode = null;
 window.isScanningAction = false;
 let loggedInEmail = '';
+let authTimerInterval = null; // 타이머 인터벌 변수
 
 // ==========================================
-// 🔐 1. 보안 로그인 로직
+// 🔐 1. 보안 로그인 로직 (타이머 및 3회 오류 복구)
 // ==========================================
+function resetAuthUI() {
+  clearInterval(authTimerInterval);
+  document.getElementById('step-code').classList.add('hidden');
+  document.getElementById('step-email').classList.remove('hidden');
+  document.getElementById('adminCode').value = '';
+  document.getElementById('btn-verify-code').textContent = "인증 확인 및 시작";
+}
+
+function startAuthTimer(durationSec) {
+  clearInterval(authTimerInterval);
+  const btnVerify = document.getElementById('btn-verify-code');
+  let timeLeft = durationSec;
+
+  authTimerInterval = setInterval(() => {
+    timeLeft--;
+    if (timeLeft <= 0) {
+      clearInterval(authTimerInterval);
+      alert("⏳ 인증 시간(3분)이 만료되었습니다. 다시 요청해주세요.");
+      resetAuthUI();
+    } else {
+      const m = Math.floor(timeLeft / 60);
+      const s = timeLeft % 60;
+      btnVerify.textContent = `인증 확인 및 시작 (${m}:${s < 10 ? '0' : ''}${s})`;
+    }
+  }, 1000);
+}
+
 async function requestAuthCode() {
   const emailInput = document.getElementById('adminEmail');
   const email = emailInput.value.trim();
@@ -23,14 +51,12 @@ async function requestAuthCode() {
       loggedInEmail = email;
       document.getElementById('step-email').classList.add('hidden');
       document.getElementById('step-code').classList.remove('hidden');
-      alert('✅ 인증 메일이 발송되었습니다.');
+      alert('✅ 인증 메일이 발송되었습니다. 3분 안에 입력해주세요.');
+      startAuthTimer(180); // 3분 타이머 시작
     } else { 
       alert(`⚠️ ${data.message}`); 
     }
-  } catch (e) {
-    console.error(e);
-    alert('서버 연결 실패');
-  }
+  } catch (e) { alert('서버 연결 실패'); }
 }
 
 async function verifyAuthCode() {
@@ -45,18 +71,21 @@ async function verifyAuthCode() {
     const data = await res.json();
 
     if (res.ok) {
-      // 🌟 세션 저장 및 admin.html의 올바른 ID 숨기기/보이기 처리
+      clearInterval(authTimerInterval);
+      alert('🎉 인증에 성공했습니다! 스캐너를 시작합니다.');
+      
       sessionStorage.setItem('scannerAuthVerified', 'true');
       document.getElementById('login-section').classList.add('hidden');
       document.getElementById('admin-dashboard').classList.remove('hidden');
-      initDashboard(); // 인증 성공 시 대시보드 로드
+      initDashboard(); 
     } else {
       alert(`⚠️ ${data.message}`);
+      // 3회 틀렸을 경우 서버에서 action: 'reset'을 보냄
+      if (data.action === 'reset') {
+        resetAuthUI();
+      }
     }
-  } catch (e) {
-    console.error("인증 에러:", e);
-    alert('서버 연결 실패');
-  }
+  } catch (e) { alert('서버 연결 실패'); }
 }
 
 // ==========================================
@@ -118,7 +147,6 @@ async function loadDiners(date) {
       .filter(d => d.attended)
       .sort((a, b) => new Date(b.scannedAt) - new Date(a.scannedAt));
 
-    // 최근 식사자 및 식수 카운트
     document.getElementById('recent-diner').textContent = attendedOnly.length > 0 ? attendedOnly[0].name : '-';
 
     if (filterVal !== 'all') {
@@ -194,7 +222,7 @@ window.startScanner = function(facingMode = "environment") {
 };
 
 // ==========================================
-// 📥 5. 엑셀 내보내기 로직
+// 📥 5. 엑셀 내보내기 로직 (🌟 필터 기능 추가)
 // ==========================================
 function applyExcelStyle(ws, rowCount) {
   const range = XLSX.utils.decode_range(ws['!ref']);
@@ -213,6 +241,9 @@ function applyExcelStyle(ws, rowCount) {
     }
   }
   ws['!cols'] = [{wch: 15}, {wch: 15}, {wch: 15}, {wch: 20}];
+  
+  // 🌟 A~D열(날짜, 부서, 이름, 시간) 전체에 엑셀 자동 필터 적용
+  ws['!autofilter'] = { ref: `A1:D${rowCount}` };
 }
 
 async function exportDaily() {
@@ -274,7 +305,6 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-request-code')?.addEventListener('click', requestAuthCode);
   document.getElementById('btn-verify-code')?.addEventListener('click', verifyAuthCode);
   
-  // 새로고침 시 로그인 유지 처리 (올바른 ID 적용)
   if(sessionStorage.getItem('scannerAuthVerified') === 'true') {
     document.getElementById('login-section')?.classList.add('hidden');
     document.getElementById('admin-dashboard')?.classList.remove('hidden');
