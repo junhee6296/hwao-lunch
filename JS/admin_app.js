@@ -305,9 +305,9 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-request-code')?.addEventListener('click', requestAuthCode);
   document.getElementById('btn-verify-code')?.addEventListener('click', verifyAuthCode);
   
-  if(sessionStorage.getItem('scannerAuthVerified') === 'true') {
+  /*if(sessionStorage.getItem('scannerAuthVerified') === 'true') {
     document.getElementById('login-section')?.classList.add('hidden');
     document.getElementById('admin-dashboard')?.classList.remove('hidden');
     initDashboard();
-  }
+  }*/ // 로그인한 디바이스 기억하기 (보안상 주석 처리, 필요 시 활성화)
 });
