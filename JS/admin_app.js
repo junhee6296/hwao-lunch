@@ -27,7 +27,10 @@ async function requestAuthCode() {
     } else { 
       alert(`⚠️ ${data.message}`); 
     }
-  } catch (e) { alert('서버 연결 실패'); }
+  } catch (e) {
+    console.error(e);
+    alert('서버 연결 실패');
+  }
 }
 
 async function verifyAuthCode() {
@@ -39,30 +42,35 @@ async function verifyAuthCode() {
     const res = await fetch(`${API_BASE_URL}/admin/verify-code`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: loggedInEmail, code })
     });
+    const data = await res.json();
+
     if (res.ok) {
-      document.getElementById('auth-overlay').classList.add('hidden');
-      document.getElementById('main-content').classList.remove('hidden');
+      // 🌟 세션 저장 및 admin.html의 올바른 ID 숨기기/보이기 처리
+      sessionStorage.setItem('scannerAuthVerified', 'true');
+      document.getElementById('login-section').classList.add('hidden');
+      document.getElementById('admin-dashboard').classList.remove('hidden');
       initDashboard(); // 인증 성공 시 대시보드 로드
     } else {
-      alert('⚠️ 인증번호가 일치하지 않습니다.');
+      alert(`⚠️ ${data.message}`);
     }
-  } catch (e) { alert('서버 연결 실패'); }
+  } catch (e) {
+    console.error("인증 에러:", e);
+    alert('서버 연결 실패');
+  }
 }
 
 // ==========================================
 // 🎨 2. UI 부가 기능 (날짜 색상 & 동적 필터)
 // ==========================================
-// 날짜에 따른 텍스트 색상 변경 (토: 파랑, 일: 빨강)
 function applyDateColor(dateStr) {
   const dateInput = document.getElementById('date-selector');
   if (!dateInput) return;
   const day = new Date(dateStr).getDay();
-  if (day === 0) dateInput.style.color = '#ef4444'; // 일요일 (빨강)
-  else if (day === 6) dateInput.style.color = '#3b82f6'; // 토요일 (파랑)
-  else dateInput.style.color = '#1e40af'; // 평일 (진한 파랑)
+  if (day === 0) dateInput.style.color = '#ef4444'; // 일요일
+  else if (day === 6) dateInput.style.color = '#3b82f6'; // 토요일
+  else dateInput.style.color = '#1e40af'; // 평일
 }
 
-// HTML 수정 없이 부서 필터를 날짜 옆에 동적으로 생성
 function initDeptFilter() {
   const dateContainer = document.getElementById('date-selector').parentNode;
   if (!document.getElementById('dept-filter')) {
@@ -75,7 +83,6 @@ function initDeptFilter() {
   }
 }
 
-// 스캔된 데이터를 바탕으로 필터 옵션(부서 목록) 자동 업데이트
 function updateDeptFilterOptions(diners) {
   const filterSelect = document.getElementById('dept-filter');
   if (!filterSelect) return;
@@ -97,33 +104,29 @@ function updateDeptFilterOptions(diners) {
 // ==========================================
 async function loadDiners(date) {
   try {
-    applyDateColor(date); // 선택된 날짜 색상 적용
+    applyDateColor(date);
 
     const res = await fetch(`${API_BASE_URL}/events/${date}/attendees`);
     if (!res.ok) throw new Error("데이터를 불러올 수 없습니다.");
     const diners = await res.json();
     
-    updateDeptFilterOptions(diners); // 필터에 등록된 부서 추가
+    updateDeptFilterOptions(diners);
     
     const filterVal = document.getElementById('dept-filter')?.value || 'all';
 
-    // 출석자만 추려내고 최신 스캔 순(역순)으로 정렬
     let attendedOnly = diners
       .filter(d => d.attended)
       .sort((a, b) => new Date(b.scannedAt) - new Date(a.scannedAt));
 
-    // 🌟 복구: '최근 식사자' 표기 (필터 적용 전 실제 가장 최근 사람)
+    // 최근 식사자 및 식수 카운트
     document.getElementById('recent-diner').textContent = attendedOnly.length > 0 ? attendedOnly[0].name : '-';
 
-    // 부서 필터링이 적용된 경우 리스트 축소
     if (filterVal !== 'all') {
       attendedOnly = attendedOnly.filter(d => d.orgRole === filterVal);
     }
 
-    // 🌟 복구: '오늘 현재 식수' 표기
     document.getElementById('stat-count').textContent = `${attendedOnly.length}명`;
 
-    // 🌟 복구: 리스트 테이블 렌더링
     const tbody = document.getElementById('diner-table-body');
     tbody.innerHTML = attendedOnly.map(d => `
       <tr class="hover:bg-gray-50 transition-colors">
@@ -157,7 +160,6 @@ window.startScanner = function(facingMode = "environment") {
     { facingMode: facingMode }, 
     { fps: 12, qrbox: qrBoxFunction, aspectRatio: 1.0 }, 
     async (decodedText) => {
-      // 중복 스캔 방지
       if (window.isScanningAction) return;
       window.isScanningAction = true;
 
@@ -172,7 +174,6 @@ window.startScanner = function(facingMode = "environment") {
         if (res.ok) {
           msgEl.textContent = `✅ ${data.name}님 확인`;
           msgEl.className = "text-xl font-bold text-blue-600";
-          // 🌟 성공 시 즉시 목록 및 카운트 새로고침
           loadDiners(document.getElementById('date-selector').value);
         } else {
           msgEl.textContent = `❌ ${data.message}`;
@@ -193,7 +194,7 @@ window.startScanner = function(facingMode = "environment") {
 };
 
 // ==========================================
-// 📥 5. 엑셀 내보내기 로직 (유지)
+// 📥 5. 엑셀 내보내기 로직
 // ==========================================
 function applyExcelStyle(ws, rowCount) {
   const range = XLSX.utils.decode_range(ws['!ref']);
@@ -257,7 +258,7 @@ async function exportMonthly() {
 // 🚀 6. 초기화 및 이벤트 리스너
 // ==========================================
 function initDashboard() {
-  initDeptFilter(); // 날짜 옆에 필터 생성
+  initDeptFilter();
   
   const datePicker = document.getElementById('date-selector');
   datePicker.value = getTodayStr();
@@ -273,10 +274,10 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-request-code')?.addEventListener('click', requestAuthCode);
   document.getElementById('btn-verify-code')?.addEventListener('click', verifyAuthCode);
   
-  // 세션 확인 (새로고침 시 로그인 유지)
+  // 새로고침 시 로그인 유지 처리 (올바른 ID 적용)
   if(sessionStorage.getItem('scannerAuthVerified') === 'true') {
-    document.getElementById('auth-overlay')?.classList.add('hidden');
-    document.getElementById('main-content')?.classList.remove('hidden');
+    document.getElementById('login-section')?.classList.add('hidden');
+    document.getElementById('admin-dashboard')?.classList.remove('hidden');
     initDashboard();
   }
 });
