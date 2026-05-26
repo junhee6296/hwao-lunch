@@ -1,4 +1,4 @@
-import { API_BASE_URL } from './config.js';
+import { API_BASE_URL, getTodayStr } from './config.js';
 
 let currentTab = 'daily';
 let allUsers = [];
@@ -215,8 +215,130 @@ function renderUsers() {
   }).join('');
 }
 
+
 // ==========================================
-// 🚀 4. 초기화 및 이벤트 등록
+// 📥 4. 엑셀 시트 다운로드
+// ==========================================
+function normalizeDailySheetDate(raw) {
+  const value = String(raw || '').trim();
+  const compact = value.replace(/[^0-9]/g, '');
+
+  if (!/^\d{8}$/.test(compact)) return null;
+
+  const year = compact.substring(0, 4);
+  const month = compact.substring(4, 6);
+  const day = compact.substring(6, 8);
+  const normalized = `${year}-${month}-${day}`;
+  const dateObj = new Date(`${normalized}T12:00:00`);
+
+  if (
+    Number.isNaN(dateObj.getTime()) ||
+    String(dateObj.getFullYear()) !== year ||
+    String(dateObj.getMonth() + 1).padStart(2, '0') !== month ||
+    String(dateObj.getDate()).padStart(2, '0') !== day
+  ) {
+    return null;
+  }
+
+  return normalized;
+}
+
+function formatDailyPromptDefault() {
+  const today = getTodayStr();
+  return `${today.substring(0, 4)}-${today.substring(5, 7)}${today.substring(8, 10)}`;
+}
+
+function applyExcelStyle(ws, rowCount) {
+  if (!ws?.['!ref']) return;
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  for (let R = range.s.r; R <= range.e.r; ++R) {
+    for (let C = range.s.c; C <= range.e.c; ++C) {
+      const cell = ws[XLSX.utils.encode_cell({r: R, c: C})];
+      if (!cell) continue;
+      cell.s = {
+        alignment: { vertical: 'center', horizontal: 'center' },
+        border: { top: {style:'thin'}, bottom: {style:'thin'}, left: {style:'thin'}, right: {style:'thin'} }
+      };
+      if (R === 0) {
+        cell.s.fill = { fgColor: { rgb: 'EEEEEE' } };
+        cell.s.font = { bold: true };
+      }
+    }
+  }
+  ws['!cols'] = [{wch: 15}, {wch: 20}, {wch: 15}, {wch: 20}];
+  ws['!autofilter'] = { ref: `A1:D${rowCount}` };
+}
+
+async function exportDailySheet() {
+  if (typeof XLSX === 'undefined') return alert('엑셀 라이브러리를 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.');
+
+  const input = prompt('다운로드할 일별 시트 날짜를 입력하세요 (YYYY-MMDD)', formatDailyPromptDefault());
+  if (input === null) return;
+
+  const date = normalizeDailySheetDate(input);
+  if (!date) return alert('날짜 형식이 올바르지 않습니다. 예: 2026-0526');
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/events/${date}/attendees`);
+    if (!res.ok) throw new Error('데이터 조회 실패');
+
+    const diners = (await res.json()).filter(d => d.attended);
+    if (diners.length === 0) return alert(`${date}에 다운로드할 식사 기록이 없습니다.`);
+
+    const data = diners
+      .sort((a, b) => new Date(a.scannedAt) - new Date(b.scannedAt))
+      .map(d => ({
+        '날짜': date,
+        '부서': d.orgRole || '-',
+        '이름': d.name || '-',
+        '시간': d.scannedAt ? new Date(d.scannedAt).toLocaleTimeString('ko-KR', {hour12:false}) : '-'
+      }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    applyExcelStyle(ws, data.length + 1);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '일별명단');
+    XLSX.writeFile(wb, `식사명단_${date.substring(0, 4)}-${date.substring(5, 7)}${date.substring(8, 10)}.xlsx`);
+  } catch (e) {
+    console.error('일별 시트 다운로드 실패:', e);
+    alert('일별 시트를 다운로드할 수 없습니다.');
+  }
+}
+
+async function exportMonthlySheet() {
+  if (typeof XLSX === 'undefined') return alert('엑셀 라이브러리를 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.');
+
+  const month = prompt('조회할 월 입력 (YYYY-MM)', getTodayStr().substring(0, 7));
+  if (!month) return;
+  if (!/^\d{4}-\d{2}$/.test(month.trim())) return alert('월 형식이 올바르지 않습니다. 예: 2026-05');
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/events/month/${month.trim()}`);
+    if (!res.ok) throw new Error('데이터 조회 실패');
+
+    const diners = await res.json();
+    if (diners.length === 0) return alert('기록이 없습니다.');
+
+    const data = diners.sort((a,b) => a.date.localeCompare(b.date)).map(d => ({
+      '날짜': d.date,
+      '부서': d.orgRole || '-',
+      '이름': d.name || '-',
+      '시간': d.scannedAt ? new Date(d.scannedAt).toLocaleTimeString('ko-KR', {hour12:false}) : '-'
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    applyExcelStyle(ws, data.length + 1);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '월별명단');
+    XLSX.writeFile(wb, `식사명단_${month.trim()}.xlsx`);
+  } catch (e) {
+    console.error('월별 시트 다운로드 실패:', e);
+    alert('월별 시트를 다운로드할 수 없습니다.');
+  }
+}
+
+// ==========================================
+// 🚀 5. 초기화 및 이벤트 등록
 // ==========================================
 export function initAdminList() {
   $('btn-open-admin-auth')?.addEventListener('click', showAuthOverlay);
@@ -224,6 +346,8 @@ export function initAdminList() {
   $('btn-close-admin-panel')?.addEventListener('click', hideAdminPanel);
   $('btn-request-auth')?.addEventListener('click', requestAdminAuth);
   $('btn-verify-auth')?.addEventListener('click', verifyAdminAuth);
+  $('btn-export-daily')?.addEventListener('click', exportDailySheet);
+  $('btn-export-monthly')?.addEventListener('click', exportMonthlySheet);
   $('daily-date-picker')?.addEventListener('change', handleDatePickerChange);
   $('search-input')?.addEventListener('input', renderUsers);
 
@@ -260,7 +384,7 @@ export function initAdminList() {
     }
   });
 
-  if (window.location.hash === '#manage') {
+  if ($('auth-overlay')) {
     showAuthOverlay();
   }
 }

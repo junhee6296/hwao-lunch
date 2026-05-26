@@ -13,7 +13,9 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(__dirname));
 
+app.get('/', (req, res) => res.redirect('/qr.html'));
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'admin.html')));
+app.get('/scanner', (req, res) => res.sendFile(path.join(__dirname, 'scanner.html')));
 
 // ==========================================
 // 💾 데이터베이스 초기화 및 자동 삭제 로직

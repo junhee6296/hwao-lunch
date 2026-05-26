@@ -29,14 +29,24 @@ function initDeptFilter() {
   const dateSelector = document.getElementById('date-selector');
   if (!dateSelector) return;
 
+  let filterSelect = document.getElementById('dept-filter');
   const dateContainer = dateSelector.parentNode;
-  if (!document.getElementById('dept-filter')) {
-    const filterSelect = document.createElement('select');
+
+  if (!filterSelect && dateContainer) {
+    filterSelect = document.createElement('select');
     filterSelect.id = 'dept-filter';
     filterSelect.className = 'bg-white border border-blue-200 text-blue-800 font-bold py-1 px-3 rounded-lg ml-3 outline-none shadow-sm cursor-pointer';
     filterSelect.innerHTML = '<option value="all">부서 전체</option>';
-    filterSelect.onchange = () => loadDiners(document.getElementById('date-selector').value);
     dateContainer.appendChild(filterSelect);
+  }
+
+  if (filterSelect) {
+    filterSelect.onchange = () => loadDiners(dateSelector.value || getTodayStr());
+  }
+
+  const refreshBtn = document.getElementById('btn-refresh-diners');
+  if (refreshBtn) {
+    refreshBtn.onclick = () => loadDiners(dateSelector.value || getTodayStr());
   }
 }
 
@@ -65,9 +75,10 @@ function updateDeptFilterOptions(diners) {
 // ==========================================
 async function loadDiners(date) {
   try {
-    applyDateColor(date);
+    const targetDate = date || getTodayStr();
+    applyDateColor(targetDate);
 
-    const res = await fetch(`${API_BASE_URL}/events/${date}/attendees`);
+    const res = await fetch(`${API_BASE_URL}/events/${targetDate}/attendees`);
     if (!res.ok) throw new Error('데이터를 불러올 수 없습니다.');
     const diners = await res.json();
 
@@ -79,15 +90,18 @@ async function loadDiners(date) {
       .filter(d => d.attended)
       .sort((a, b) => new Date(b.scannedAt) - new Date(a.scannedAt));
 
-    document.getElementById('recent-diner').textContent = attendedOnly.length > 0 ? attendedOnly[0].name : '-';
+    const recentDinerEl = document.getElementById('recent-diner');
+    if (recentDinerEl) recentDinerEl.textContent = attendedOnly.length > 0 ? attendedOnly[0].name : '-';
 
     if (filterVal !== 'all') {
       attendedOnly = attendedOnly.filter(d => d.orgRole === filterVal);
     }
 
-    document.getElementById('stat-count').textContent = `${attendedOnly.length}명`;
+    const statCountEl = document.getElementById('stat-count');
+    if (statCountEl) statCountEl.textContent = `${attendedOnly.length}명`;
 
     const tbody = document.getElementById('diner-table-body');
+    if (!tbody) return;
     tbody.innerHTML = attendedOnly.map(d => `
       <tr class="hover:bg-gray-50 transition-colors">
         <td class="p-4 text-gray-700 font-medium border-b">${escapeHTML(d.orgRole || '-')}</td>
@@ -137,8 +151,10 @@ window.startScanner = function(facingMode = 'environment') {
         if (res.ok) {
           msgEl.textContent = `✅ ${data.name}님 확인`;
           msgEl.className = 'text-xl font-bold text-blue-600';
-          const date = document.getElementById('date-selector')?.value || getTodayStr();
-          loadDiners(date);
+          const today = getTodayStr();
+          const dateSelector = document.getElementById('date-selector');
+          if (dateSelector) dateSelector.value = today;
+          loadDiners(today);
         } else {
           msgEl.textContent = `❌ ${data.message}`;
           msgEl.className = 'text-xl font-bold text-red-500';
@@ -237,6 +253,7 @@ function initDashboard() {
     initDeptFilter();
     loadDiners(datePicker.value);
     datePicker.addEventListener('change', (e) => loadDiners(e.target.value));
+    document.getElementById('btn-refresh-diners')?.addEventListener('click', () => loadDiners(datePicker.value || getTodayStr()));
   } else {
     loadDiners(getTodayStr());
   }
