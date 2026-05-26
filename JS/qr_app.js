@@ -69,7 +69,7 @@ async function generateLunchQR(isReissue = false) {
   try {
     const res = await fetch(`${API_BASE_URL}/qr/generate`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ eventId: today, orgRole, name })
+      body: JSON.stringify({ orgRole, name })
     });
     const data = await res.json();
 
