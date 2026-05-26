@@ -13,6 +13,8 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(__dirname));
 
+app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'admin.html')));
+
 // ==========================================
 // 💾 데이터베이스 초기화 및 자동 삭제 로직
 // ==========================================
@@ -70,11 +72,11 @@ const loadFiles = () => {
 loadFiles();
 
 // ==========================================
-// 🔐 권한 분리 인증 로직 (.env 연동)
+// 🔐 관리자 인증 로직 (.env의 ADMIN_EMAILS 사용)
 // ==========================================
 const adminEmails = process.env.ADMIN_EMAILS ? process.env.ADMIN_EMAILS.split(',').map(e => e.trim()) : [];
-const superAdminEmails = process.env.SUPER_ADMIN_EMAILS ? process.env.SUPER_ADMIN_EMAILS.split(',').map(e => e.trim()) : [];
 let authCodes = {};
+
 
 const transporter = nodemailer.createTransport({
   service: 'gmail', auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
@@ -107,9 +109,11 @@ const handleAuthVerify = (req, res) => {
   }
 };
 
-app.post('/api/admin/request-code', (req, res) => handleAuthRequest(req, res, adminEmails, '스캐너 관리자'));
+app.post('/api/admin/request-code', (req, res) => handleAuthRequest(req, res, adminEmails, '관리자'));
 app.post('/api/admin/verify-code', handleAuthVerify);
-app.post('/api/superadmin/request-code', (req, res) => handleAuthRequest(req, res, superAdminEmails, '최고 관리자'));
+
+// 기존 admin_list.html 호출 호환용입니다. SUPER_ADMIN_EMAILS는 더 이상 사용하지 않고 ADMIN_EMAILS만 사용합니다.
+app.post('/api/superadmin/request-code', (req, res) => handleAuthRequest(req, res, adminEmails, '관리자'));
 app.post('/api/superadmin/verify-code', handleAuthVerify);
 
 // ==========================================

@@ -2,93 +2,12 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <title>명단 관리 : 화성오산교육청</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; opacity: 0.6; transition: 0.2s; }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>관리자 메뉴로 이동 중 : 화성오산교육청</title>
+  <meta http-equiv="refresh" content="0;url=/admin.html#manage">
+  <script>location.replace('/admin.html#manage');</script>
 </head>
-<body class="bg-gray-100 p-4 lg:p-6">
-  
-  <div id="auth-overlay" class="fixed inset-0 bg-gray-900 z-[100] flex items-center justify-center p-4">
-    <div class="bg-white p-8 rounded-3xl shadow-2xl max-w-sm w-full text-center">
-      <div class="text-4xl mb-4">👑</div>
-      <h2 class="text-xl font-black mb-2">최고 관리자 인증</h2>
-      <p class="text-gray-500 text-sm mb-6">명단 데이터 관리를 위해<br>최고 권한 이메일 인증이 필요합니다.</p>
-      
-      <div id="step-email" class="text-left">
-        <label class="block text-xs font-bold text-gray-500 mb-1">최고 관리자 이메일</label>
-        <input type="email" id="admin-email" class="w-full border p-3 rounded-xl outline-none focus:border-blue-500" placeholder="superadmin@email.com">
-        <button id="btn-request-auth" class="w-full py-3 mt-4 bg-blue-600 hover:bg-blue-700 transition text-white rounded-xl font-bold">인증번호 발송</button>
-      </div>
-      
-      <div id="step-code" class="hidden text-left">
-        <input type="text" id="2fa-code" class="w-full border-2 border-gray-100 p-3 rounded-xl text-center text-2xl tracking-widest mb-3 focus:border-blue-500 outline-none" placeholder="000000" maxlength="6">
-        <button id="btn-verify-auth" class="w-full py-3 bg-gray-800 hover:bg-black transition text-white rounded-xl font-bold">인증 확인</button>
-      </div>
-      <a href="/admin" class="block mt-4 text-sm text-gray-400 underline">스캐너로 돌아가기</a>
-    </div>
-  </div>
-
-  <div id="main-content" class="max-w-7xl mx-auto bg-white rounded-3xl shadow-xl overflow-hidden flex flex-col h-[90vh] hidden">
-    <header class="p-6 border-b bg-gray-50 flex justify-between items-center shrink-0">
-      <h1 class="text-2xl font-black text-gray-800">👥 명단 및 기간 통합 관리</h1>
-      <a href="/admin" class="text-sm font-bold text-gray-500 bg-white border px-4 py-2 rounded-xl shadow-sm hover:bg-gray-100">⬅️ 스캐너로 이동</a>
-    </header>
-
-    <div class="flex border-b bg-white shrink-0">
-      <button onclick="switchTab('daily')" id="tab-daily" class="flex-1 py-4 font-black text-blue-600 border-b-4 border-blue-600">🌞 일식 다중 날짜 관리</button>
-      <button onclick="switchTab('monthly')" id="tab-monthly" class="flex-1 py-4 font-bold text-gray-400 bg-gray-50 hover:bg-gray-100">🌙 월식 명단 관리</button>
-    </div>
-
-    <div class="p-4 border-b flex flex-col md:flex-row gap-4 bg-white items-center shrink-0">
-      <div class="relative w-full md:w-64 shrink-0">
-        <input type="text" id="search-input" class="w-full border-2 border-gray-200 p-2.5 pl-10 rounded-xl focus:border-blue-400 outline-none text-sm" placeholder="부서 또는 이름 검색">
-        <span class="absolute left-3 top-2.5 opacity-50">🔍</span>
-      </div>
-
-      <div class="flex-1 w-full bg-blue-50/50 p-2 rounded-xl border border-blue-100 flex flex-wrap md:flex-nowrap gap-2 items-center">
-        <div class="text-xs font-bold text-blue-800 px-2 shrink-0" id="form-title">일식 등록</div>
-        <input type="text" id="new-org" class="flex-1 border p-2.5 rounded-lg text-sm" placeholder="부서명">
-        <input type="text" id="new-name" class="flex-1 border p-2.5 rounded-lg text-sm" placeholder="이름">
-        <div id="daily-date-wrapper" class="relative flex-1 flex items-center bg-white border rounded-lg overflow-hidden min-w-[200px]">
-          <input type="text" id="daily-date-text" class="w-full p-2.5 text-sm outline-none font-mono" placeholder="0401, 0405">
-          <input type="date" id="daily-date-picker" class="absolute right-2 opacity-0 w-8 h-full cursor-pointer">
-          <span class="pointer-events-none mr-3 text-gray-400">📅</span>
-        </div>
-        <button id="btn-add-user" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg font-bold text-sm shrink-0 shadow-sm transition">명단 추가</button>
-      </div>
-    </div>
-
-    <div class="flex-1 overflow-y-auto bg-gray-50">
-      <table class="w-full text-left whitespace-nowrap">
-        <thead class="bg-white sticky top-0 z-10 text-xs font-bold text-gray-500 uppercase tracking-wider border-b">
-          <tr>
-            <th class="p-4 w-12 text-center"><input type="checkbox" id="check-all" class="w-4 h-4"></th>
-            <th class="p-4">소속 부서 / 성함</th>
-            <th class="p-4 text-center">시작일</th>
-            <th class="p-4 text-center" id="th-endDate">지정 날짜 목록</th>
-            <th class="p-4 text-center bg-red-50 text-red-600">삭제 예정일 (남은 시간)</th>
-            <th class="p-4 text-right">기간 조절 / 삭제</th>
-          </tr>
-        </thead>
-        <tbody id="user-list-body" class="divide-y divide-gray-200"></tbody>
-      </table>
-    </div>
-
-    <div class="p-4 bg-white border-t flex justify-between items-center shrink-0">
-      <button onclick="bulkDelete()" class="bg-red-50 hover:bg-red-100 text-red-500 px-4 py-2 rounded-xl font-bold text-sm border border-red-100 transition">🗑️ 선택 삭제</button>
-      <div id="monthly-bulk-actions" class="flex gap-2 hidden">
-        <button onclick="bulkChange('shorten')" class="bg-orange-50 hover:bg-orange-100 text-orange-600 px-4 py-2 rounded-xl font-bold text-sm border border-orange-200">➖ 선택 단축</button>
-        <button onclick="bulkChange('extend')" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-xl font-bold text-sm shadow-md">➕ 선택 연장</button>
-      </div>
-    </div>
-  </div>
-
-  <script type="module">
-    import { initAdminList } from './JS/admin_list_app.js';
-    // 페이지 로드 시 스크립트 초기화
-    initAdminList();
-  </script>
+<body>
+  <p>관리자 메뉴로 이동 중입니다. 자동으로 이동하지 않으면 <a href="/admin.html#manage">여기를 클릭하세요</a>.</p>
 </body>
 </html>

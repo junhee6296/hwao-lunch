@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>점심 식사자 관리 : 화성오산교육청</title>
-  
+
   <script>
     const originalWarn = console.warn;
     console.warn = (...args) => {
@@ -13,73 +13,39 @@
     };
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
-  
+
   <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
   <link rel="stylesheet" href="CSS/style.css">
-  
+
   <style>
     /* html5-qrcode 디자인 덮어쓰기 */
     #reader { width: 100% !important; height: 100% !important; border: none !important; background: black; }
     #reader__scan_region { width: 100% !important; height: 100% !important; }
     #reader video { object-fit: cover !important; width: 100% !important; height: 100% !important; transition: transform 0.3s ease; }
+    input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; opacity: 0.6; transition: 0.2s; }
+    .hidden { display: none !important; }
   </style>
 </head>
 <body class="bg-gray-100">
-  
-  <div id="login-section" class="min-h-screen flex items-center justify-center bg-gray-900 p-4 relative z-[100]">
-    <div class="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-sm text-center">
-      <div class="text-4xl mb-4">📷</div>
-      <h2 class="text-xl font-black mb-2">스캐너 보안 로그인</h2>
-      <p class="text-gray-500 text-sm mb-6">스캐너 작동을 위해<br>일반 관리자 인증을 진행해 주세요.</p>
-      
-      <div id="step-email" class="mb-4 text-left">
-        <label class="block text-xs font-bold text-gray-500 mb-1">관리자 이메일</label>
-        <input type="email" id="adminEmail" class="w-full border p-3 rounded-xl outline-none focus:border-green-500" placeholder="admin@email.com">
-        <button id="btn-request-code" class="w-full py-3 mt-4 bg-green-600 hover:bg-green-700 transition text-white rounded-xl font-bold">인증번호 요청</button>
-      </div>
 
-      <div id="step-code" class="hidden text-left mt-2">
-        <input type="text" id="adminCode" class="w-full border-2 border-gray-100 p-3 rounded-xl text-center text-2xl tracking-widest mb-3 focus:border-green-500 outline-none" placeholder="000000" maxlength="6">
-        <button id="btn-verify-code" class="w-full py-3 bg-gray-800 hover:bg-black transition text-white rounded-xl font-bold">인증 확인 및 시작</button>
-      </div>
-    </div>
-  </div>
-
-  <div id="admin-dashboard" class="hidden min-h-screen lg:h-screen flex flex-col bg-gray-100">
-    <header class="bg-white border-b-2 border-gray-200 px-6 py-4 flex justify-between items-center shadow-sm relative shrink-0">
-      <div class="flex items-center gap-4">
-        <h1 class="text-3xl font-black text-gray-900">🍽️ 점심 식사자 관리</h1>
-        <div class="flex items-center bg-blue-50 px-4 py-2 rounded-xl border border-blue-100">
-          <label class="font-bold text-blue-700 mr-2">조회 날짜:</label>
-          <input type="date" id="date-selector" class="bg-transparent font-bold text-blue-800 outline-none">
-        </div>
-      </div>
-      <div class="flex gap-2 items-center">
-        <a href="/qr.html" class="mr-4 text-gray-500 hover:text-green-600 font-bold flex items-center gap-1 transition-colors">📱 QR 발급화면</a>
-        <a href="/admin_list.html" class="bg-gray-800 hover:bg-black text-white font-bold py-3 px-6 rounded-xl transition-all shadow-md">👥 명단 관리하기</a>
-        <button id="btn-export-monthly" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-md">📅 월별 시트</button>
-        <button id="btn-export-daily" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-md">📥 일별 시트</button>
-      </div>
-    </header>
-
+  <!-- 스캐너 전용 화면: 기본 관리자 인증 없이 즉시 실행 -->
+  <div id="admin-dashboard" class="min-h-screen lg:h-screen flex flex-col bg-gray-100">
     <main class="flex-1 flex flex-col lg:flex-row gap-4 lg:gap-6 p-4 lg:p-6 min-h-0 overflow-auto lg:overflow-hidden">
       <section class="flex-1 flex flex-col gap-4 min-h-[600px] lg:min-h-0">
-        
         <div class="bg-black rounded-3xl shadow-lg border border-gray-200 flex-1 relative overflow-hidden flex items-center justify-center">
-          
           <button id="custom-flip-btn" class="absolute top-4 left-4 z-[60] bg-white/90 text-gray-800 px-3 py-2 rounded-xl shadow-md text-sm font-bold flex items-center gap-1 backdrop-blur active:scale-95 transition-transform hover:bg-gray-100">
             🔄 전면/후면 전환
           </button>
-          
+
           <div id="reader" class="w-full h-full"></div>
-          
+
           <div id="scan-result-panel" class="absolute bottom-6 left-1/2 -translate-x-1/2 w-11/12 max-w-md p-4 text-center rounded-2xl bg-white/95 backdrop-blur shadow-2xl z-50 transition-all border-4 border-transparent">
              <p id="scan-msg" class="text-xl lg:text-2xl font-bold text-gray-700">QR 코드를 보여주세요</p>
              <p id="scan-sub-msg" class="text-sm text-gray-500 mt-1">인식 시 자동으로 식사 명단에 등록됩니다</p>
           </div>
         </div>
-        
+
         <div class="grid grid-cols-2 gap-4 shrink-0">
           <div class="bg-white p-5 lg:p-6 rounded-2xl shadow-md border-b-4 border-green-500">
             <p class="text-gray-500 font-bold">오늘 현재 식수</p>
@@ -112,14 +78,120 @@
     </main>
   </div>
 
+  <!-- 스캐너 화면의 최소 이동 버튼 -->
+  <div class="fixed right-4 bottom-4 z-[70] flex flex-col sm:flex-row gap-2">
+    <a href="/qr.html" class="bg-white/95 hover:bg-white text-gray-700 border border-gray-200 font-bold py-3 px-4 rounded-2xl shadow-lg backdrop-blur transition active:scale-95">
+      📱 QR 발급화면
+    </a>
+    <button id="btn-open-admin-auth" type="button" class="bg-gray-900 hover:bg-black text-white font-bold py-3 px-4 rounded-2xl shadow-lg transition active:scale-95">
+      🔐 관리자 메뉴
+    </button>
+  </div>
+
+  <!-- 관리자 메뉴 인증: SUPER_ADMIN_EMAILS를 쓰지 않고 ADMIN_EMAILS만 사용 -->
+  <div id="auth-overlay" class="hidden fixed inset-0 bg-gray-900/95 z-[100] flex items-center justify-center p-4">
+    <div class="bg-white p-8 rounded-3xl shadow-2xl max-w-sm w-full text-center">
+      <div class="text-4xl mb-4">🔐</div>
+      <h2 class="text-xl font-black mb-2">관리자 인증</h2>
+      <p class="text-gray-500 text-sm mb-6">명단과 식사 시트 관리를 위해<br>관리자 이메일 인증이 필요합니다.</p>
+
+      <div id="step-email" class="text-left">
+        <label class="block text-xs font-bold text-gray-500 mb-1">관리자 이메일</label>
+        <input type="email" id="admin-email" class="w-full border p-3 rounded-xl outline-none focus:border-blue-500" placeholder="admin@email.com">
+        <button id="btn-request-auth" class="w-full py-3 mt-4 bg-blue-600 hover:bg-blue-700 transition text-white rounded-xl font-bold">인증번호 발송</button>
+      </div>
+
+      <div id="step-code" class="hidden text-left">
+        <input type="text" id="2fa-code" class="w-full border-2 border-gray-100 p-3 rounded-xl text-center text-2xl tracking-widest mb-3 focus:border-blue-500 outline-none" placeholder="000000" maxlength="6">
+        <button id="btn-verify-auth" class="w-full py-3 bg-gray-800 hover:bg-black transition text-white rounded-xl font-bold">인증 확인</button>
+      </div>
+      <button id="btn-cancel-auth" type="button" class="block w-full mt-4 text-sm text-gray-400 underline">스캐너로 돌아가기</button>
+    </div>
+  </div>
+
+  <!-- 인증 후 열리는 관리자 통합 메뉴: 명단 관리 + 조회 날짜 + 엑셀 시트 -->
+  <section id="main-content" class="hidden fixed inset-0 z-[80] bg-gray-100 p-4 lg:p-6 overflow-hidden">
+    <div class="max-w-7xl mx-auto bg-white rounded-3xl shadow-xl overflow-hidden flex flex-col h-full">
+      <header class="p-4 lg:p-6 border-b bg-gray-50 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 shrink-0">
+        <div>
+          <h1 class="text-2xl lg:text-3xl font-black text-gray-900">🍽️ 점심 식사자 관리</h1>
+          <p class="text-sm text-gray-500 mt-1">명단 관리, 일별·월별 시트 출력은 관리자 인증 후 이 화면에서 처리합니다.</p>
+        </div>
+        <div class="flex flex-wrap gap-2 items-center">
+          <div id="admin-date-tools" class="flex items-center bg-blue-50 px-4 py-2 rounded-xl border border-blue-100">
+            <label class="font-bold text-blue-700 mr-2">조회 날짜:</label>
+            <input type="date" id="date-selector" class="bg-transparent font-bold text-blue-800 outline-none">
+          </div>
+          <a href="/qr.html" class="text-gray-500 hover:text-green-600 font-bold flex items-center gap-1 transition-colors bg-white border px-4 py-3 rounded-xl shadow-sm">📱 QR 발급화면</a>
+          <button id="btn-export-monthly" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-5 rounded-xl transition-all shadow-md">📅 월별 시트</button>
+          <button id="btn-export-daily" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-5 rounded-xl transition-all shadow-md">📥 일별 시트</button>
+          <button id="btn-close-admin-panel" type="button" class="bg-gray-800 hover:bg-black text-white font-bold py-3 px-5 rounded-xl transition-all shadow-md">⬅️ 스캐너</button>
+        </div>
+      </header>
+
+      <div class="flex border-b bg-white shrink-0">
+        <button onclick="switchTab('daily')" id="tab-daily" class="flex-1 py-4 font-black text-blue-600 border-b-4 border-blue-600 bg-white">🌞 일식 다중 날짜 관리</button>
+        <button onclick="switchTab('monthly')" id="tab-monthly" class="flex-1 py-4 font-bold text-gray-400 bg-gray-50 hover:bg-gray-100">🌙 월식 명단 관리</button>
+      </div>
+
+      <div class="p-4 border-b flex flex-col md:flex-row gap-4 bg-white items-center shrink-0">
+        <div class="relative w-full md:w-64 shrink-0">
+          <input type="text" id="search-input" class="w-full border-2 border-gray-200 p-2.5 pl-10 rounded-xl focus:border-blue-400 outline-none text-sm" placeholder="부서 또는 이름 검색">
+          <span class="absolute left-3 top-2.5 opacity-50">🔍</span>
+        </div>
+
+        <div class="flex-1 w-full bg-blue-50/50 p-2 rounded-xl border border-blue-100 flex flex-wrap md:flex-nowrap gap-2 items-center">
+          <div class="text-xs font-bold text-blue-800 px-2 shrink-0" id="form-title">일식 등록</div>
+          <input type="text" id="new-org" class="flex-1 border p-2.5 rounded-lg text-sm" placeholder="부서명">
+          <input type="text" id="new-name" class="flex-1 border p-2.5 rounded-lg text-sm" placeholder="이름">
+          <div id="daily-date-wrapper" class="relative flex-1 flex items-center bg-white border rounded-lg overflow-hidden min-w-[200px]">
+            <input type="text" id="daily-date-text" class="w-full p-2.5 text-sm outline-none font-mono" placeholder="0401, 0405">
+            <input type="date" id="daily-date-picker" class="absolute right-2 opacity-0 w-8 h-full cursor-pointer">
+            <span class="pointer-events-none mr-3 text-gray-400">📅</span>
+          </div>
+          <button id="btn-add-user" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg font-bold text-sm shrink-0 shadow-sm transition">명단 추가</button>
+        </div>
+      </div>
+
+      <div class="flex-1 overflow-y-auto bg-gray-50">
+        <table class="w-full text-left whitespace-nowrap">
+          <thead class="bg-white sticky top-0 z-10 text-xs font-bold text-gray-500 uppercase tracking-wider border-b">
+            <tr>
+              <th class="p-4 w-12 text-center"><input type="checkbox" id="check-all" class="w-4 h-4"></th>
+              <th class="p-4">소속 부서 / 성함</th>
+              <th class="p-4 text-center">시작일</th>
+              <th class="p-4 text-center" id="th-endDate">지정 날짜 목록</th>
+              <th class="p-4 text-center bg-red-50 text-red-600">삭제 예정일 (남은 시간)</th>
+              <th class="p-4 text-right">기간 조절 / 삭제</th>
+            </tr>
+          </thead>
+          <tbody id="user-list-body" class="divide-y divide-gray-200"></tbody>
+        </table>
+      </div>
+
+      <div class="p-4 bg-white border-t flex justify-between items-center shrink-0">
+        <button onclick="bulkDelete()" class="bg-red-50 hover:bg-red-100 text-red-500 px-4 py-2 rounded-xl font-bold text-sm border border-red-100 transition">🗑️ 선택 삭제</button>
+        <div id="monthly-bulk-actions" class="flex gap-2 hidden">
+          <button onclick="bulkChange('shorten')" class="bg-orange-50 hover:bg-orange-100 text-orange-600 px-4 py-2 rounded-xl font-bold text-sm border border-orange-200">➖ 선택 단축</button>
+          <button onclick="bulkChange('extend')" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-xl font-bold text-sm shadow-md">➕ 선택 연장</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <script type="module" src="JS/admin_app.js"></script>
 
   <script type="module">
-      import CameraManager from './JS/camera.js';
+    import { initAdminList } from './JS/admin_list_app.js';
+    initAdminList();
+  </script>
 
-      document.getElementById('custom-flip-btn').addEventListener('click', () => {
-          CameraManager.toggleCamera();
-      });
+  <script type="module">
+    import CameraManager from './JS/camera.js';
+
+    document.getElementById('custom-flip-btn')?.addEventListener('click', () => {
+      CameraManager.toggleCamera();
+    });
   </script>
 
 </body>
