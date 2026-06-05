@@ -1,44 +1,18 @@
-import { API_BASE_URL, getTodayStr } from './config.js';
+import { API_BASE_URL, getTodayStr, normalizePhoneLast4, escapeHTML } from './config.js';
 
 let currentTab = 'daily';
 let allUsers = [];
 let loggedInEmail = '';
 let authTimerInterval = null;
+let requestCooldownInterval = null;
 let selectedDailyDates = new Set();
+let importRows = [];
+let importMeta = null;
 
 const $ = (id) => document.getElementById(id);
+const pad2 = value => String(value).padStart(2, '0');
+const escapeAttr = escapeHTML;
 
-const escapeHTML = (value = '') => String(value)
-  .replace(/&/g, '&amp;')
-  .replace(/</g, '&lt;')
-  .replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;')
-  .replace(/'/g, '&#39;');
-
-async function apiFetch(path, options = {}) {
-  const headers = { ...(options.headers || {}) };
-  const request = { ...options, credentials: 'same-origin', headers };
-
-  if (request.body && typeof request.body !== 'string') {
-    headers['Content-Type'] = headers['Content-Type'] || 'application/json';
-    request.body = JSON.stringify(request.body);
-  }
-
-  return fetch(`${API_BASE_URL}${path}`, request);
-}
-
-async function adminFetch(path, options = {}) {
-  const res = await apiFetch(path, options);
-  if (res.status === 401) {
-    showAuthOverlay();
-    throw new Error('관리자 인증이 필요합니다.');
-  }
-  return res;
-}
-
-// ==========================================
-// 🔐 1. 관리자 보안 인증 로직: 서버 세션 쿠키 기준
-// ==========================================
 function resetAuthUI() {
   clearInterval(authTimerInterval);
   $('step-code')?.classList.add('hidden');
@@ -51,12 +25,7 @@ function startAuthTimer(durationSec) {
   clearInterval(authTimerInterval);
   const btnVerify = $('btn-verify-auth');
   let timeLeft = durationSec;
-
-  if (btnVerify) {
-    const m = Math.floor(timeLeft / 60);
-    const s = timeLeft % 60;
-    btnVerify.textContent = `인증 확인 (${m}:${s < 10 ? '0' : ''}${s})`;
-  }
+  if (btnVerify) btnVerify.textContent = `인증 확인 (3:00)`;
 
   authTimerInterval = setInterval(() => {
     timeLeft--;
@@ -72,81 +41,120 @@ function startAuthTimer(durationSec) {
   }, 1000);
 }
 
-function showAuthOverlay() {
-  resetAuthUI();
+function startRequestCooldown(seconds) {
+  clearInterval(requestCooldownInterval);
+  const btn = $('btn-request-auth');
+  if (!btn) return;
+  let left = Number(seconds || 30);
+  btn.disabled = true;
+  btn.textContent = `재요청 가능 ${left}초`;
+  requestCooldownInterval = setInterval(() => {
+    left--;
+    if (left <= 0) {
+      clearInterval(requestCooldownInterval);
+      btn.disabled = false;
+      btn.textContent = '인증번호 발송';
+    } else {
+      btn.textContent = `재요청 가능 ${left}초`;
+    }
+  }, 1000);
+}
+
+function showMain(email) {
+  loggedInEmail = email || loggedInEmail;
+  clearInterval(authTimerInterval);
+  $('auth-overlay')?.classList.add('hidden');
+  $('main-content')?.classList.remove('hidden');
+  if ($('admin-email-label')) {
+    $('admin-email-label').textContent = loggedInEmail;
+    $('admin-email-label').classList.toggle('hidden', !loggedInEmail);
+  }
+  setupImportSelectors();
+  loadUsers();
+}
+
+function showAuth() {
   $('main-content')?.classList.add('hidden');
   $('auth-overlay')?.classList.remove('hidden');
 }
 
-function hideAuthOverlay() {
-  clearInterval(authTimerInterval);
-  $('auth-overlay')?.classList.add('hidden');
-  resetAuthUI();
-}
-
-function showAdminPanel() {
-  $('auth-overlay')?.classList.add('hidden');
-  $('main-content')?.classList.remove('hidden');
-  loadUsers();
+async function apiFetch(url, options = {}) {
+  const res = await fetch(url, { credentials: 'same-origin', ...options });
+  if (res.status === 401) {
+    showAuth();
+    throw new Error('관리자 인증이 필요합니다.');
+  }
+  return res;
 }
 
 async function checkAdminSession() {
   try {
-    const res = await apiFetch('/admin/session');
+    const res = await fetch(`${API_BASE_URL}/admin/me`, { credentials: 'same-origin', cache: 'no-store' });
+    if (!res.ok) return showAuth();
     const data = await res.json();
-    if (res.ok && data.authenticated) {
-      loggedInEmail = data.email || '';
-      showAdminPanel();
-    } else {
-      showAuthOverlay();
-    }
+    showMain(data.email);
   } catch (e) {
-    showAuthOverlay();
+    showAuth();
   }
 }
 
 async function requestAdminAuth() {
-  const email = $('admin-email')?.value.trim();
+  const email = $('admin-email').value.trim();
   if (!email) return alert('이메일을 입력하세요.');
 
-  try {
-    const res = await apiFetch('/admin/request-code', {
-      method: 'POST',
-      body: { email }
-    });
+  const btn = $('btn-request-auth');
+  btn.disabled = true;
+  btn.textContent = '발송 중...';
 
-    const data = await res.json().catch(() => ({}));
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/request-code`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ email })
+    });
+    const data = await res.json();
+
     if (res.ok) {
       loggedInEmail = email;
-      $('step-email')?.classList.add('hidden');
-      $('step-code')?.classList.remove('hidden');
-      startAuthTimer(data.expiresIn || 180);
-      alert('✅ 인증번호가 발송되었습니다.');
+      $('step-email').classList.add('hidden');
+      $('step-code').classList.remove('hidden');
+      alert('✅ 인증번호가 발송되었습니다. 3분 안에 입력해주세요.');
+      startAuthTimer(data.expiresInSeconds || 180);
+      startRequestCooldown(data.cooldownSeconds || 30);
     } else {
-      alert(data.message || '인증번호 발송에 실패했습니다.');
+      alert(`⚠️ ${data.message}`);
+      if (data.retryAfter) startRequestCooldown(data.retryAfter);
+      else {
+        btn.disabled = false;
+        btn.textContent = '인증번호 발송';
+      }
     }
   } catch (e) {
     alert('서버 연결 실패');
+    btn.disabled = false;
+    btn.textContent = '인증번호 발송';
   }
 }
 
 async function verifyAdminAuth() {
-  const code = $('2fa-code')?.value.trim();
+  const code = $('2fa-code').value.trim();
   if (!code) return alert('인증번호를 입력하세요.');
 
   try {
-    const res = await apiFetch('/admin/verify-code', {
+    const res = await fetch(`${API_BASE_URL}/admin/verify-code`, {
       method: 'POST',
-      body: { email: loggedInEmail, code }
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ email: loggedInEmail, code })
     });
+    const data = await res.json();
 
-    const data = await res.json().catch(() => ({}));
     if (res.ok) {
-      clearInterval(authTimerInterval);
-      alert('🎉 관리자 인증 성공!');
-      showAdminPanel();
+      alert('🎉 관리자 인증에 성공했습니다.');
+      showMain(data.email || loggedInEmail);
     } else {
-      alert(`⚠️ ${data.message || '인증에 실패했습니다.'}`);
+      alert(`⚠️ ${data.message}`);
       if (data.action === 'reset') resetAuthUI();
     }
   } catch (e) {
@@ -154,166 +162,151 @@ async function verifyAdminAuth() {
   }
 }
 
-async function logoutAdmin() {
+async function logout() {
   try {
-    await apiFetch('/admin/logout', { method: 'POST' });
+    await apiFetch(`${API_BASE_URL}/admin/logout`, { method: 'POST' });
   } catch (e) {
-    console.warn('로그아웃 요청 실패:', e);
-  } finally {
-    loggedInEmail = '';
-    allUsers = [];
-    showAuthOverlay();
+    // 이미 세션이 없을 수 있음
   }
+  location.reload();
 }
 
-// ==========================================
-// 📅 2. 일식 다중 날짜 동기화 로직
-// ==========================================
 function syncDatesToText() {
   const dateText = $('daily-date-text');
-  if (!dateText) return;
-  dateText.value = Array.from(selectedDailyDates).sort().join(', ');
+  if (dateText) dateText.value = Array.from(selectedDailyDates).sort().join(', ');
+}
+
+function parseDailyDatesFromText() {
+  const raw = $('daily-date-text').value;
+  const currentYear = getTodayStr().slice(0, 4);
+  const pieces = raw.split(/[\s,]+/).map(s => s.trim()).filter(Boolean);
+  const dates = [];
+
+  pieces.forEach(piece => {
+    let match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(piece);
+    if (match) return dates.push(piece);
+
+    match = /^(\d{2})(\d{2})$/.exec(piece);
+    if (match) return dates.push(`${currentYear}-${match[1]}-${match[2]}`);
+
+    match = /^(\d{4})(\d{2})(\d{2})$/.exec(piece);
+    if (match) return dates.push(`${match[1]}-${match[2]}-${match[3]}`);
+  });
+
+  return [...new Set(dates)].sort();
 }
 
 function handleDatePickerChange(e) {
   if (!e.target.value) return;
-  const [, month, day] = e.target.value.split('-');
-  const mmdd = month + day;
-
-  if (selectedDailyDates.has(mmdd)) selectedDailyDates.delete(mmdd);
-  else selectedDailyDates.add(mmdd);
-
+  if (selectedDailyDates.has(e.target.value)) selectedDailyDates.delete(e.target.value);
+  else selectedDailyDates.add(e.target.value);
   syncDatesToText();
   e.target.value = '';
 }
 
-function mmddToDate(mmdd) {
-  const year = new Date().getFullYear();
-  const month = mmdd.substring(0, 2);
-  const day = mmdd.substring(2, 4);
-  return `${year}-${month}-${day}`;
-}
-
-// ==========================================
-// 👥 3. 명단 데이터 처리 및 렌더링
-// ==========================================
 async function loadUsers() {
   try {
-    const res = await adminFetch('/admin/allowed-users');
-    if (!res.ok) throw new Error('명단 조회 실패');
-    allUsers = await res.json();
+    const res = await apiFetch(`${API_BASE_URL}/admin/allowed-users`, { cache: 'no-store' });
+    const users = await res.json();
+    allUsers = users.map((u, index) => ({ ...u, _index: index }));
     renderUsers();
   } catch (e) {
-    if (e.message !== '관리자 인증이 필요합니다.') console.error('명단 로드 실패', e);
+    console.error('명단 로드 실패', e);
   }
 }
 
 function renderUsers() {
-  const search = ($('search-input')?.value || '').toLowerCase();
+  const search = $('search-input').value.toLowerCase().trim();
   const tbody = $('user-list-body');
-  if (!tbody) return;
-
   const todayStr = getTodayStr();
-  const today = new Date(`${todayStr}T00:00:00`);
 
-  let filtered = allUsers.filter(user =>
-    user.mealType === currentTab &&
-    ((user.name || '').toLowerCase().includes(search) || (user.orgRole || '').toLowerCase().includes(search))
-  );
+  const today = new Date(`${todayStr}T00:00:00Z`);
+  let filtered = allUsers.filter(u => {
+    const haystack = `${u.name} ${u.phoneLast4}`.toLowerCase();
+    return u.mealType === currentTab && haystack.includes(search);
+  });
 
-  filtered.sort((a, b) => (
-    a.orgRole !== b.orgRole
-      ? (a.orgRole || '').localeCompare(b.orgRole || '', 'ko')
-      : (a.name || '').localeCompare(b.name || '', 'ko')
-  ));
+  filtered.sort((a, b) => a.phoneLast4 !== b.phoneLast4 ? a.phoneLast4.localeCompare(b.phoneLast4) : a.name.localeCompare(b.name, 'ko'));
 
-  if (filtered.length === 0) {
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="6" class="p-10 text-center text-gray-400 font-bold">등록된 명단이 없습니다.</td>
-      </tr>`;
-    return;
-  }
-
-  tbody.innerHTML = filtered.map(user => {
-    const originalIdx = allUsers.findIndex(item => item.id === user.id || item.createdAt === user.createdAt);
-    const isExpired = user.endDate < todayStr;
-
-    let dateDisplay = user.endDate;
-    if (user.mealType === 'daily' && Array.isArray(user.validDates)) {
-      dateDisplay = user.validDates.map(date => date.substring(5).replace('-', '.')).join(', ');
+  tbody.innerHTML = filtered.map(u => {
+    const isExpired = u.endDate < todayStr;
+    let dateDisplay = u.endDate;
+    if (u.mealType === 'daily' && Array.isArray(u.validDates)) {
+      dateDisplay = u.validDates.map(d => d.substring(5).replace('-', '.')).join(', ');
     }
 
-    const endDateObj = new Date(`${user.endDate}T12:00:00`);
+    const endDateObj = new Date(`${u.endDate}T00:00:00Z`);
     const deleteDateObj = new Date(endDateObj);
-    deleteDateObj.setDate(deleteDateObj.getDate() + 5);
-    const deleteDateStr = deleteDateObj.toISOString().split('T')[0];
+    deleteDateObj.setUTCDate(deleteDateObj.getUTCDate() + 5);
+    const deleteDateStr = `${deleteDateObj.getUTCFullYear()}-${pad2(deleteDateObj.getUTCMonth() + 1)}-${pad2(deleteDateObj.getUTCDate())}`;
     const diffTime = Math.round((deleteDateObj - today) / (1000 * 60 * 60 * 24));
 
-    let dDayBadge = diffTime <= 5
-      ? `<span class="text-red-500 font-bold ml-1">(D-${diffTime})</span>`
-      : '<span class="text-gray-400 font-bold ml-1">(여유)</span>';
+    let dDayBadge = diffTime <= 5 ? `<span class="text-red-500 font-bold ml-1">(D-${diffTime})</span>` : `<span class="text-gray-400 font-bold ml-1">(여유)</span>`;
     if (diffTime === 0) dDayBadge = '<span class="text-red-600 font-black ml-1 text-xs bg-red-100 px-1 rounded">(오늘삭제)</span>';
 
-    const actionButtons = user.mealType === 'monthly'
-      ? `<button onclick="window.changePeriod(${originalIdx}, 'shorten')" class="text-xs font-bold text-orange-500 bg-white border px-3 py-1.5 rounded-lg hover:bg-orange-50">단축</button>
-         <button onclick="window.changePeriod(${originalIdx}, 'extend')" class="text-xs font-bold text-blue-600 bg-blue-50 border px-3 py-1.5 rounded-lg ml-1 hover:bg-blue-100">연장</button>`
-      : `<button onclick="window.editDailyDates(${originalIdx})" class="text-xs font-bold text-blue-600 bg-blue-50 border px-3 py-1.5 rounded-lg hover:bg-blue-100">날짜 변경</button>`;
+    const paymentBadge = u.paymentStatus === '미입금'
+      ? '<span class="inline-flex ml-2 text-[11px] font-black text-red-600 bg-red-100 px-2 py-0.5 rounded-full">미입금</span>'
+      : '';
+
+    const actionButtons = u.mealType === 'monthly'
+      ? `<button onclick="window.changePeriod(${u._index}, 'shorten')" class="text-xs font-bold text-orange-500 bg-white border px-3 py-1.5 rounded-lg hover:bg-orange-50">단축</button>
+         <button onclick="window.changePeriod(${u._index}, 'extend')" class="text-xs font-bold text-blue-600 bg-blue-50 border px-3 py-1.5 rounded-lg ml-1 hover:bg-blue-100">연장</button>`
+      : `<button onclick="window.editDailyDates(${u._index})" class="text-xs font-bold text-blue-600 bg-blue-50 border px-3 py-1.5 rounded-lg hover:bg-blue-100">날짜 변경</button>`;
 
     return `
-      <tr class="hover:bg-blue-50/50 bg-white transition ${isExpired ? 'bg-red-50/30' : ''}">
-        <td class="p-4 text-center border-r"><input type="checkbox" class="user-check w-4 h-4" data-index="${originalIdx}"></td>
-        <td class="p-4 border-r"><div class="text-xs text-gray-400">${escapeHTML(user.orgRole)}</div><div class="font-bold text-gray-900">${escapeHTML(user.name)}</div></td>
-        <td class="p-4 text-center font-mono text-sm text-gray-500 border-r">${user.mealType === 'daily' ? '-' : escapeHTML(user.startDate)}</td>
+      <tr class="hover:bg-blue-50/50 transition ${isExpired ? 'bg-red-50/30' : 'bg-white'}">
+        <td class="p-4 text-center border-r"><input type="checkbox" class="user-check w-4 h-4" data-index="${u._index}"></td>
+        <td class="p-4 border-r"><div class="text-xs text-gray-400 font-mono">${escapeHTML(u.phoneLast4)}</div><div class="font-bold text-gray-900">${escapeHTML(u.name)}${paymentBadge}</div></td>
+        <td class="p-4 text-center font-mono text-sm text-gray-500 border-r">${u.mealType === 'daily' ? '-' : escapeHTML(u.startDate)}</td>
         <td class="p-4 text-center font-mono text-sm border-r ${isExpired ? 'text-red-600 font-bold' : 'text-blue-600 font-bold'}">${escapeHTML(dateDisplay)}</td>
         <td class="p-4 text-center font-mono text-sm border-r bg-red-50/20 text-gray-600">${escapeHTML(deleteDateStr)} ${dDayBadge}</td>
-        <td class="p-4 text-right">${actionButtons} <button onclick="window.deleteUser(${originalIdx})" class="text-xs font-bold text-gray-400 hover:text-red-500 ml-3">삭제</button></td>
+        <td class="p-4 text-right">
+          <button onclick="window.editUserInfo(${u._index})" class="text-xs font-bold text-gray-700 bg-white border px-3 py-1.5 rounded-lg hover:bg-gray-50">정보 수정</button>
+          ${actionButtons}
+          <button onclick="window.deleteUser(${u._index})" class="text-xs font-bold text-gray-400 hover:text-red-500 ml-3">삭제</button>
+        </td>
       </tr>`;
   }).join('');
 }
 
-// ==========================================
-// 📥 4. 엑셀 시트 다운로드
-// ==========================================
-function normalizeDailySheetDate(raw) {
-  const value = String(raw || '').trim();
-  const compact = value.replace(/[^0-9]/g, '');
+async function addUser() {
+  const phoneLast4 = normalizePhoneLast4($('new-phone').value);
+  const name = $('new-name').value.trim();
+  $('new-phone').value = phoneLast4;
 
-  if (!/^\d{8}$/.test(compact)) return null;
+  if (!/^\d{4}$/.test(phoneLast4)) return alert('전화번호 뒷자리는 숫자 4자리로 입력하세요.');
+  if (!name) return alert('이름을 입력하세요.');
 
-  const year = compact.substring(0, 4);
-  const month = compact.substring(4, 6);
-  const day = compact.substring(6, 8);
-  const normalized = `${year}-${month}-${day}`;
-  const dateObj = new Date(`${normalized}T12:00:00`);
-
-  if (
-    Number.isNaN(dateObj.getTime()) ||
-    String(dateObj.getFullYear()) !== year ||
-    String(dateObj.getMonth() + 1).padStart(2, '0') !== month ||
-    String(dateObj.getDate()).padStart(2, '0') !== day
-  ) {
-    return null;
+  let targetDates = [];
+  if (currentTab === 'daily') {
+    targetDates = parseDailyDatesFromText();
+    if (targetDates.length === 0) return alert('날짜를 선택하거나 YYYY-MM-DD 또는 MMDD 형식으로 입력하세요.');
   }
 
-  return normalized;
-}
-
-function formatDailyPromptDefault() {
-  const today = getTodayStr();
-  return `${today.substring(0, 4)}-${today.substring(5, 7)}${today.substring(8, 10)}`;
+  const res = await apiFetch(`${API_BASE_URL}/admin/allowed-users`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phoneLast4, name, mealType: currentTab, targetDates })
+  });
+  const data = await res.json();
+  if (res.ok) {
+    $('new-name').value = '';
+    $('new-phone').value = '';
+    $('daily-date-text').value = '';
+    selectedDailyDates.clear();
+    loadUsers();
+  } else alert(data.message);
 }
 
 function applyExcelStyle(ws, rowCount) {
-  if (!ws?.['!ref']) return;
   const range = XLSX.utils.decode_range(ws['!ref']);
   for (let R = range.s.r; R <= range.e.r; ++R) {
     for (let C = range.s.c; C <= range.e.c; ++C) {
-      const cell = ws[XLSX.utils.encode_cell({r: R, c: C})];
+      const cell = ws[XLSX.utils.encode_cell({ r: R, c: C })];
       if (!cell) continue;
       cell.s = {
         alignment: { vertical: 'center', horizontal: 'center' },
-        border: { top: {style:'thin'}, bottom: {style:'thin'}, left: {style:'thin'}, right: {style:'thin'} }
+        border: { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } }
       };
       if (R === 0) {
         cell.s.fill = { fgColor: { rgb: 'EEEEEE' } };
@@ -321,241 +314,384 @@ function applyExcelStyle(ws, rowCount) {
       }
     }
   }
-  ws['!cols'] = [{wch: 15}, {wch: 20}, {wch: 15}, {wch: 20}];
+  ws['!cols'] = [{ wch: 15 }, { wch: 18 }, { wch: 14 }, { wch: 20 }];
   ws['!autofilter'] = { ref: `A1:D${rowCount}` };
 }
 
-async function exportDailySheet() {
-  if (typeof XLSX === 'undefined') return alert('엑셀 라이브러리를 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.');
-
-  const input = prompt('다운로드할 일별 시트 날짜를 입력하세요 (YYYY-MMDD)', formatDailyPromptDefault());
-  if (input === null) return;
-
-  const date = normalizeDailySheetDate(input);
-  if (!date) return alert('날짜 형식이 올바르지 않습니다. 예: 2026-0526');
-
-  try {
-    const res = await adminFetch(`/admin/events/${date}/attendees`);
-    if (!res.ok) throw new Error('데이터 조회 실패');
-
-    const diners = (await res.json()).filter(diner => diner.attended);
-    if (diners.length === 0) return alert(`${date}에 다운로드할 식사 기록이 없습니다.`);
-
-    const data = diners
-      .sort((a, b) => new Date(a.scannedAt) - new Date(b.scannedAt))
-      .map(diner => ({
-        '날짜': date,
-        '부서': diner.orgRole || '-',
-        '이름': diner.name || '-',
-        '시간': diner.scannedAt ? new Date(diner.scannedAt).toLocaleTimeString('ko-KR', {hour12:false}) : '-'
-      }));
-
-    const ws = XLSX.utils.json_to_sheet(data);
-    applyExcelStyle(ws, data.length + 1);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, '일별명단');
-    XLSX.writeFile(wb, `식사명단_${date.substring(0, 4)}-${date.substring(5, 7)}${date.substring(8, 10)}.xlsx`);
-  } catch (e) {
-    if (e.message !== '관리자 인증이 필요합니다.') {
-      console.error('일별 시트 다운로드 실패:', e);
-      alert('일별 시트를 다운로드할 수 없습니다.');
-    }
-  }
+function parseDailySheetDate(input) {
+  const raw = String(input || '').trim();
+  let match = /^(\d{4})-(\d{2})(\d{2})$/.exec(raw);
+  if (match) return `${match[1]}-${match[2]}-${match[3]}`;
+  match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+  if (match) return raw;
+  return null;
 }
 
-async function exportMonthlySheet() {
-  if (typeof XLSX === 'undefined') return alert('엑셀 라이브러리를 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.');
+async function exportDaily() {
+  const today = getTodayStr();
+  const defaultValue = `${today.slice(0, 4)}-${today.slice(5, 7)}${today.slice(8, 10)}`;
+  const raw = prompt('일별 시트 날짜 입력 (YYYY-MMDD)', defaultValue);
+  if (!raw) return;
+  const date = parseDailySheetDate(raw);
+  if (!date) return alert('날짜 형식은 YYYY-MMDD입니다. 예: 2026-0526');
 
+  const res = await apiFetch(`${API_BASE_URL}/admin/events/${date}/attendees`, { cache: 'no-store' });
+  const diners = await res.json();
+  if (!res.ok) return alert(diners.message || '조회 실패');
+  if (diners.length === 0) return alert('해당 날짜의 식사 기록이 없습니다.');
+
+  const data = diners.map(d => ({
+    '날짜': date,
+    '전화번호 뒷자리': d.phoneLast4,
+    '이름': d.name,
+    '시간': d.scannedAt ? new Date(d.scannedAt).toLocaleTimeString('ko-KR', { hour12: false }) : '-'
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(data);
+  applyExcelStyle(ws, data.length + 1);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '일별명단');
+  XLSX.writeFile(wb, `식사명단_${date}.xlsx`);
+}
+
+async function exportMonthly() {
   const month = prompt('조회할 월 입력 (YYYY-MM)', getTodayStr().substring(0, 7));
   if (!month) return;
-  if (!/^\d{4}-\d{2}$/.test(month.trim())) return alert('월 형식이 올바르지 않습니다. 예: 2026-05');
+  if (!/^\d{4}-\d{2}$/.test(month)) return alert('월 형식은 YYYY-MM입니다.');
+
+  const res = await apiFetch(`${API_BASE_URL}/admin/events/month/${month}`, { cache: 'no-store' });
+  const diners = await res.json();
+  if (!res.ok) return alert(diners.message || '조회 실패');
+  if (diners.length === 0) return alert('기록이 없습니다.');
+
+  const data = diners.sort((a, b) => a.date.localeCompare(b.date)).map(d => ({
+    '날짜': d.date,
+    '전화번호 뒷자리': d.phoneLast4,
+    '이름': d.name,
+    '시간': d.scannedAt ? new Date(d.scannedAt).toLocaleTimeString('ko-KR', { hour12: false }) : '-'
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(data);
+  applyExcelStyle(ws, data.length + 1);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '월별명단');
+  XLSX.writeFile(wb, `식사명단_${month}.xlsx`);
+}
+
+function setupImportSelectors() {
+  const yearSelect = $('import-year');
+  const monthSelect = $('import-month');
+  if (!yearSelect || yearSelect.options.length > 0) return;
+
+  const thisYear = Number(getTodayStr().slice(0, 4));
+  for (let year = thisYear - 1; year <= thisYear + 2; year++) {
+    const opt = document.createElement('option');
+    opt.value = String(year);
+    opt.textContent = `${year}년`;
+    if (year === thisYear) opt.selected = true;
+    yearSelect.appendChild(opt);
+  }
+
+  const thisMonth = Number(getTodayStr().slice(5, 7));
+  for (let month = 1; month <= 12; month++) {
+    const opt = document.createElement('option');
+    opt.value = String(month);
+    opt.textContent = `${month}월`;
+    if (month === thisMonth) opt.selected = true;
+    monthSelect.appendChild(opt);
+  }
+}
+
+async function analyzeMonthlyImport() {
+  const year = Number($('import-year').value);
+  const month = Number($('import-month').value);
+  const files = $('import-files').files;
+  if (!files || files.length === 0) return alert('xlsx 파일을 선택해 주세요.');
+
+  const formData = new FormData();
+  formData.append('year', String(year));
+  formData.append('month', String(month));
+  Array.from(files).forEach(file => formData.append('files', file));
+
+  const btn = $('btn-analyze-import');
+  btn.disabled = true;
+  btn.textContent = '분석 중...';
 
   try {
-    const res = await adminFetch(`/admin/events/month/${month.trim()}`);
-    if (!res.ok) throw new Error('데이터 조회 실패');
+    const res = await apiFetch(`${API_BASE_URL}/admin/monthly-import/analyze`, {
+      method: 'POST',
+      body: formData
+    });
+    const data = await res.json();
+    if (!res.ok) return alert(data.message || '엑셀 분석 실패');
 
-    const diners = await res.json();
-    if (diners.length === 0) return alert('기록이 없습니다.');
+    if (data.summary?.monthMismatch) {
+      const mismatchFiles = (data.files || []).filter(f => f.monthMismatch).map(f => `${f.fileName}(${f.detectedYear || '?'}년 ${f.detectedMonth || '?'}월)`).join('\n');
+      const proceed = confirm(`선택한 급식 기간은 ${year}년 ${month}월입니다.\n\n다음 파일의 맨 윗줄 기간이 선택 기간과 다릅니다. 선택 기간 외 다른 파일이 업로드되었을 수 있습니다.\n\n${mismatchFiles}\n\n계속 진행하겠습니까?`);
+      if (!proceed) return;
+    }
 
-    const data = diners.sort((a,b) => a.date.localeCompare(b.date)).map(diner => ({
-      '날짜': diner.date,
-      '부서': diner.orgRole || '-',
-      '이름': diner.name || '-',
-      '시간': diner.scannedAt ? new Date(diner.scannedAt).toLocaleTimeString('ko-KR', {hour12:false}) : '-'
+    importMeta = { year, month, summary: data.summary, files: data.files || [], errors: data.errors || [] };
+    importRows = (data.rows || []).map((row, idx) => ({
+      ...row,
+      id: row.id || `${Date.now()}_${idx}`,
+      selected: !row.alreadyRegistered,
+      seq: idx + 1,
+      unpaidConfirmed: row.paymentStatus !== '미입금'
     }));
-
-    const ws = XLSX.utils.json_to_sheet(data);
-    applyExcelStyle(ws, data.length + 1);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, '월별명단');
-    XLSX.writeFile(wb, `식사명단_${month.trim()}.xlsx`);
+    renderImportPreview(true);
   } catch (e) {
-    if (e.message !== '관리자 인증이 필요합니다.') {
-      console.error('월별 시트 다운로드 실패:', e);
-      alert('월별 시트를 다운로드할 수 없습니다.');
+    alert(e.message || '엑셀 분석 실패');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '분석하기';
+  }
+}
+
+function renderImportPreview(scrollToUnpaid = false) {
+  const section = $('import-preview-section');
+  const tbody = $('import-preview-body');
+  if (!section || !tbody) return;
+
+  section.classList.toggle('hidden', importRows.length === 0);
+  if (importRows.length === 0) {
+    tbody.innerHTML = '';
+    return;
+  }
+
+  const unpaidCount = importRows.filter(r => r.paymentStatus === '미입금').length;
+  const alreadyCount = importRows.filter(r => r.alreadyRegistered).length;
+  const selectedCount = importRows.filter(r => r.selected).length;
+  const summary = importMeta?.summary || {};
+
+  $('import-summary').textContent = `추출 ${importRows.length}명 · 선택 ${selectedCount}명 · 미입금 ${unpaidCount}명 · 일식 제외 ${summary.excludedDailyCount || 0}명 · 중복 제외 ${summary.duplicateCount || 0}명 · 이미 등록 ${alreadyCount}명`;
+
+  const warnings = [];
+  if (unpaidCount > 0) warnings.push('미입금자는 빨간색으로 표시됩니다. 등록하려면 각 행의 확인 버튼을 눌러야 합니다.');
+  if (alreadyCount > 0) warnings.push('이미 등록된 월식자는 기본 선택 해제되어 있습니다.');
+  if (importMeta?.errors?.length) warnings.push(importMeta.errors.join(' / '));
+  $('import-warning').textContent = warnings.join(' ');
+
+  tbody.innerHTML = importRows.map((row, index) => {
+    const isUnpaid = row.paymentStatus === '미입금';
+    const rowClass = isUnpaid ? 'bg-red-100/80' : row.alreadyRegistered ? 'bg-gray-100 text-gray-400' : 'bg-white';
+    const confirmCell = isUnpaid
+      ? row.unpaidConfirmed
+        ? '<span class="inline-flex text-green-700 bg-green-100 px-3 py-1 rounded-full text-xs font-black">확인 완료</span>'
+        : `<button onclick="window.confirmUnpaidImport(${index})" class="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold">확인</button>`
+      : '<span class="text-gray-400 text-xs">-</span>';
+
+    const statusLabel = isUnpaid
+      ? '<span class="text-red-700 font-black">미입금</span>'
+      : '<span class="text-green-700 font-bold">입금</span>';
+
+    return `
+      <tr id="import-row-${index}" class="${rowClass}">
+        <td class="p-3 text-center"><input type="checkbox" class="import-check w-4 h-4" ${row.selected ? 'checked' : ''} onchange="window.toggleImportSelection(${index}, this.checked)" ${row.alreadyRegistered ? 'disabled' : ''}></td>
+        <td class="p-3 text-center font-mono font-bold">${index + 1}</td>
+        <td class="p-3"><input value="${escapeAttr(row.name)}" onchange="window.updateImportRow(${index}, 'name', this.value)" class="w-44 border rounded-lg px-3 py-2 bg-white"></td>
+        <td class="p-3"><input value="${escapeAttr(row.phoneLast4)}" onchange="window.updateImportRow(${index}, 'phoneLast4', this.value)" maxlength="4" inputmode="numeric" class="w-32 border rounded-lg px-3 py-2 font-mono bg-white"></td>
+        <td class="p-3 text-center">${statusLabel}${row.alreadyRegistered ? '<div class="text-xs text-gray-500 mt-1">이미 등록됨</div>' : ''}</td>
+        <td class="p-3 text-center">${confirmCell}</td>
+        <td class="p-3 text-center"><button onclick="window.deleteImportRow(${index})" class="text-xs font-bold text-gray-400 hover:text-red-500">삭제</button></td>
+      </tr>`;
+  }).join('');
+
+  if (scrollToUnpaid) {
+    const firstUnconfirmed = importRows.findIndex(r => r.paymentStatus === '미입금' && !r.unpaidConfirmed);
+    if (firstUnconfirmed >= 0) {
+      setTimeout(() => $('import-row-' + firstUnconfirmed)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
     }
   }
 }
 
-// ==========================================
-// 🚀 5. 초기화 및 이벤트 등록
-// ==========================================
+function getSelectedImportRows(mode) {
+  if (mode === 'all') return importRows.filter(r => !r.alreadyRegistered);
+  return importRows.filter(r => r.selected && !r.alreadyRegistered);
+}
+
+async function registerImportRows(mode) {
+  if (!importMeta) return alert('먼저 엑셀을 분석해 주세요.');
+  const rows = getSelectedImportRows(mode);
+  if (rows.length === 0) return alert('등록할 명단을 선택해 주세요.');
+
+  const unconfirmedIdx = importRows.findIndex(r => rows.includes(r) && r.paymentStatus === '미입금' && !r.unpaidConfirmed);
+  if (unconfirmedIdx >= 0) {
+    alert('미입금자는 확인 버튼을 눌러야 등록할 수 있습니다.');
+    $('import-row-' + unconfirmedIdx)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+
+  if (!confirm(`${importMeta.year}년 ${importMeta.month}월 월식 명단 ${rows.length}명을 등록하시겠습니까?`)) return;
+
+  const res = await apiFetch(`${API_BASE_URL}/admin/monthly-import/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ year: importMeta.year, month: importMeta.month, rows })
+  });
+  const data = await res.json();
+  if (!res.ok) return alert(data.message || '등록 실패');
+
+  alert(`등록 완료: 추가 ${data.added}명, 건너뜀 ${data.skipped}명`);
+  importRows = [];
+  renderImportPreview();
+  loadUsers();
+}
+
 export function initAdminList() {
-  $('btn-cancel-auth')?.addEventListener('click', showAuthOverlay);
   $('btn-request-auth')?.addEventListener('click', requestAdminAuth);
   $('btn-verify-auth')?.addEventListener('click', verifyAdminAuth);
-  $('btn-admin-logout')?.addEventListener('click', logoutAdmin);
-  $('btn-export-daily')?.addEventListener('click', exportDailySheet);
-  $('btn-export-monthly')?.addEventListener('click', exportMonthlySheet);
+  $('btn-reset-auth')?.addEventListener('click', resetAuthUI);
+  $('btn-logout')?.addEventListener('click', logout);
   $('daily-date-picker')?.addEventListener('change', handleDatePickerChange);
   $('search-input')?.addEventListener('input', renderUsers);
-
-  $('check-all')?.addEventListener('change', (e) => {
-    document.querySelectorAll('.user-check').forEach(cb => cb.checked = e.target.checked);
+  $('new-phone')?.addEventListener('input', e => { e.target.value = normalizePhoneLast4(e.target.value); });
+  $('btn-add-user')?.addEventListener('click', addUser);
+  $('btn-export-daily')?.addEventListener('click', exportDaily);
+  $('btn-export-monthly')?.addEventListener('click', exportMonthly);
+  $('btn-analyze-import')?.addEventListener('click', analyzeMonthlyImport);
+  $('btn-register-selected-import')?.addEventListener('click', () => registerImportRows('selected'));
+  $('btn-register-all-import')?.addEventListener('click', () => registerImportRows('all'));
+  $('btn-delete-selected-import')?.addEventListener('click', () => {
+    importRows = importRows.filter(r => !r.selected);
+    renderImportPreview();
+  });
+  $('btn-clear-import')?.addEventListener('click', () => {
+    if (importRows.length && !confirm('추출 명단을 모두 비우겠습니까?')) return;
+    importRows = [];
+    renderImportPreview();
   });
 
-  $('btn-add-user')?.addEventListener('click', async () => {
-    const orgRole = $('new-org')?.value.trim();
-    const name = $('new-name')?.value.trim();
-    if (!orgRole || !name) return alert('부서와 이름을 입력하세요.');
-
-    let targetDates = [];
-    if (currentTab === 'daily') {
-      const parts = ($('daily-date-text')?.value || '').split(',').map(s => s.trim()).filter(s => /^\d{4}$/.test(s));
-      if (parts.length === 0) return alert('날짜를 선택하세요.');
-      targetDates = parts.map(mmddToDate);
-    }
-
-    try {
-      const res = await adminFetch('/admin/allowed-users', {
-        method: 'POST',
-        body: { orgRole, name, mealType: currentTab, targetDates }
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (res.ok) {
-        if ($('new-name')) $('new-name').value = '';
-        if ($('daily-date-text')) $('daily-date-text').value = '';
-        selectedDailyDates.clear();
-        loadUsers();
-      } else {
-        alert(data.message || '명단 추가에 실패했습니다.');
-      }
-    } catch (e) {
-      if (e.message !== '관리자 인증이 필요합니다.') alert('서버 연결 실패');
-    }
+  $('check-all')?.addEventListener('change', (e) => {
+    document.querySelectorAll('.user-check').forEach(cb => { cb.checked = e.target.checked; });
   });
 
   checkAdminSession();
 }
 
-// 🌟 전역 함수 노출 (HTML onclick 대응)
 window.switchTab = (tab) => {
   currentTab = tab;
   const isDaily = tab === 'daily';
-
-  if ($('tab-daily')) {
-    $('tab-daily').className = isDaily
-      ? 'flex-1 py-4 font-black text-blue-600 border-b-4 border-blue-600 bg-white'
-      : 'flex-1 py-4 font-bold text-gray-400 bg-gray-50 hover:bg-gray-100';
-  }
-  if ($('tab-monthly')) {
-    $('tab-monthly').className = !isDaily
-      ? 'flex-1 py-4 font-black text-blue-600 border-b-4 border-blue-600 bg-white'
-      : 'flex-1 py-4 font-bold text-gray-400 bg-gray-50 hover:bg-gray-100';
-  }
-
-  $('daily-date-wrapper')?.classList.toggle('hidden', !isDaily);
-  $('monthly-bulk-actions')?.classList.toggle('hidden', isDaily);
-  if ($('th-endDate')) $('th-endDate').textContent = isDaily ? '지정 날짜 목록' : '마감 기한';
-  if ($('form-title')) $('form-title').textContent = isDaily ? '일식 등록' : '월식 등록';
-  if ($('check-all')) $('check-all').checked = false;
-
+  $('tab-daily').className = isDaily ? 'flex-1 py-4 font-black text-blue-600 border-b-4 border-blue-600 bg-white' : 'flex-1 py-4 font-bold text-gray-400 bg-gray-50 hover:bg-gray-100';
+  $('tab-monthly').className = !isDaily ? 'flex-1 py-4 font-black text-blue-600 border-b-4 border-blue-600 bg-white' : 'flex-1 py-4 font-bold text-gray-400 bg-gray-50 hover:bg-gray-100';
+  $('daily-date-wrapper').classList.toggle('hidden', !isDaily);
+  $('monthly-bulk-actions').classList.toggle('hidden', isDaily);
+  $('monthly-import-panel').classList.toggle('hidden', isDaily);
+  $('th-endDate').textContent = isDaily ? '지정 날짜 목록' : '마감 기한';
+  $('form-title').textContent = isDaily ? '일식 등록' : '월식 등록';
   renderUsers();
 };
 
 window.changePeriod = async (idx, action) => {
-  try {
-    const res = await adminFetch('/admin/allowed-users/update-period', {
-      method: 'POST',
-      body: { indexes: [idx], action, type: currentTab }
-    });
-    if (!res.ok) alert((await res.json()).message);
-    loadUsers();
-  } catch (e) {
-    if (e.message !== '관리자 인증이 필요합니다.') alert('기간 변경 실패');
-  }
+  const res = await apiFetch(`${API_BASE_URL}/admin/allowed-users/update-period`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ indexes: [idx], action })
+  });
+  const data = await res.json();
+  if (!res.ok) alert(data.message || '기간 변경 실패');
+  loadUsers();
+};
+
+window.editUserInfo = async (idx) => {
+  const user = allUsers.find(u => u._index === idx);
+  if (!user) return;
+  const name = prompt('이름을 수정하세요.', user.name);
+  if (name === null) return;
+  const phoneLast4 = normalizePhoneLast4(prompt('전화번호 뒷자리 4자리를 수정하세요.', user.phoneLast4));
+  if (!/^\d{4}$/.test(phoneLast4)) return alert('전화번호 뒷자리는 숫자 4자리입니다.');
+
+  const res = await apiFetch(`${API_BASE_URL}/admin/allowed-users/update-info`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ index: idx, name: name.trim(), phoneLast4 })
+  });
+  const data = await res.json();
+  if (!res.ok) return alert(data.message || '정보 수정 실패');
+  loadUsers();
 };
 
 window.editDailyDates = async (idx) => {
-  const user = allUsers[idx];
-  if (!user) return alert('대상을 찾을 수 없습니다.');
-
-  const currentStr = Array.isArray(user.validDates)
-    ? user.validDates.map(date => date.substring(5,7) + date.substring(8,10)).join(', ')
-    : '';
-  const newVal = prompt('변경할 날짜들을 입력하세요 (예: 0401, 0405)', currentStr);
+  const user = allUsers.find(u => u._index === idx);
+  if (!user) return;
+  const currentStr = Array.isArray(user.validDates) ? user.validDates.join(', ') : '';
+  const newVal = prompt('변경할 날짜들을 입력하세요. 예: 2026-05-26, 0527', currentStr);
   if (newVal === null) return;
+  const currentText = $('daily-date-text').value;
+  $('daily-date-text').value = newVal;
+  const targetDates = parseDailyDatesFromText();
+  $('daily-date-text').value = currentText;
+  if (targetDates.length === 0) return alert('날짜 형식이 올바르지 않습니다.');
 
-  const parts = newVal.split(',').map(s => s.trim()).filter(s => /^\d{4}$/.test(s));
-  if (parts.length === 0) return alert('날짜를 하나 이상 입력하세요.');
-
-  const targetDates = parts.map(mmddToDate);
-  try {
-    const res = await adminFetch('/admin/allowed-users/update-dates', {
-      method: 'POST',
-      body: { index: idx, targetDates }
-    });
-    if (!res.ok) alert((await res.json()).message);
-    loadUsers();
-  } catch (e) {
-    if (e.message !== '관리자 인증이 필요합니다.') alert('날짜 변경 실패');
-  }
+  const res = await apiFetch(`${API_BASE_URL}/admin/allowed-users/update-dates`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ index: idx, targetDates })
+  });
+  const data = await res.json();
+  if (!res.ok) alert(data.message || '날짜 변경 실패');
+  loadUsers();
 };
 
 window.deleteUser = async (idx) => {
   if (!confirm('삭제하시겠습니까?')) return;
-  try {
-    const res = await adminFetch('/admin/allowed-users', {
-      method: 'DELETE',
-      body: { indexes: [idx] }
-    });
-    if (!res.ok) alert((await res.json()).message);
-    loadUsers();
-  } catch (e) {
-    if (e.message !== '관리자 인증이 필요합니다.') alert('삭제 실패');
-  }
+  const res = await apiFetch(`${API_BASE_URL}/admin/allowed-users`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ indexes: [idx] })
+  });
+  const data = await res.json();
+  if (!res.ok) alert(data.message || '삭제 실패');
+  loadUsers();
 };
 
 window.bulkChange = async (action) => {
-  const indexes = Array.from(document.querySelectorAll('.user-check:checked')).map(cb => Number.parseInt(cb.dataset.index, 10));
+  const indexes = Array.from(document.querySelectorAll('.user-check:checked')).map(cb => Number(cb.dataset.index));
   if (indexes.length === 0) return alert('대상을 선택하세요.');
-
-  try {
-    const res = await adminFetch('/admin/allowed-users/update-period', {
-      method: 'POST',
-      body: { indexes, action, type: currentTab }
-    });
-    if (!res.ok) alert((await res.json()).message);
-    loadUsers();
-  } catch (e) {
-    if (e.message !== '관리자 인증이 필요합니다.') alert('일괄 변경 실패');
-  }
+  const res = await apiFetch(`${API_BASE_URL}/admin/allowed-users/update-period`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ indexes, action })
+  });
+  const data = await res.json();
+  if (!res.ok) alert(data.message || '기간 변경 실패');
+  loadUsers();
 };
 
 window.bulkDelete = async () => {
-  const indexes = Array.from(document.querySelectorAll('.user-check:checked')).map(cb => Number.parseInt(cb.dataset.index, 10));
+  const indexes = Array.from(document.querySelectorAll('.user-check:checked')).map(cb => Number(cb.dataset.index));
   if (indexes.length === 0) return alert('대상을 선택하세요.');
   if (!confirm('일괄 삭제하시겠습니까?')) return;
+  const res = await apiFetch(`${API_BASE_URL}/admin/allowed-users`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ indexes })
+  });
+  const data = await res.json();
+  if (!res.ok) alert(data.message || '삭제 실패');
+  loadUsers();
+};
 
-  try {
-    const res = await adminFetch('/admin/allowed-users', {
-      method: 'DELETE',
-      body: { indexes }
-    });
-    if (!res.ok) alert((await res.json()).message);
-    loadUsers();
-  } catch (e) {
-    if (e.message !== '관리자 인증이 필요합니다.') alert('일괄 삭제 실패');
-  }
+window.toggleImportSelection = (index, checked) => {
+  if (!importRows[index]) return;
+  importRows[index].selected = checked;
+  renderImportPreview();
+};
+
+window.updateImportRow = (index, field, value) => {
+  if (!importRows[index]) return;
+  if (field === 'phoneLast4') importRows[index][field] = normalizePhoneLast4(value);
+  else if (field === 'name') importRows[index][field] = String(value || '').replace(/[<>]/g, '').trim();
+  renderImportPreview();
+};
+
+window.confirmUnpaidImport = (index) => {
+  if (!importRows[index]) return;
+  importRows[index].unpaidConfirmed = true;
+  renderImportPreview();
+};
+
+window.deleteImportRow = (index) => {
+  importRows.splice(index, 1);
+  renderImportPreview();
 };

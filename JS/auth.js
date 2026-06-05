@@ -1,7 +1,3 @@
-// JS/auth.js
-// 과거 관리자 인증 모듈 호환용 파일입니다.
-// 스캐너는 scanner.html에서 바로 실행되고, 관리자 인증은 JS/admin_list_app.js에서 처리합니다.
-
-export function initAuth() {
-  console.info('[auth] 기존 인증 모듈은 비활성화되었습니다. 관리자 인증은 admin_list_app.js를 사용합니다.');
-}
+// 예전 인증 모듈 호환용 빈 모듈입니다.
+// 현재 관리자 인증은 JS/admin_list_app.js와 백엔드 HttpOnly 세션 쿠키로 처리됩니다.
+export function initAuth() {}

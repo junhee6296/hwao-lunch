@@ -1,20 +1,33 @@
-# 화성오산교육지원청 QR 점심식사 체크인 시스템
-## 개요
+# 화성오산교육지원청 점심 QR
 
-## 기능 설명
-### 사용자
-<img width="300" height="500" alt="image" src="https://github.com/user-attachments/assets/60edaf08-f4e0-433d-aae9-943251eb14f9" /> <img width="400" height="385" alt="image" src="https://github.com/user-attachments/assets/cc015dbd-494b-4d57-9ad4-0b3aa6ce536c" />
+## 주요 URL
 
-1. 홈페이지에 접속합니다
-2. 부서와 이름을 작성하고 QR 코드 생성을 누릅니다
-3. 청내 비치된 태블릿에 스캔합니다.
+- `/qr.html` : 사용자 QR 발급 화면
+- `/scanner.html` 또는 `/scanner` : 인증 없는 스캐너 전용 화면
+- `/admin.html` 또는 `/admin` : 관리자 인증 후 명단 관리, 엑셀 다운로드, 월식 엑셀 자동 등록
 
+## 운영 환경 변수
 
-## 배포 보안 메모
+```env
+PORT=5000
+EMAIL_USER=메일계정
+EMAIL_PASS=앱비밀번호
+ADMIN_EMAILS=admin1@example.com,admin2@example.com
+DATA_DIR=/secure/path/for/json
+PUBLIC_ORIGIN=https://example.com
+NODE_ENV=production
+COOKIE_SECURE=true
+ADMIN_SESSION_MINUTES=240
+AUTH_SECRET=긴_랜덤_문자열
+```
 
-- 관리자 인증은 `ADMIN_EMAILS`에 등록된 이메일로만 가능하며, 인증 성공 후 서버가 `HttpOnly` 세션 쿠키를 발급합니다.
-- `SUPER_ADMIN_EMAILS`는 더 이상 사용하지 않습니다.
-- 운영 HTTPS 환경에서는 `.env`에 `NODE_ENV=production` 또는 `COOKIE_SECURE=true`를 권장합니다.
-- 프록시/도메인 환경에서 Origin 검사가 막히면 `PUBLIC_ORIGIN=https://도메인` 값을 설정하세요.
-- 데이터 파일은 `DATA_DIR=/보안/저장/경로`로 프로젝트 공개 폴더 밖에 두는 것을 권장합니다.
-- `data.json`, `allowed_users.json`, `.env`, `node_modules`는 배포 zip/저장소에 포함하지 않습니다.
+## 설치
+
+```bash
+npm install
+npm start
+```
+
+## TTS 음성 파일
+
+`audio/README.txt`의 파일명대로 MP3를 넣으면 스캐너에서 랜덤 재생됩니다. MP3가 없으면 브라우저 기본 음성 합성으로 대체 안내를 재생합니다.

@@ -2,12 +2,32 @@ export const API_BASE_URL = '/api';
 
 export const getTodayStr = () => {
   const now = new Date();
-  const offset = now.getTimezoneOffset() * 60000;
-  return new Date(now - offset).toISOString().split('T')[0];
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(now).reduce((acc, part) => {
+    acc[part.type] = part.value;
+    return acc;
+  }, {});
+  return `${parts.year}-${parts.month}-${parts.day}`;
 };
 
-// 주말 체크 (토:6, 일:0)
 export const isWeekend = (dateStr) => {
-  const day = new Date(dateStr).getDay();
-  return day === 0 || day === 6;
+  const [year, month, day] = String(dateStr || '').split('-').map(Number);
+  if (!year || !month || !day) return false;
+  const date = new Date(Date.UTC(year, month - 1, day));
+  const weekDay = date.getUTCDay();
+  return weekDay === 0 || weekDay === 6;
 };
+
+export const normalizePhoneLast4 = (value) => String(value || '').replace(/\D/g, '').slice(-4);
+
+export const escapeHTML = (value) => String(value ?? '').replace(/[&<>'"]/g, ch => ({
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  "'": '&#39;',
+  '"': '&quot;'
+}[ch]));

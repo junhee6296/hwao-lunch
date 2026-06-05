@@ -44,25 +44,25 @@
     
     <div class="flex justify-end pt-4 px-4 bg-white">
       <a href="/scanner.html" class="bg-gray-100 hover:bg-gray-200 text-gray-500 font-bold py-1.5 px-3 rounded-lg text-xs flex items-center gap-1 shadow-sm transition-colors">
-        ⚙️ 관리자 스캐너
+        📷 스캐너 열기
       </a>
     </div>
 
     <header class="pb-8 pt-2 px-4 border-b-2 border-green-100 text-center">
       <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900 leading-tight">🍽️ 점심 체크 전용 QR</h1>
-      <p class="text-lg sm:text-xl text-gray-500 mt-2 break-keep">부서와 이름을 입력하고 QR을 보여주세요</p>
+      <p class="text-lg sm:text-xl text-gray-500 mt-2 break-keep">이름과 전화번호 뒷자리를 입력하고 QR을 보여주세요</p>
     </header>
 
     <main class="flex-1 p-6 flex flex-col items-center justify-center">
       <div id="qr-form-container" class="w-full max-w-md p-8 rounded-3xl border-2 border-gray-100 shadow-sm bg-white">
         <div class="input-row">
-          <label for="orgRole" class="input-label">소속 부서</label>
-          <input type="text" id="orgRole" class="form-input" placeholder="예: 행정과, 초등교육지원과">
-        </div>
-        
-        <div class="input-row">
           <label for="userName" class="input-label">이름</label>
-          <input type="text" id="userName" class="form-input" placeholder="성함을 입력하세요">
+          <input type="text" id="userName" class="form-input" placeholder="성함을 입력하세요" autocomplete="name">
+        </div>
+
+        <div class="input-row">
+          <label for="phoneLast4" class="input-label">전화번호 뒷자리</label>
+          <input type="text" id="phoneLast4" class="form-input" placeholder="숫자 4자리" maxlength="4" inputmode="numeric" autocomplete="off">
         </div>
         
         <button id="btn-generate-qr" class="btn btn-primary w-full mt-6 text-2xl h-20 rounded-2xl font-bold shadow-lg shadow-green-100">
@@ -104,6 +104,6 @@
     </footer>
   </div>
 
-  <script type="module" src="JS/qr_app.js?v=security-20260526"></script>
+  <script type="module" src="JS/qr_app.js?v=20260605"></script>
 </body>
 </html>

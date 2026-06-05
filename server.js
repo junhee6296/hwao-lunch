@@ -3,248 +3,181 @@ require('dotenv').config();
 
 const express = require('express');
 const path = require('path');
-const nodemailer = require('nodemailer');
 const fs = require('fs');
 const crypto = require('crypto');
+const nodemailer = require('nodemailer');
 
 const app = express();
-const port = process.env.PORT || 5000;
+const port = Number(process.env.PORT || 5000);
 
-app.set('trust proxy', 1);
+const ROOT_DIR = __dirname;
+const DATA_DIR = path.resolve(process.env.DATA_DIR || ROOT_DIR);
+const dbPath = path.join(DATA_DIR, 'data.json');
+const userListPath = path.join(DATA_DIR, 'allowed_users.json');
 
-// ==========================================
-// 🔒 보안 기본값
-// ==========================================
-const isProduction = process.env.NODE_ENV === 'production';
-const cookieSecure = process.env.COOKIE_SECURE
-  ? process.env.COOKIE_SECURE === 'true'
-  : isProduction;
+const COOKIE_NAME = 'hwao_lunch_admin_session';
+const SESSION_MINUTES = Number(process.env.ADMIN_SESSION_MINUTES || 240);
+const CODE_EXPIRES_MS = 3 * 60 * 1000;
+const CODE_COOLDOWN_MS = 30 * 1000;
+const MAX_AUTH_ATTEMPTS = 3;
+const MAX_JSON_SIZE = '1mb';
+const MAX_UPLOAD_SIZE = 8 * 1024 * 1024;
+const MAX_UPLOAD_FILES = 10;
+const AUTH_SECRET = process.env.AUTH_SECRET || process.env.EMAIL_PASS || crypto.randomBytes(32).toString('hex');
 
-const ADMIN_SESSION_COOKIE = 'hwao_admin_session';
-const ADMIN_SESSION_MINUTES = Number.parseInt(process.env.ADMIN_SESSION_MINUTES || '240', 10);
-const ADMIN_SESSION_TTL_MS = Math.max(10, ADMIN_SESSION_MINUTES) * 60 * 1000;
-const AUTH_CODE_TTL_MS = 3 * 60 * 1000;
-const AUTH_REQUEST_COOLDOWN_MS = 30 * 1000;
-const MAX_INPUT_LENGTH = 80;
-
-const configuredOrigins = new Set(
-  (process.env.PUBLIC_ORIGIN || process.env.ALLOWED_ORIGINS || '')
-    .split(',')
-    .map(origin => origin.trim())
-    .filter(Boolean)
-    .map(origin => {
-      try { return new URL(origin).origin; } catch (_) { return ''; }
-    })
-    .filter(Boolean)
-);
-
-const getRequestOrigin = (req) => `${req.protocol}://${req.get('host')}`;
-const isAllowedOrigin = (origin, req) => {
-  if (!origin) return true;
-  return origin === getRequestOrigin(req) || configuredOrigins.has(origin);
-};
-
-app.use((req, res, next) => {
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('Referrer-Policy', 'same-origin');
-  res.setHeader('Permissions-Policy', 'camera=(self), microphone=(), geolocation=()');
-  res.setHeader(
-    'Content-Security-Policy',
-    [
-      "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://unpkg.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net",
-      "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data:",
-      "media-src 'self' blob:",
-      "connect-src 'self'",
-      "worker-src 'self' blob:",
-      "frame-ancestors 'none'",
-      "base-uri 'self'",
-      "form-action 'self'"
-    ].join('; ')
-  );
-
-  if (isProduction || cookieSecure) {
-    res.setHeader('Strict-Transport-Security', 'max-age=15552000; includeSubDomains');
-  }
-
-  if (req.path.startsWith('/api/') || ['.html', ''].includes(path.extname(req.path))) {
-    res.setHeader('Cache-Control', 'no-store');
-  }
-
-  next();
-});
-
-app.use((req, res, next) => {
-  const unsafeMethod = !['GET', 'HEAD', 'OPTIONS'].includes(req.method);
-  if (unsafeMethod && !isAllowedOrigin(req.get('origin'), req)) {
-    return res.status(403).json({ message: '허용되지 않은 요청 출처입니다.' });
-  }
-  next();
-});
-
-app.use(express.json({ limit: '1mb' }));
-
-// 전체 루트 정적 공개 금지: 필요한 화면/정적 폴더만 명시적으로 공개합니다.
-const staticNoStore = (res) => res.setHeader('Cache-Control', 'no-store');
-app.use('/CSS', express.static(path.join(__dirname, 'CSS'), { dotfiles: 'deny', index: false, setHeaders: staticNoStore }));
-app.use('/JS', express.static(path.join(__dirname, 'JS'), { dotfiles: 'deny', index: false, setHeaders: staticNoStore }));
-app.get('/manifest.json', (req, res) => res.sendFile(path.join(__dirname, 'manifest.json')));
-
-app.get('/', (req, res) => res.redirect('/qr.html'));
-app.get('/qr.html', (req, res) => res.sendFile(path.join(__dirname, 'qr.html')));
-app.get('/scanner.html', (req, res) => res.sendFile(path.join(__dirname, 'scanner.html')));
-app.get('/admin.html', (req, res) => res.sendFile(path.join(__dirname, 'admin.html')));
-app.get('/admin_list.html', (req, res) => res.sendFile(path.join(__dirname, 'admin_list.html')));
-app.get('/admin', (req, res) => res.redirect('/admin.html'));
-app.get('/scanner', (req, res) => res.redirect('/scanner.html'));
-
-// ==========================================
-// 💾 데이터 저장소
-// ==========================================
-const dataDir = process.env.DATA_DIR
-  ? (path.isAbsolute(process.env.DATA_DIR) ? process.env.DATA_DIR : path.join(__dirname, process.env.DATA_DIR))
-  : __dirname;
-fs.mkdirSync(dataDir, { recursive: true });
-
-const dbPath = path.join(dataDir, 'data.json');
-const userListPath = path.join(dataDir, 'allowed_users.json');
+fs.mkdirSync(DATA_DIR, { recursive: true });
 
 let db = { days: {} };
 let allowedUsers = [];
+let authCodes = new Map();
+let sessions = new Map();
+
+const adminEmails = (process.env.ADMIN_EMAILS || '')
+  .split(',')
+  .map(e => e.trim().toLowerCase())
+  .filter(Boolean);
+
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  }
+});
+
+// ==========================================
+// 공통 유틸
+// ==========================================
+const pad2 = value => String(value).padStart(2, '0');
 
 const getKSTDateStr = (date = new Date()) => {
-  return new Intl.DateTimeFormat('en-CA', {
+  return new Intl.DateTimeFormat('ko-KR', {
     timeZone: 'Asia/Seoul',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit'
-  }).format(date);
+  }).format(date).replace(/\. /g, '-').replace(/\./g, '');
 };
 
-const getKSTParts = (date = new Date()) => {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Asia/Seoul',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  }).formatToParts(date);
+const getKSTYearMonth = (date = new Date()) => getKSTDateStr(date).slice(0, 7);
 
-  return Object.fromEntries(parts.filter(p => p.type !== 'literal').map(p => [p.type, Number(p.value)]));
+const calculateMonthlyEndDate = (year, month) => {
+  const lastDay = new Date(Date.UTC(Number(year), Number(month), 0)).getUTCDate();
+  return `${year}-${pad2(month)}-${pad2(lastDay)}`;
 };
 
-const isValidDateStr = (value) => {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ''))) return false;
-  const [year, month, day] = value.split('-').map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day, 3));
-  return getKSTDateStr(date) === value;
+const parseISODate = (dateStr) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateStr || ''));
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  const date = new Date(Date.UTC(y, mo - 1, d));
+  if (date.getUTCFullYear() !== y || date.getUTCMonth() !== mo - 1 || date.getUTCDate() !== d) return null;
+  return { year: y, month: mo, day: d, date };
 };
 
-const isWeekendKST = (dateStr) => {
-  const [year, month, day] = dateStr.split('-').map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day, 3));
-  const kstDay = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Seoul', weekday: 'short' }).format(date);
-  return kstDay === 'Sat' || kstDay === 'Sun';
+const isWeekendDateStr = (dateStr) => {
+  const parsed = parseISODate(dateStr);
+  if (!parsed) return false;
+  const day = parsed.date.getUTCDay();
+  return day === 0 || day === 6;
 };
 
-const addDaysToDateStr = (dateStr, days) => {
-  const [year, month, day] = dateStr.split('-').map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day + days, 3));
-  return getKSTDateStr(date);
+const addDays = (dateStr, days) => {
+  const parsed = parseISODate(dateStr);
+  if (!parsed) return dateStr;
+  const date = new Date(parsed.date);
+  date.setUTCDate(date.getUTCDate() + days);
+  return `${date.getUTCFullYear()}-${pad2(date.getUTCMonth() + 1)}-${pad2(date.getUTCDate())}`;
 };
 
-const calculateMonthlyEndDate = (baseDate = new Date()) => {
-  const { year, month } = getKSTParts(baseDate);
-  const lastDayKSTNoon = new Date(Date.UTC(year, month, 0, 3));
-  return getKSTDateStr(lastDayKSTNoon);
+const normalizeName = (value) => String(value || '')
+  .replace(/[<>]/g, '')
+  .replace(/[\u0000-\u001F\u007F]/g, '')
+  .replace(/\s+/g, ' ')
+  .trim()
+  .slice(0, 40);
+
+const stripTrailingPhoneFromName = (value) => normalizeName(value).replace(/\d{4}$/, '').trim();
+
+const normalizePhoneLast4 = (value) => {
+  const digits = String(value || '').replace(/\D/g, '');
+  return digits.length >= 4 ? digits.slice(-4) : digits;
 };
 
-const readJsonFile = (filePath, fallback) => {
-  if (!fs.existsSync(filePath)) return fallback;
-  try {
-    return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-  } catch (e) {
-    console.error(`[data] JSON 읽기 실패: ${filePath}`, e.message);
-    return fallback;
-  }
-};
+const isValidPhoneLast4 = (value) => /^\d{4}$/.test(String(value || ''));
 
-const writeJsonAtomic = (filePath, data) => {
-  const tmpPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
-  fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), 'utf-8');
-  fs.renameSync(tmpPath, filePath);
-};
-
-const saveDB = () => writeJsonAtomic(dbPath, db);
-const saveUserList = () => writeJsonAtomic(userListPath, allowedUsers);
-
-const createId = () => (crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString('hex'));
-
-const sanitizeText = (value, fieldName) => {
-  const text = String(value || '').trim().replace(/\s+/g, ' ');
-  if (!text) throw new Error(`${fieldName}을(를) 입력하세요.`);
-  if (text.length > MAX_INPUT_LENGTH) throw new Error(`${fieldName}은(는) ${MAX_INPUT_LENGTH}자 이하로 입력하세요.`);
-  return text;
-};
-
-const normalizeMealType = (value) => {
-  if (value !== 'daily' && value !== 'monthly') throw new Error('식사 유형이 올바르지 않습니다.');
-  return value;
-};
-
-const normalizeDateList = (targetDates) => {
-  if (!Array.isArray(targetDates) || targetDates.length === 0) {
-    throw new Error('날짜를 하나 이상 지정하세요.');
-  }
-
-  const normalized = [...new Set(targetDates.map(String).map(v => v.trim()))]
-    .filter(Boolean)
-    .sort();
-
-  if (normalized.length > 370) throw new Error('날짜가 너무 많습니다.');
-  if (normalized.some(date => !isValidDateStr(date))) throw new Error('날짜 형식이 올바르지 않습니다.');
-
-  return normalized;
-};
-
-const sanitizeDiner = (diner, date = null) => ({
-  ...(date ? { date } : {}),
-  orgRole: diner.orgRole || '',
-  name: diner.name || '',
-  attended: Boolean(diner.attended),
-  scannedAt: diner.scannedAt || null
+const sanitizeUserForClient = (u) => ({
+  name: u.name,
+  phoneLast4: u.phoneLast4,
+  mealType: u.mealType,
+  startDate: u.startDate,
+  endDate: u.endDate,
+  validDates: Array.isArray(u.validDates) ? u.validDates : null,
+  paymentStatus: u.paymentStatus || '입금',
+  createdAt: u.createdAt
 });
 
-const sanitizeUser = (user) => ({
-  id: user.id,
-  orgRole: user.orgRole,
-  name: user.name,
-  mealType: user.mealType,
-  startDate: user.startDate,
-  endDate: user.endDate,
-  validDates: Array.isArray(user.validDates) ? user.validDates : null,
-  createdAt: user.createdAt
+const sanitizeDinerForScanner = (d) => ({
+  name: d.name,
+  phoneLast4: d.phoneLast4 || normalizePhoneLast4(d.orgRole || ''),
+  scannedAt: d.scannedAt
 });
 
-const isUserEligibleToday = (user, todayStr) => {
-  if (!user || !user.name || !user.orgRole) return false;
-  if (user.mealType === 'daily') {
-    return Array.isArray(user.validDates) && user.validDates.includes(todayStr);
+const sanitizeDinerForAdmin = (d) => ({
+  date: d.date,
+  name: d.name,
+  phoneLast4: d.phoneLast4 || normalizePhoneLast4(d.orgRole || ''),
+  mealType: d.mealType || '',
+  attended: Boolean(d.attended),
+  scannedAt: d.scannedAt || null
+});
+
+const normalizeAllowedUser = (u) => {
+  const phoneLast4 = normalizePhoneLast4(u.phoneLast4 || u.phone || u.orgRole || '');
+  const name = normalizeName(u.name);
+  const mealType = u.mealType === 'daily' ? 'daily' : 'monthly';
+  const today = getKSTDateStr();
+  let validDates = Array.isArray(u.validDates) ? u.validDates.filter(d => parseISODate(d)).sort() : null;
+  let startDate = parseISODate(u.startDate) ? u.startDate : today;
+  let endDate = parseISODate(u.endDate) ? u.endDate : calculateMonthlyEndDate(today.slice(0, 4), today.slice(5, 7));
+
+  if (mealType === 'daily') {
+    if (!validDates || validDates.length === 0) validDates = [startDate].filter(d => parseISODate(d));
+    if (validDates.length > 0) {
+      startDate = validDates[0];
+      endDate = validDates[validDates.length - 1];
+    }
+  } else {
+    validDates = null;
   }
-  if (user.mealType === 'monthly') {
-    return user.startDate <= todayStr && todayStr <= user.endDate;
-  }
-  return false;
+
+  return {
+    name,
+    phoneLast4,
+    mealType,
+    startDate,
+    endDate,
+    validDates,
+    paymentStatus: u.paymentStatus === '미입금' ? '미입금' : '입금',
+    createdAt: u.createdAt || new Date().toISOString()
+  };
 };
+
+const saveDB = () => fs.writeFileSync(dbPath, JSON.stringify(db, null, 2), 'utf-8');
+const saveUserList = () => fs.writeFileSync(userListPath, JSON.stringify(allowedUsers.map(sanitizeUserForClient), null, 2), 'utf-8');
 
 const cleanupExpiredUsers = () => {
   const todayStr = getKSTDateStr();
   let changed = false;
 
-  allowedUsers = allowedUsers.filter(user => {
-    if (!user.endDate || !isValidDateStr(user.endDate)) return true;
-    const deleteDateStr = addDaysToDateStr(user.endDate, 5);
+  allowedUsers = allowedUsers.filter(u => {
+    if (!u.endDate || !parseISODate(u.endDate)) {
+      changed = true;
+      return false;
+    }
+    const deleteDateStr = addDays(u.endDate, 5);
     if (todayStr >= deleteDateStr) {
       changed = true;
       return false;
@@ -256,25 +189,35 @@ const cleanupExpiredUsers = () => {
 };
 
 const loadFiles = () => {
-  const loadedDb = readJsonFile(dbPath, { days: {} });
-  db = loadedDb && typeof loadedDb === 'object' && loadedDb.days && typeof loadedDb.days === 'object'
-    ? loadedDb
-    : { days: {} };
+  if (fs.existsSync(dbPath)) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(dbPath, 'utf-8'));
+      db = parsed && parsed.days ? parsed : { days: {} };
 
-  const loadedUsers = readJsonFile(userListPath, []);
-  const today = getKSTDateStr();
-  allowedUsers = Array.isArray(loadedUsers)
-    ? loadedUsers.map(user => ({
-        id: user.id || createId(),
-        orgRole: String(user.orgRole || '').trim(),
-        name: String(user.name || '').trim(),
-        mealType: user.mealType === 'monthly' ? 'monthly' : 'daily',
-        startDate: isValidDateStr(user.startDate) ? user.startDate : (user.createdAt ? String(user.createdAt).split('T')[0] : today),
-        endDate: isValidDateStr(user.endDate) ? user.endDate : today,
-        validDates: Array.isArray(user.validDates) ? user.validDates.filter(isValidDateStr).sort() : null,
-        createdAt: user.createdAt || new Date().toISOString()
-      })).filter(user => user.orgRole && user.name)
-    : [];
+      Object.keys(db.days).forEach(date => {
+        if (!Array.isArray(db.days[date])) db.days[date] = [];
+        db.days[date].forEach(d => {
+          d.name = normalizeName(d.name);
+          d.phoneLast4 = normalizePhoneLast4(d.phoneLast4 || d.orgRole || '');
+          delete d.orgRole;
+        });
+      });
+    } catch (e) {
+      db = { days: {} };
+    }
+  }
+
+  if (fs.existsSync(userListPath)) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(userListPath, 'utf-8'));
+      allowedUsers = Array.isArray(parsed)
+        ? parsed.map(normalizeAllowedUser).filter(u => u.name && isValidPhoneLast4(u.phoneLast4))
+        : [];
+      saveUserList();
+    } catch (e) {
+      allowedUsers = [];
+    }
+  }
 
   cleanupExpiredUsers();
 };
@@ -282,464 +225,709 @@ const loadFiles = () => {
 loadFiles();
 
 // ==========================================
-// 🔐 관리자 인증: 메일 인증 후 서버 세션 쿠키 발급
+// 보안 헤더 / 정적 파일 제공
 // ==========================================
-const parseEmailList = (raw) => new Set(
-  String(raw || '')
-    .split(',')
-    .map(email => email.trim().toLowerCase())
-    .filter(Boolean)
-);
+app.disable('x-powered-by');
+app.use(express.json({ limit: MAX_JSON_SIZE }));
 
-const adminEmails = parseEmailList(process.env.ADMIN_EMAILS);
-const authCodes = new Map();
-const adminSessions = new Map();
-const authRequestCooldowns = new Map();
-
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'same-origin');
+  res.setHeader('Permissions-Policy', 'camera=(self), microphone=(), geolocation=()');
+  res.setHeader('Content-Security-Policy', [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://unpkg.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com",
+    "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com",
+    "img-src 'self' data: https:",
+    "media-src 'self' data:",
+    "connect-src 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "frame-ancestors 'none'"
+  ].join('; '));
+  next();
 });
 
-const hashCode = (code) => crypto.createHash('sha256').update(String(code)).digest('hex');
+app.use('/CSS', express.static(path.join(ROOT_DIR, 'CSS'), { fallthrough: false, maxAge: '1h' }));
+app.use('/JS', express.static(path.join(ROOT_DIR, 'JS'), { fallthrough: false, maxAge: '0', setHeaders: res => res.setHeader('Cache-Control', 'no-store') }));
+app.use('/audio', express.static(path.join(ROOT_DIR, 'audio'), { fallthrough: true, maxAge: '1h' }));
+app.get('/manifest.json', (req, res) => res.sendFile(path.join(ROOT_DIR, 'manifest.json')));
 
-const parseCookies = (cookieHeader = '') => {
-  return Object.fromEntries(
-    cookieHeader
-      .split(';')
-      .map(part => part.trim())
-      .filter(Boolean)
-      .map(part => {
-        const eqIndex = part.indexOf('=');
-        if (eqIndex === -1) return [part, ''];
-        return [part.slice(0, eqIndex), decodeURIComponent(part.slice(eqIndex + 1))];
-      })
-  );
+const sendHtml = (res, fileName) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.sendFile(path.join(ROOT_DIR, fileName));
 };
 
-const buildSessionCookie = (token, maxAgeSec) => {
-  const attrs = [
-    `${ADMIN_SESSION_COOKIE}=${encodeURIComponent(token)}`,
-    'Path=/',
+app.get('/', (req, res) => sendHtml(res, 'qr.html'));
+app.get('/qr.html', (req, res) => sendHtml(res, 'qr.html'));
+app.get('/scanner', (req, res) => sendHtml(res, 'scanner.html'));
+app.get('/scanner.html', (req, res) => sendHtml(res, 'scanner.html'));
+app.get('/admin', (req, res) => sendHtml(res, 'admin.html'));
+app.get('/admin.html', (req, res) => sendHtml(res, 'admin.html'));
+app.get('/admin_list.html', (req, res) => res.redirect(302, '/admin.html'));
+
+// ==========================================
+// 인증 / 관리자 세션
+// ==========================================
+const parseCookies = (cookieHeader = '') => Object.fromEntries(
+  String(cookieHeader).split(';').map(part => {
+    const idx = part.indexOf('=');
+    if (idx === -1) return null;
+    return [decodeURIComponent(part.slice(0, idx).trim()), decodeURIComponent(part.slice(idx + 1).trim())];
+  }).filter(Boolean)
+);
+
+const hashCode = (code, email) => crypto.createHash('sha256').update(`${email}:${code}:${AUTH_SECRET}`).digest('hex');
+const isProduction = process.env.NODE_ENV === 'production';
+const cookieSecure = process.env.COOKIE_SECURE === 'true' || (isProduction && /^https:/i.test(process.env.PUBLIC_ORIGIN || ''));
+
+const setSessionCookie = (res, sessionId) => {
+  const maxAge = SESSION_MINUTES * 60;
+  const parts = [
+    `${COOKIE_NAME}=${encodeURIComponent(sessionId)}`,
     'HttpOnly',
     'SameSite=Strict',
-    `Max-Age=${maxAgeSec}`
+    'Path=/',
+    `Max-Age=${maxAge}`
   ];
-  if (cookieSecure) attrs.push('Secure');
-  return attrs.join('; ');
+  if (cookieSecure) parts.push('Secure');
+  res.setHeader('Set-Cookie', parts.join('; '));
 };
 
-const clearSessionCookie = () => {
-  const attrs = [
-    `${ADMIN_SESSION_COOKIE}=`,
-    'Path=/',
+const clearSessionCookie = (res) => {
+  const parts = [
+    `${COOKIE_NAME}=`,
     'HttpOnly',
     'SameSite=Strict',
+    'Path=/',
     'Max-Age=0'
   ];
-  if (cookieSecure) attrs.push('Secure');
-  return attrs.join('; ');
-};
-
-const cleanupSessions = () => {
-  const now = Date.now();
-  for (const [token, session] of adminSessions.entries()) {
-    if (session.expires <= now) adminSessions.delete(token);
-  }
-};
-
-const createAdminSession = (email) => {
-  cleanupSessions();
-  const token = crypto.randomBytes(32).toString('base64url');
-  adminSessions.set(token, { email, expires: Date.now() + ADMIN_SESSION_TTL_MS });
-  return token;
-};
-
-const getAdminSession = (req) => {
-  cleanupSessions();
-  const token = parseCookies(req.headers.cookie || '')[ADMIN_SESSION_COOKIE];
-  if (!token) return null;
-  const session = adminSessions.get(token);
-  if (!session || session.expires <= Date.now()) {
-    adminSessions.delete(token);
-    return null;
-  }
-  return { token, ...session };
-};
-
-const refreshAdminSession = (res, token, session) => {
-  session.expires = Date.now() + ADMIN_SESSION_TTL_MS;
-  adminSessions.set(token, session);
-  res.setHeader('Set-Cookie', buildSessionCookie(token, Math.floor(ADMIN_SESSION_TTL_MS / 1000)));
+  if (cookieSecure) parts.push('Secure');
+  res.setHeader('Set-Cookie', parts.join('; '));
 };
 
 const requireAdmin = (req, res, next) => {
-  const session = getAdminSession(req);
-  if (!session) {
-    res.setHeader('Set-Cookie', clearSessionCookie());
-    return res.status(401).json({ message: '관리자 인증이 필요합니다.', action: 'reauth' });
+  const cookies = parseCookies(req.headers.cookie || '');
+  const sessionId = cookies[COOKIE_NAME];
+  const session = sessionId ? sessions.get(sessionId) : null;
+
+  if (!session || session.expiresAt < Date.now()) {
+    if (sessionId) sessions.delete(sessionId);
+    clearSessionCookie(res);
+    return res.status(401).json({ message: '관리자 인증이 필요합니다.' });
   }
+
+  session.expiresAt = Date.now() + SESSION_MINUTES * 60 * 1000;
   req.adminEmail = session.email;
-  refreshAdminSession(res, session.token, { email: session.email, expires: session.expires });
   next();
 };
 
-const normalizeEmail = (value) => String(value || '').trim().toLowerCase();
+const getExpectedOrigins = (req) => {
+  const origins = new Set();
+  const hostOrigin = `${req.protocol}://${req.get('host')}`;
+  origins.add(hostOrigin);
+  if (process.env.PUBLIC_ORIGIN) origins.add(process.env.PUBLIC_ORIGIN.replace(/\/$/, ''));
+  return origins;
+};
 
-app.get('/api/admin/session', (req, res) => {
-  const session = getAdminSession(req);
-  if (!session) {
-    res.setHeader('Set-Cookie', clearSessionCookie());
-    return res.json({ authenticated: false });
+app.use('/api', (req, res, next) => {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
+  const origin = req.headers.origin;
+  if (!origin) return next();
+  if (!getExpectedOrigins(req).has(origin.replace(/\/$/, ''))) {
+    return res.status(403).json({ message: '허용되지 않은 요청 출처입니다.' });
   }
-  refreshAdminSession(res, session.token, { email: session.email, expires: session.expires });
-  res.json({ authenticated: true, email: session.email });
+  next();
 });
 
+setInterval(() => {
+  const now = Date.now();
+  for (const [email, auth] of authCodes.entries()) {
+    if (auth.expiresAt < now - CODE_EXPIRES_MS) authCodes.delete(email);
+  }
+  for (const [sessionId, session] of sessions.entries()) {
+    if (session.expiresAt < now) sessions.delete(sessionId);
+  }
+}, 60 * 1000).unref();
+
 app.post('/api/admin/request-code', async (req, res) => {
-  const email = normalizeEmail(req.body.email);
-  if (!email || !/^\S+@\S+\.\S+$/.test(email) || email.length > 254) {
-    return res.status(400).json({ message: '이메일 형식이 올바르지 않습니다.' });
-  }
-  if (adminEmails.size === 0) {
-    return res.status(500).json({ message: '관리자 이메일 설정이 없습니다.' });
-  }
-  if (!adminEmails.has(email)) {
-    return res.status(403).json({ message: '등록되지 않은 관리자 이메일입니다.' });
+  const email = normalizeName(req.body.email).toLowerCase();
+  if (!email) return res.status(400).json({ message: '이메일을 입력해 주세요.' });
+  if (!adminEmails.includes(email)) return res.status(403).json({ message: '등록되지 않은 관리자 이메일입니다.' });
+
+  const existing = authCodes.get(email);
+  if (existing && Date.now() - existing.requestedAt < CODE_COOLDOWN_MS) {
+    const retryAfter = Math.ceil((CODE_COOLDOWN_MS - (Date.now() - existing.requestedAt)) / 1000);
+    return res.status(429).json({
+      message: `인증번호는 ${retryAfter}초 후 다시 요청할 수 있습니다.`,
+      retryAfter,
+      sent: false
+    });
   }
 
-  const cooldownKey = `${req.ip}:${email}`;
-  const lastRequestAt = authRequestCooldowns.get(cooldownKey) || 0;
-  if (Date.now() - lastRequestAt < AUTH_REQUEST_COOLDOWN_MS) {
-    return res.status(429).json({ message: '인증번호는 30초 뒤 다시 요청할 수 있습니다.' });
-  }
-  authRequestCooldowns.set(cooldownKey, Date.now());
-
-  const code = crypto.randomInt(100000, 1000000).toString();
-  authCodes.set(email, {
-    codeHash: hashCode(code),
-    expires: Date.now() + AUTH_CODE_TTL_MS,
+  const code = String(crypto.randomInt(100000, 1000000));
+  const codeHash = hashCode(code, email);
+  const auth = {
+    codeHash,
+    expiresAt: Date.now() + CODE_EXPIRES_MS,
+    requestedAt: Date.now(),
     attempts: 0
-  });
+  };
+  authCodes.set(email, auth);
 
   try {
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: email,
       subject: '[화성오산교육청] 관리자 보안 인증번호',
-      text: `인증번호: [${code}]\n\n이 번호는 3분 동안만 유효합니다.`
+      text: `인증번호: [${code}]\n유효시간: 3분`
     });
-    res.json({ message: '인증 메일이 발송되었습니다.', expiresIn: Math.floor(AUTH_CODE_TTL_MS / 1000) });
+    res.json({ message: '인증 메일이 발송되었습니다.', cooldownSeconds: 30, expiresInSeconds: 180, sent: true });
   } catch (e) {
-    console.error('[auth] 메일 발송 실패:', e.message);
-    res.status(500).json({ message: '메일 발송 실패' });
+    authCodes.delete(email);
+    res.status(500).json({ message: '메일 발송 실패. 서버 메일 설정을 확인해 주세요.' });
   }
 });
 
 app.post('/api/admin/verify-code', (req, res) => {
-  const email = normalizeEmail(req.body.email);
+  const email = normalizeName(req.body.email).toLowerCase();
   const code = String(req.body.code || '').trim();
   const auth = authCodes.get(email);
 
   if (!auth) return res.status(401).json({ message: '인증 요청 내역이 없습니다.', action: 'reset' });
-  if (auth.expires <= Date.now()) {
+  if (auth.expiresAt < Date.now()) {
     authCodes.delete(email);
     return res.status(401).json({ message: '인증 시간이 만료되었습니다.', action: 'reset' });
   }
-  if (!/^\d{6}$/.test(code)) {
-    auth.attempts += 1;
-    if (auth.attempts >= 3) authCodes.delete(email);
-    return res.status(401).json({ message: '인증번호 형식이 올바르지 않습니다.', action: auth.attempts >= 3 ? 'reset' : undefined });
+
+  if (hashCode(code, email) === auth.codeHash) {
+    authCodes.delete(email);
+    const sessionId = crypto.randomBytes(32).toString('hex');
+    sessions.set(sessionId, { email, expiresAt: Date.now() + SESSION_MINUTES * 60 * 1000 });
+    setSessionCookie(res, sessionId);
+    return res.json({ message: '인증 성공', email });
   }
 
-  const submittedHash = hashCode(code);
-  const ok = crypto.timingSafeEqual(Buffer.from(submittedHash), Buffer.from(auth.codeHash));
-
-  if (!ok) {
-    auth.attempts += 1;
-    if (auth.attempts >= 3) {
-      authCodes.delete(email);
-      return res.status(401).json({ message: '3회 오류로 인증이 만료되었습니다.', action: 'reset' });
-    }
-    return res.status(401).json({ message: `번호가 틀렸습니다. (${auth.attempts}/3)` });
+  auth.attempts += 1;
+  if (auth.attempts >= MAX_AUTH_ATTEMPTS) {
+    authCodes.delete(email);
+    return res.status(401).json({ message: '3회 오류로 인증번호가 만료되었습니다.', action: 'reset' });
   }
 
-  authCodes.delete(email);
-  const token = createAdminSession(email);
-  res.setHeader('Set-Cookie', buildSessionCookie(token, Math.floor(ADMIN_SESSION_TTL_MS / 1000)));
-  res.json({ message: '인증 성공', email, expiresIn: Math.floor(ADMIN_SESSION_TTL_MS / 1000) });
+  res.status(401).json({ message: `번호가 틀렸습니다. (${auth.attempts}/${MAX_AUTH_ATTEMPTS})` });
 });
 
-app.post('/api/admin/logout', (req, res) => {
-  const token = parseCookies(req.headers.cookie || '')[ADMIN_SESSION_COOKIE];
-  if (token) adminSessions.delete(token);
-  res.setHeader('Set-Cookie', clearSessionCookie());
+app.get('/api/admin/me', requireAdmin, (req, res) => res.json({ authenticated: true, email: req.adminEmail }));
+app.post('/api/admin/logout', requireAdmin, (req, res) => {
+  const cookies = parseCookies(req.headers.cookie || '');
+  if (cookies[COOKIE_NAME]) sessions.delete(cookies[COOKIE_NAME]);
+  clearSessionCookie(res);
   res.json({ message: '로그아웃되었습니다.' });
 });
 
-// 기존 superadmin API는 더 이상 사용하지 않습니다. 혼선을 막기 위해 관리자 인증 API로만 통일합니다.
-app.post('/api/superadmin/request-code', (req, res) => res.status(410).json({ message: '이 API는 사용하지 않습니다. /api/admin/request-code를 사용하세요.' }));
-app.post('/api/superadmin/verify-code', (req, res) => res.status(410).json({ message: '이 API는 사용하지 않습니다. /api/admin/verify-code를 사용하세요.' }));
+// 옛 superadmin 경로는 사용하지 않음. ADMIN_EMAILS 기반 관리자 인증으로 통합.
+app.post('/api/superadmin/request-code', (req, res) => res.status(410).json({ message: '최고 관리자 인증은 관리자 인증으로 통합되었습니다. /api/admin/request-code를 사용하세요.' }));
+app.post('/api/superadmin/verify-code', (req, res) => res.status(410).json({ message: '최고 관리자 인증은 관리자 인증으로 통합되었습니다. /api/admin/verify-code를 사용하세요.' }));
 
 // ==========================================
-// 👥 관리자 전용 명단/시트 API
+// 명단 관리 API
 // ==========================================
+const ensureValidUserPayload = ({ name, phoneLast4 }) => {
+  const cleanName = normalizeName(name);
+  const cleanPhoneLast4 = normalizePhoneLast4(phoneLast4);
+  if (!cleanName) return { error: '이름을 입력해 주세요.' };
+  if (!isValidPhoneLast4(cleanPhoneLast4)) return { error: '전화번호 뒷자리는 숫자 4자리로 입력해 주세요.' };
+  return { name: cleanName, phoneLast4: cleanPhoneLast4 };
+};
+
+const isUserValidOnDate = (user, dateStr) => {
+  if (user.mealType === 'daily') return Array.isArray(user.validDates) && user.validDates.includes(dateStr);
+  return user.startDate <= dateStr && dateStr <= user.endDate;
+};
+
+const hasOverlappingMonthlyUser = ({ name, phoneLast4, startDate, endDate, excludeIndex = -1 }) => {
+  return allowedUsers.some((u, idx) => idx !== excludeIndex && u.mealType === 'monthly' && u.name === name && u.phoneLast4 === phoneLast4 && !(u.endDate < startDate || endDate < u.startDate));
+};
+
 app.get('/api/admin/allowed-users', requireAdmin, (req, res) => {
   cleanupExpiredUsers();
-  res.json(allowedUsers.map(sanitizeUser));
+  res.json(allowedUsers.map(sanitizeUserForClient));
 });
 
 app.post('/api/admin/allowed-users', requireAdmin, (req, res) => {
-  try {
-    const orgRole = sanitizeText(req.body.orgRole, '부서');
-    const name = sanitizeText(req.body.name, '이름');
-    const mealType = normalizeMealType(req.body.mealType);
-    const todayStr = getKSTDateStr();
+  const { mealType, targetDates, year, month } = req.body;
+  const cleaned = ensureValidUserPayload(req.body);
+  if (cleaned.error) return res.status(400).json({ message: cleaned.error });
 
-    if (allowedUsers.some(user => (
-      user.name === name &&
-      user.orgRole === orgRole &&
-      user.mealType === mealType &&
-      user.endDate >= todayStr
-    ))) {
-      return res.status(409).json({ message: '이미 유효한 명단에 등록된 사용자입니다.' });
+  const type = mealType === 'daily' ? 'daily' : 'monthly';
+  let startDate;
+  let endDate;
+  let validDates = null;
+
+  if (type === 'daily') {
+    if (!Array.isArray(targetDates) || targetDates.length === 0) return res.status(400).json({ message: '날짜를 하나 이상 지정하세요.' });
+    validDates = [...new Set(targetDates.filter(d => parseISODate(d)))].sort();
+    if (validDates.length === 0) return res.status(400).json({ message: '올바른 날짜를 하나 이상 지정하세요.' });
+    startDate = validDates[0];
+    endDate = validDates[validDates.length - 1];
+  } else {
+    const ym = String(year || month ? `${year}-${pad2(month)}` : getKSTYearMonth());
+    const parsed = /^(\d{4})-(\d{2})$/.exec(ym);
+    const y = parsed ? Number(parsed[1]) : Number(getKSTYearMonth().slice(0, 4));
+    const m = parsed ? Number(parsed[2]) : Number(getKSTYearMonth().slice(5, 7));
+    if (m < 1 || m > 12) return res.status(400).json({ message: '월 정보가 올바르지 않습니다.' });
+    startDate = `${y}-${pad2(m)}-01`;
+    endDate = calculateMonthlyEndDate(y, m);
+
+    if (hasOverlappingMonthlyUser({ ...cleaned, startDate, endDate })) {
+      return res.status(409).json({ message: '이미 해당 월식 명단에 등록된 사용자입니다.' });
     }
-
-    let startDate;
-    let endDate;
-    let validDates = null;
-
-    if (mealType === 'daily') {
-      validDates = normalizeDateList(req.body.targetDates);
-      startDate = validDates[0];
-      endDate = validDates[validDates.length - 1];
-    } else {
-      startDate = todayStr;
-      endDate = calculateMonthlyEndDate(new Date());
-    }
-
-    allowedUsers.push({
-      id: createId(),
-      orgRole,
-      name,
-      mealType,
-      startDate,
-      endDate,
-      validDates,
-      createdAt: new Date().toISOString()
-    });
-
-    saveUserList();
-    res.json({ message: '등록 성공' });
-  } catch (e) {
-    res.status(400).json({ message: e.message || '잘못된 요청입니다.' });
   }
+
+  if (allowedUsers.some(u => u.name === cleaned.name && u.phoneLast4 === cleaned.phoneLast4 && u.mealType === type && u.endDate >= getKSTDateStr())) {
+    return res.status(409).json({ message: '이미 유효한 명단에 등록된 사용자입니다.' });
+  }
+
+  allowedUsers.push({
+    ...cleaned,
+    mealType: type,
+    startDate,
+    endDate,
+    validDates,
+    paymentStatus: req.body.paymentStatus === '미입금' ? '미입금' : '입금',
+    createdAt: new Date().toISOString()
+  });
+  saveUserList();
+  res.json({ message: '등록 성공' });
+});
+
+app.post('/api/admin/allowed-users/update-info', requireAdmin, (req, res) => {
+  const index = Number(req.body.index);
+  const user = allowedUsers[index];
+  if (!user) return res.status(404).json({ message: '대상을 찾을 수 없습니다.' });
+
+  const cleaned = ensureValidUserPayload(req.body);
+  if (cleaned.error) return res.status(400).json({ message: cleaned.error });
+
+  const duplicate = allowedUsers.some((u, idx) => idx !== index && u.name === cleaned.name && u.phoneLast4 === cleaned.phoneLast4 && u.mealType === user.mealType && u.endDate >= getKSTDateStr());
+  if (duplicate) return res.status(409).json({ message: '같은 이름/전화번호 뒷자리의 유효한 사용자가 이미 있습니다.' });
+
+  user.name = cleaned.name;
+  user.phoneLast4 = cleaned.phoneLast4;
+  saveUserList();
+  res.json({ message: '정보 수정 완료' });
 });
 
 app.post('/api/admin/allowed-users/update-dates', requireAdmin, (req, res) => {
-  try {
-    const index = Number.parseInt(req.body.index, 10);
-    const user = allowedUsers[index];
-    if (!Number.isInteger(index) || index < 0 || !user || user.mealType !== 'daily') {
-      return res.status(400).json({ message: '잘못된 대상입니다.' });
-    }
+  const index = Number(req.body.index);
+  const user = allowedUsers[index];
+  const targetDates = Array.isArray(req.body.targetDates) ? req.body.targetDates : [];
+  const validDates = [...new Set(targetDates.filter(d => parseISODate(d)))].sort();
 
-    const targetDates = normalizeDateList(req.body.targetDates);
-    user.validDates = targetDates;
-    user.startDate = targetDates[0];
-    user.endDate = targetDates[targetDates.length - 1];
+  if (user && user.mealType === 'daily' && validDates.length > 0) {
+    user.validDates = validDates;
+    user.startDate = validDates[0];
+    user.endDate = validDates[validDates.length - 1];
     saveUserList();
     res.json({ message: '날짜가 성공적으로 변경되었습니다.' });
-  } catch (e) {
-    res.status(400).json({ message: e.message || '잘못된 요청입니다.' });
+  } else {
+    res.status(400).json({ message: '잘못된 요청이거나 날짜가 비어있습니다.' });
   }
 });
 
 app.post('/api/admin/allowed-users/update-period', requireAdmin, (req, res) => {
-  const indexes = Array.isArray(req.body.indexes) ? req.body.indexes.map(idx => Number.parseInt(idx, 10)) : [];
+  const indexes = Array.isArray(req.body.indexes) ? req.body.indexes.map(Number).filter(Number.isInteger) : [];
   const action = req.body.action;
-  const type = req.body.type;
+  if (indexes.length === 0) return res.status(400).json({ message: '대상을 선택하세요.' });
 
-  if (type === 'daily') return res.status(400).json({ message: '일식은 개별 날짜 변경 버튼을 이용해 주세요.' });
-  if (!['extend', 'shorten'].includes(action)) return res.status(400).json({ message: '요청한 작업이 올바르지 않습니다.' });
-  if (indexes.length === 0 || indexes.some(idx => !Number.isInteger(idx) || idx < 0 || idx >= allowedUsers.length)) {
-    return res.status(400).json({ message: '대상 선택이 올바르지 않습니다.' });
-  }
-
-  const thisMonthEnd = calculateMonthlyEndDate(new Date());
+  const thisMonthEnd = calculateMonthlyEndDate(Number(getKSTYearMonth().slice(0, 4)), Number(getKSTYearMonth().slice(5, 7)));
   let errorMsg = null;
 
-  indexes.forEach(index => {
-    const user = allowedUsers[index];
+  indexes.forEach(idx => {
+    const user = allowedUsers[idx];
     if (!user || user.mealType !== 'monthly') return;
-
-    const [year, month, day] = user.endDate.split('-').map(Number);
-    const currentEnd = new Date(Date.UTC(year, month - 1, day, 3));
+    const [y, m] = user.endDate.slice(0, 7).split('-').map(Number);
 
     if (action === 'extend') {
-      const nextMonthFirst = new Date(Date.UTC(year, month, 1, 3));
-      user.endDate = calculateMonthlyEndDate(nextMonthFirst);
+      const nextMonth = m === 12 ? 1 : m + 1;
+      const nextYear = m === 12 ? y + 1 : y;
+      user.endDate = calculateMonthlyEndDate(nextYear, nextMonth);
     } else if (action === 'shorten') {
-      if (user.endDate <= thisMonthEnd) {
-        errorMsg = '단축 오류: 월식은 이번 달까지만 단축할 수 있습니다.';
-      } else {
-        const previousMonthLast = new Date(Date.UTC(currentEnd.getUTCFullYear(), currentEnd.getUTCMonth(), 0, 3));
-        user.endDate = getKSTDateStr(previousMonthLast);
+      if (user.endDate <= thisMonthEnd) errorMsg = '단축 오류: 월식은 이번 달까지만 단축할 수 있습니다.';
+      else {
+        const prevMonth = m === 1 ? 12 : m - 1;
+        const prevYear = m === 1 ? y - 1 : y;
+        user.endDate = calculateMonthlyEndDate(prevYear, prevMonth);
       }
     }
   });
 
-  if (errorMsg) return res.status(400).json({ message: errorMsg });
   saveUserList();
+  if (errorMsg) return res.status(400).json({ message: errorMsg });
   res.json({ message: '기간 업데이트 완료' });
 });
 
 app.delete('/api/admin/allowed-users', requireAdmin, (req, res) => {
-  const indexes = Array.isArray(req.body.indexes) ? req.body.indexes.map(idx => Number.parseInt(idx, 10)) : [];
-  if (indexes.length === 0 || indexes.some(idx => !Number.isInteger(idx) || idx < 0 || idx >= allowedUsers.length)) {
-    return res.status(400).json({ message: '삭제 대상이 올바르지 않습니다.' });
-  }
-
-  const targets = new Set(indexes);
-  allowedUsers = allowedUsers.filter((_, index) => !targets.has(index));
+  const indexes = Array.isArray(req.body.indexes) ? req.body.indexes.map(Number).filter(Number.isInteger) : [];
+  if (indexes.length === 0) return res.status(400).json({ message: '대상을 선택하세요.' });
+  const removeSet = new Set(indexes);
+  allowedUsers = allowedUsers.filter((_, idx) => !removeSet.has(idx));
   saveUserList();
   res.json({ message: '삭제 완료' });
 });
 
-app.get('/api/admin/events/:date/attendees', requireAdmin, (req, res) => {
-  const date = req.params.date;
-  if (!isValidDateStr(date)) return res.status(400).json({ message: '날짜 형식이 올바르지 않습니다.' });
-  res.json((db.days[date] || []).map(diner => sanitizeDiner(diner, date)));
+// ==========================================
+// 월식 엑셀 자동 등록 API
+// ==========================================
+let uploadMiddleware = null;
+let uploadDependencyError = null;
+try {
+  const multer = require('multer');
+  uploadMiddleware = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: MAX_UPLOAD_SIZE, files: MAX_UPLOAD_FILES },
+    fileFilter: (req, file, cb) => {
+      if (/\.xlsx$/i.test(file.originalname || '')) cb(null, true);
+      else cb(new Error('xlsx 파일만 업로드할 수 있습니다.'));
+    }
+  }).array('files', MAX_UPLOAD_FILES);
+} catch (e) {
+  uploadDependencyError = e;
+}
+
+const parsePaymentStatus = (value) => /미\s*입금|미납|미완료|확인필요/i.test(String(value || '')) ? '미입금' : '입금';
+
+const findHeaderIndex = (rows) => rows.findIndex(row => {
+  const cells = row.map(v => String(v || '').trim());
+  const hasName = cells.some(v => /학생명|성명|이름/.test(v));
+  const hasPhone = cells.some(v => /^ID$/i.test(v) || /전화|휴대|연락|폰|아이디|ID/i.test(v));
+  return hasName && hasPhone;
 });
 
-app.get('/api/admin/events/month/:yearMonth', requireAdmin, (req, res) => {
-  const { yearMonth } = req.params;
-  if (!/^\d{4}-\d{2}$/.test(yearMonth)) return res.status(400).json({ message: '월 형식이 올바르지 않습니다.' });
+const findColumnIndex = (headers, patterns, fallback) => {
+  const idx = headers.findIndex(h => patterns.some(p => p.test(String(h || '').trim())));
+  return idx >= 0 ? idx : fallback;
+};
 
-  let result = [];
-  Object.keys(db.days)
-    .filter(date => date.startsWith(yearMonth))
-    .forEach(date => {
-      result = result.concat(
-        db.days[date]
-          .filter(diner => diner.attended)
-          .map(diner => sanitizeDiner(diner, date))
-      );
+const detectYearMonthFromRows = (rows) => {
+  const topText = rows.slice(0, 5).flat().map(v => String(v || '')).join(' ');
+  let match = /(20\d{2})\s*[-./년]\s*(\d{1,2})/.exec(topText);
+  if (!match) match = /(20\d{2})(\d{2})/.exec(topText);
+  if (!match) return { year: null, month: null };
+  return { year: Number(match[1]), month: Number(match[2]) };
+};
+
+const analyzeWorkbookRows = ({ rows, fileName, selectedYear, selectedMonth }) => {
+  const headerIdx = findHeaderIndex(rows);
+  const detected = detectYearMonthFromRows(rows);
+  const resultRows = [];
+  const errors = [];
+  let excludedDailyCount = 0;
+  let skippedInvalidCount = 0;
+
+  if (headerIdx === -1) {
+    return { rows: [], errors: [`${fileName}: 이름/전화번호 열을 찾을 수 없습니다.`], detected, excludedDailyCount: 0, skippedInvalidCount: 0 };
+  }
+
+  const headers = rows[headerIdx].map(v => String(v || '').trim());
+  const classIdx = findColumnIndex(headers, [/^반$/, /신청|구분|유형|분류/], 1);
+  const phoneIdx = findColumnIndex(headers, [/^ID$/i, /전화|휴대|연락|폰|아이디/], 2);
+  const nameIdx = findColumnIndex(headers, [/학생명|성명|이름/], 3);
+  const paymentIdx = findColumnIndex(headers, [/입금|결제|상태/], 5);
+
+  rows.slice(headerIdx + 1).forEach((row, offset) => {
+    const sourceRow = headerIdx + 2 + offset;
+    const classText = String(row[classIdx] || '').trim();
+    const isDaily = /일식|날짜\s*선택|선택\s*신청/i.test(classText);
+    if (isDaily) {
+      excludedDailyCount += 1;
+      return;
+    }
+
+    const name = stripTrailingPhoneFromName(row[nameIdx]);
+    const phoneLast4 = normalizePhoneLast4(row[phoneIdx]);
+    if (!name && !phoneLast4) return;
+    if (!name || !isValidPhoneLast4(phoneLast4)) {
+      skippedInvalidCount += 1;
+      return;
+    }
+
+    const paymentStatus = parsePaymentStatus(row[paymentIdx]);
+    resultRows.push({
+      sourceFile: fileName,
+      sourceRow,
+      name,
+      phoneLast4,
+      paymentStatus,
+      unpaidConfirmed: paymentStatus !== '미입금',
+      selected: true,
+      detectedYear: detected.year,
+      detectedMonth: detected.month,
+      monthMismatch: Boolean(detected.year && detected.month && (detected.year !== selectedYear || detected.month !== selectedMonth))
+    });
+  });
+
+  return { rows: resultRows, errors, detected, excludedDailyCount, skippedInvalidCount };
+};
+
+const dedupeImportRows = (rows) => {
+  const seen = new Set();
+  const unique = [];
+  let duplicateCount = 0;
+  rows.forEach(row => {
+    const key = `${row.name}|${row.phoneLast4}`;
+    if (seen.has(key)) {
+      duplicateCount += 1;
+      return;
+    }
+    seen.add(key);
+    unique.push(row);
+  });
+  return { unique, duplicateCount };
+};
+
+app.post('/api/admin/monthly-import/analyze', requireAdmin, (req, res) => {
+  if (!uploadMiddleware) {
+    return res.status(500).json({ message: '엑셀 업로드 기능을 사용하려면 multer 패키지를 설치해야 합니다.', detail: uploadDependencyError && uploadDependencyError.message });
+  }
+
+  uploadMiddleware(req, res, (err) => {
+    if (err) return res.status(400).json({ message: err.message || '파일 업로드 실패' });
+
+    let XLSX;
+    try {
+      XLSX = require('xlsx');
+    } catch (e) {
+      return res.status(500).json({ message: '엑셀 분석 기능을 사용하려면 xlsx 패키지를 설치해야 합니다.', detail: e.message });
+    }
+
+    const selectedYear = Number(req.body.year);
+    const selectedMonth = Number(req.body.month);
+    if (!selectedYear || selectedMonth < 1 || selectedMonth > 12) return res.status(400).json({ message: '급식 연도와 월을 올바르게 선택해 주세요.' });
+    if (!req.files || req.files.length === 0) return res.status(400).json({ message: 'xlsx 파일을 업로드해 주세요.' });
+
+    let allRows = [];
+    let errors = [];
+    let fileSummaries = [];
+    let excludedDailyCount = 0;
+    let skippedInvalidCount = 0;
+
+    req.files.forEach(file => {
+      try {
+        const workbook = XLSX.read(file.buffer, { type: 'buffer', cellDates: false, raw: false });
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '', raw: false });
+        const analyzed = analyzeWorkbookRows({ rows, fileName: file.originalname, selectedYear, selectedMonth });
+        allRows = allRows.concat(analyzed.rows);
+        errors = errors.concat(analyzed.errors);
+        excludedDailyCount += analyzed.excludedDailyCount;
+        skippedInvalidCount += analyzed.skippedInvalidCount;
+        fileSummaries.push({
+          fileName: file.originalname,
+          detectedYear: analyzed.detected.year,
+          detectedMonth: analyzed.detected.month,
+          monthMismatch: Boolean(analyzed.detected.year && analyzed.detected.month && (analyzed.detected.year !== selectedYear || analyzed.detected.month !== selectedMonth)),
+          extractedCount: analyzed.rows.length,
+          excludedDailyCount: analyzed.excludedDailyCount,
+          skippedInvalidCount: analyzed.skippedInvalidCount
+        });
+      } catch (e) {
+        errors.push(`${file.originalname}: 파일 분석 실패 (${e.message})`);
+      }
     });
 
-  res.json(result);
+    const deduped = dedupeImportRows(allRows);
+    const targetStart = `${selectedYear}-${pad2(selectedMonth)}-01`;
+    const targetEnd = calculateMonthlyEndDate(selectedYear, selectedMonth);
+    const rowsWithExisting = deduped.unique.map((row, index) => {
+      const alreadyRegistered = hasOverlappingMonthlyUser({ name: row.name, phoneLast4: row.phoneLast4, startDate: targetStart, endDate: targetEnd });
+      return { ...row, id: crypto.randomBytes(8).toString('hex'), seq: index + 1, alreadyRegistered };
+    });
+
+    const unpaidCount = rowsWithExisting.filter(r => r.paymentStatus === '미입금').length;
+    const alreadyRegisteredCount = rowsWithExisting.filter(r => r.alreadyRegistered).length;
+    const monthMismatch = fileSummaries.some(s => s.monthMismatch);
+
+    res.json({
+      year: selectedYear,
+      month: selectedMonth,
+      rows: rowsWithExisting,
+      summary: {
+        extractedCount: rowsWithExisting.length,
+        unpaidCount,
+        alreadyRegisteredCount,
+        duplicateCount: deduped.duplicateCount,
+        excludedDailyCount,
+        skippedInvalidCount,
+        monthMismatch
+      },
+      files: fileSummaries,
+      errors
+    });
+  });
 });
 
-// ==========================================
-// 🍱 공개 QR/스캐너 API
-// ==========================================
-app.get('/api/today', (req, res) => {
-  const today = getKSTDateStr();
-  res.json({ today, isWeekend: isWeekendKST(today) });
-});
+app.post('/api/admin/monthly-import/register', requireAdmin, (req, res) => {
+  const year = Number(req.body.year);
+  const month = Number(req.body.month);
+  const rows = Array.isArray(req.body.rows) ? req.body.rows : [];
 
-app.post('/api/qr/generate', (req, res) => {
-  try {
-    const todayStr = getKSTDateStr();
-    if (isWeekendKST(todayStr)) return res.status(403).json({ message: '오늘은 주말입니다. 점심 체크를 운영하지 않습니다.' });
+  if (!year || month < 1 || month > 12) return res.status(400).json({ message: '급식 연도와 월이 올바르지 않습니다.' });
+  if (rows.length === 0) return res.status(400).json({ message: '등록할 명단이 없습니다.' });
 
-    const orgRole = sanitizeText(req.body.orgRole, '부서');
-    const name = sanitizeText(req.body.name, '이름');
+  const startDate = `${year}-${pad2(month)}-01`;
+  const endDate = calculateMonthlyEndDate(year, month);
+  let added = 0;
+  let skipped = 0;
+  const skippedRows = [];
 
-    cleanupExpiredUsers();
-
-    const eligibleUsers = allowedUsers.filter(user => (
-      user.name === name &&
-      user.orgRole === orgRole &&
-      isUserEligibleToday(user, todayStr)
-    ));
-
-    if (eligibleUsers.length === 0) {
-      const registeredUser = allowedUsers.find(user => user.name === name && user.orgRole === orgRole);
-      if (!registeredUser) return res.status(403).json({ message: '미등록 사용자입니다.' });
-      if (registeredUser.mealType === 'daily') return res.status(403).json({ message: `오늘(${todayStr.slice(5)})은 식사하도록 지정된 날짜가 아닙니다.` });
-      if (todayStr < registeredUser.startDate) return res.status(403).json({ message: `이용 시작일은 ${registeredUser.startDate} 부터입니다.` });
-      if (registeredUser.endDate < todayStr) return res.status(403).json({ message: `이용 기간이 만료되었습니다. (마감: ${registeredUser.endDate})` });
-      return res.status(403).json({ message: '오늘 이용 가능한 명단이 아닙니다.' });
+  for (const row of rows) {
+    const cleaned = ensureValidUserPayload(row);
+    if (cleaned.error) {
+      skipped += 1;
+      skippedRows.push({ name: row.name, phoneLast4: row.phoneLast4, reason: cleaned.error });
+      continue;
     }
 
-    if (!db.days[todayStr]) db.days[todayStr] = [];
-    let diner = db.days[todayStr].find(item => item.name === name && item.orgRole === orgRole);
-    const qrToken = crypto.randomBytes(24).toString('base64url');
-    const expiresAt = Date.now() + 180000;
-
-    if (!diner) {
-      db.days[todayStr].push({ orgRole, name, qrToken, tokenExpiresAt: expiresAt, attended: false, scannedAt: null });
-    } else {
-      if (diner.attended) return res.status(409).json({ message: '오늘 이미 식사를 완료했습니다.' });
-      diner.qrToken = qrToken;
-      diner.tokenExpiresAt = expiresAt;
+    const paymentStatus = row.paymentStatus === '미입금' ? '미입금' : '입금';
+    if (paymentStatus === '미입금' && row.unpaidConfirmed !== true) {
+      return res.status(400).json({ message: `${cleaned.name}(${cleaned.phoneLast4})님은 미입금 확인이 필요합니다.` });
     }
 
-    saveDB();
-    res.json({ qrData: qrToken, expiresAt, date: todayStr });
-  } catch (e) {
-    res.status(400).json({ message: e.message || '잘못된 요청입니다.' });
+    if (hasOverlappingMonthlyUser({ ...cleaned, startDate, endDate })) {
+      skipped += 1;
+      skippedRows.push({ ...cleaned, reason: '이미 해당 월식 명단에 등록됨' });
+      continue;
+    }
+
+    allowedUsers.push({
+      ...cleaned,
+      mealType: 'monthly',
+      startDate,
+      endDate,
+      validDates: null,
+      paymentStatus,
+      createdAt: new Date().toISOString()
+    });
+    added += 1;
   }
+
+  if (added > 0) saveUserList();
+  res.json({ message: '월식 명단 등록 완료', added, skipped, skippedRows });
+});
+
+// ==========================================
+// QR 발급 / 스캔 / 조회 API
+// ==========================================
+app.post('/api/qr/generate', (req, res) => {
+  const cleaned = ensureValidUserPayload(req.body);
+  if (cleaned.error) return res.status(400).json({ message: cleaned.error });
+
+  const todayStr = getKSTDateStr();
+  if (isWeekendDateStr(todayStr)) return res.status(403).json({ message: '오늘은 주말입니다. 점심 체크를 운영하지 않습니다.' });
+
+  cleanupExpiredUsers();
+  const candidates = allowedUsers.filter(u => u.name === cleaned.name && u.phoneLast4 === cleaned.phoneLast4);
+  if (candidates.length === 0) return res.status(403).json({ message: '미등록 사용자입니다. 이름과 전화번호 뒷자리를 확인해 주세요.' });
+
+  const user = candidates.find(u => isUserValidOnDate(u, todayStr));
+  if (!user) {
+    const monthly = candidates.find(u => u.mealType === 'monthly');
+    const daily = candidates.find(u => u.mealType === 'daily');
+    if (daily && daily.validDates && !daily.validDates.includes(todayStr)) return res.status(403).json({ message: `오늘(${todayStr.slice(5)})은 식사하도록 지정된 날짜가 아닙니다.` });
+    if (monthly && todayStr < monthly.startDate) return res.status(403).json({ message: `이용 시작일은 ${monthly.startDate}부터입니다.` });
+    if (monthly && monthly.endDate < todayStr) return res.status(403).json({ message: `이용 기간이 만료되었습니다. (마감: ${monthly.endDate})` });
+    return res.status(403).json({ message: '오늘 이용 가능한 명단이 없습니다.' });
+  }
+
+  if (!db.days[todayStr]) db.days[todayStr] = [];
+  let diner = db.days[todayStr].find(d => d.name === cleaned.name && d.phoneLast4 === cleaned.phoneLast4);
+  const qrToken = crypto.randomBytes(24).toString('base64url');
+  const expiresAt = Date.now() + 180000;
+
+  if (!diner) {
+    db.days[todayStr].push({
+      phoneLast4: cleaned.phoneLast4,
+      name: cleaned.name,
+      mealType: user.mealType,
+      qrToken,
+      tokenExpiresAt: expiresAt,
+      attended: false,
+      scannedAt: null
+    });
+  } else {
+    if (diner.attended) return res.status(409).json({ message: '오늘 이미 식사를 완료했습니다.', code: 'ALREADY_ATTENDED' });
+    diner.qrToken = qrToken;
+    diner.tokenExpiresAt = expiresAt;
+    diner.mealType = user.mealType;
+  }
+
+  saveDB();
+  res.json({ qrData: qrToken, expiresAt, eventId: todayStr });
 });
 
 app.post('/api/qr/scan', (req, res) => {
   const qrToken = String(req.body.qrToken || '').trim();
-  if (!/^[A-Za-z0-9_-]{20,80}$/.test(qrToken)) return res.status(400).json({ message: 'QR 형식이 올바르지 않습니다.' });
+  if (!qrToken || qrToken.length > 200) return res.status(400).json({ message: 'QR 데이터가 올바르지 않습니다.', code: 'BAD_QR' });
 
   const today = getKSTDateStr();
-  if (!db.days[today]) return res.status(404).json({ message: '데이터가 없습니다.' });
+  const diners = db.days[today] || [];
+  const diner = diners.find(d => d.qrToken === qrToken);
 
-  const diner = db.days[today].find(item => item.qrToken === qrToken);
-  if (!diner || diner.tokenExpiresAt < Date.now()) return res.status(410).json({ message: '유효하지 않거나 만료된 QR입니다.' });
-  if (diner.attended) return res.status(409).json({ message: '이미 처리된 QR입니다.' });
+  if (!diner) return res.status(410).json({ message: '유효하지 않거나 만료된 QR입니다.', code: 'INVALID_OR_EXPIRED' });
+  if (diner.tokenExpiresAt < Date.now()) return res.status(410).json({ message: '유효하지 않거나 만료된 QR입니다.', code: 'INVALID_OR_EXPIRED' });
+  if (diner.attended) return res.status(409).json({ message: '이미 처리된 QR입니다.', code: 'DUPLICATE', name: diner.name, phoneLast4: diner.phoneLast4 });
 
   diner.attended = true;
   diner.scannedAt = new Date().toISOString();
   saveDB();
-  res.json({ message: 'success', name: diner.name, orgRole: diner.orgRole });
+  res.json({ message: 'success', name: diner.name, phoneLast4: diner.phoneLast4 });
 });
 
-// 스캐너 전용 공개 조회: QR 토큰/미식사 대기자/내부 필드는 절대 내려주지 않습니다.
 app.get('/api/scanner/attendees/:date', (req, res) => {
   const date = req.params.date;
-  if (!isValidDateStr(date)) return res.status(400).json({ message: '날짜 형식이 올바르지 않습니다.' });
-
-  const attendees = (db.days[date] || [])
-    .filter(diner => diner.attended)
-    .map(diner => sanitizeDiner(diner, date));
-
-  res.json(attendees);
+  if (!parseISODate(date)) return res.status(400).json({ message: '날짜 형식이 올바르지 않습니다.' });
+  const diners = (db.days[date] || [])
+    .filter(d => d.attended)
+    .map(sanitizeDinerForScanner);
+  res.json(diners);
 });
 
-// 과거 공개 API는 민감 필드 노출을 막기 위해 관리자 인증을 요구합니다.
-app.get('/api/events/:date/attendees', requireAdmin, (req, res) => {
+// 옛 공개 조회 API는 토큰/미식사자 노출을 막기 위해 참석 완료자만 반환.
+app.get('/api/events/:date/attendees', (req, res) => {
   const date = req.params.date;
-  if (!isValidDateStr(date)) return res.status(400).json({ message: '날짜 형식이 올바르지 않습니다.' });
-  res.json((db.days[date] || []).map(diner => sanitizeDiner(diner, date)));
+  if (!parseISODate(date)) return res.status(400).json({ message: '날짜 형식이 올바르지 않습니다.' });
+  const diners = (db.days[date] || [])
+    .filter(d => d.attended)
+    .map(sanitizeDinerForScanner);
+  res.json(diners);
 });
 
-app.get('/api/events/month/:yearMonth', requireAdmin, (req, res) => {
-  const { yearMonth } = req.params;
-  if (!/^\d{4}-\d{2}$/.test(yearMonth)) return res.status(400).json({ message: '월 형식이 올바르지 않습니다.' });
+app.get('/api/admin/events/:date/attendees', requireAdmin, (req, res) => {
+  const date = req.params.date;
+  if (!parseISODate(date)) return res.status(400).json({ message: '날짜 형식이 올바르지 않습니다.' });
+  const diners = (db.days[date] || [])
+    .filter(d => d.attended)
+    .map(d => sanitizeDinerForAdmin({ ...d, date }));
+  res.json(diners);
+});
+
+app.get('/api/admin/events/month/:yearMonth', requireAdmin, (req, res) => {
+  const yearMonth = String(req.params.yearMonth || '');
+  if (!/^\d{4}-\d{2}$/.test(yearMonth)) return res.status(400).json({ message: '월 형식은 YYYY-MM이어야 합니다.' });
 
   let result = [];
-  Object.keys(db.days)
-    .filter(date => date.startsWith(yearMonth))
-    .forEach(date => {
-      result = result.concat(
-        db.days[date]
-          .filter(diner => diner.attended)
-          .map(diner => sanitizeDiner(diner, date))
-      );
-    });
-
+  Object.keys(db.days).filter(date => date.startsWith(yearMonth)).sort().forEach(date => {
+    result = result.concat((db.days[date] || [])
+      .filter(d => d.attended)
+      .map(d => sanitizeDinerForAdmin({ ...d, date })));
+  });
   res.json(result);
 });
 
 app.use((req, res) => {
-  if (req.path.startsWith('/api/')) return res.status(404).json({ message: 'API를 찾을 수 없습니다.' });
-  res.status(404).send('Not Found');
+  res.status(404).json({ message: 'Not Found' });
 });
 
 app.listen(port, () => console.log(`🚀 Lunch Server Running on Port: ${port}`));

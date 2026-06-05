@@ -1,6 +1,6 @@
-
-.env
-.runtime/
-allowed_users.json
-data.json
 node_modules/
+.env
+data.json
+allowed_users.json
+npm-debug.log*
+.DS_Store

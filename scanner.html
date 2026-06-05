@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>QR 스캐너 : 화성오산교육청</title>
+  <title>점심 QR 스캐너 : 화성오산교육청</title>
 
   <script>
     const originalWarn = console.warn;
@@ -20,26 +20,20 @@
     #reader { width: 100% !important; height: 100% !important; border: none !important; background: black; }
     #reader__scan_region { width: 100% !important; height: 100% !important; }
     #reader video { object-fit: cover !important; width: 100% !important; height: 100% !important; transition: transform 0.3s ease; }
-    input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; opacity: 0.65; transition: 0.2s; }
-    .hidden { display: none !important; }
   </style>
 </head>
 <body class="bg-gray-100">
-  <div id="admin-dashboard" class="min-h-screen lg:h-screen flex flex-col bg-gray-100">
+  <div id="scanner-dashboard" class="min-h-screen lg:h-screen flex flex-col bg-gray-100">
     <main class="flex-1 flex flex-col lg:flex-row gap-4 lg:gap-6 p-4 lg:p-6 min-h-0 overflow-auto lg:overflow-hidden">
-      <section class="flex-1 flex flex-col gap-4 min-h-[600px] lg:min-h-0">
+      <section class="flex-1 flex flex-col gap-4 min-h-[620px] lg:min-h-0">
         <div class="bg-black rounded-3xl shadow-lg border border-gray-200 flex-1 relative overflow-hidden flex items-center justify-center">
           <button id="custom-flip-btn" class="absolute top-4 left-4 z-[60] bg-white/90 text-gray-800 px-3 py-2 rounded-xl shadow-md text-sm font-bold flex items-center gap-1 backdrop-blur active:scale-95 transition-transform hover:bg-gray-100">
             🔄 전면/후면 전환
           </button>
 
-          <div class="absolute top-4 right-4 z-[70] flex flex-col sm:flex-row gap-2 items-end sm:items-center">
-            <a href="/qr.html" class="bg-white/95 hover:bg-white text-gray-700 border border-gray-200 font-bold py-2.5 px-4 rounded-xl shadow-lg backdrop-blur transition active:scale-95">
-              📱 QR 발급화면
-            </a>
-            <a href="/admin.html" class="bg-gray-900/95 hover:bg-black text-white font-bold py-2.5 px-4 rounded-xl shadow-lg backdrop-blur transition active:scale-95">
-              🔐 관리자 메뉴
-            </a>
+          <div class="absolute top-4 right-4 z-[60] flex flex-wrap justify-end gap-2">
+            <a href="/qr.html" class="bg-white/90 hover:bg-white text-gray-700 font-bold py-2 px-4 rounded-xl shadow-md text-sm flex items-center gap-1 backdrop-blur transition">📱 QR 발급화면</a>
+            <a href="/admin.html" class="bg-gray-900/90 hover:bg-black text-white font-bold py-2 px-4 rounded-xl shadow-md text-sm flex items-center gap-1 backdrop-blur transition">🔐 관리자 메뉴</a>
           </div>
 
           <div id="reader" class="w-full h-full"></div>
@@ -52,7 +46,7 @@
 
         <div class="grid grid-cols-2 gap-4 shrink-0">
           <div class="bg-white p-5 lg:p-6 rounded-2xl shadow-md border-b-4 border-green-500">
-            <p class="text-gray-500 font-bold">현재 조회 식수</p>
+            <p class="text-gray-500 font-bold">오늘 현재 식수</p>
             <h3 id="stat-count" class="text-4xl lg:text-5xl font-black text-gray-900 mt-2">0명</h3>
           </div>
           <div class="bg-white p-5 lg:p-6 rounded-2xl shadow-md border-b-4 border-blue-500">
@@ -63,27 +57,23 @@
       </section>
 
       <aside class="w-full lg:w-1/3 bg-white rounded-3xl shadow-lg border border-gray-200 flex flex-col shrink-0 lg:shrink overflow-hidden h-[560px] lg:h-auto">
-        <div class="p-4 lg:p-5 border-b border-gray-100 bg-gray-50 shrink-0 flex flex-col 2xl:flex-row 2xl:items-center 2xl:justify-between gap-3">
-          <h2 class="text-2xl font-black text-gray-800 whitespace-nowrap">📋 실시간 식사 명단</h2>
-          <div id="scanner-date-tools" class="flex flex-wrap items-center gap-2">
-            <div class="flex items-center bg-blue-50 px-3 py-2 rounded-xl border border-blue-100">
-              <label for="date-selector" class="sr-only">조회 날짜</label>
-              <input type="date" id="date-selector" class="bg-transparent font-bold text-blue-800 outline-none text-sm min-w-[132px]">
+        <div class="p-5 lg:p-6 border-b border-gray-100 bg-gray-50 shrink-0">
+          <div class="flex flex-col gap-3">
+            <h2 class="text-2xl font-black text-gray-800">📋 실시간 식사 명단</h2>
+            <div class="flex flex-wrap gap-2 items-center">
+              <input type="date" id="date-selector" class="bg-blue-50 border border-blue-100 text-blue-800 font-bold py-2 px-3 rounded-xl outline-none">
+              <select id="phone-filter" class="bg-white border border-blue-100 text-blue-800 font-bold py-2 px-3 rounded-xl outline-none shadow-sm cursor-pointer">
+                <option value="all">뒷자리 전체</option>
+              </select>
+              <button id="btn-refresh-diners" class="bg-gray-900 hover:bg-black text-white font-bold py-2 px-4 rounded-xl shadow-sm">조회</button>
             </div>
-            <label for="dept-filter" class="sr-only">부서 선택</label>
-            <select id="dept-filter" class="bg-white border border-blue-200 text-blue-800 font-bold py-2 px-3 rounded-xl outline-none shadow-sm cursor-pointer text-sm max-w-[160px]">
-              <option value="all">부서 전체</option>
-            </select>
-            <button id="btn-refresh-diners" type="button" class="bg-gray-800 hover:bg-black text-white font-bold py-2 px-3 rounded-xl shadow-sm text-sm active:scale-95 transition">
-              조회
-            </button>
           </div>
         </div>
         <div class="flex-1 overflow-y-auto">
           <table class="w-full text-left">
             <thead class="bg-gray-50 sticky top-0">
               <tr>
-                <th class="p-4 font-bold text-gray-600 border-b">부서</th>
+                <th class="p-4 font-bold text-gray-600 border-b">뒷자리</th>
                 <th class="p-4 font-bold text-gray-600 border-b">이름</th>
                 <th class="p-4 font-bold text-gray-600 border-b text-center">시간</th>
               </tr>
@@ -95,13 +85,10 @@
     </main>
   </div>
 
-  <script type="module" src="JS/admin_app.js?v=security-20260526"></script>
+  <script type="module" src="JS/scanner_app.js?v=20260605"></script>
   <script type="module">
-    import CameraManager from './JS/camera.js?v=security-20260526';
-
-    document.getElementById('custom-flip-btn')?.addEventListener('click', () => {
-      CameraManager.toggleCamera();
-    });
+      import CameraManager from './JS/camera.js?v=20260605';
+      document.getElementById('custom-flip-btn')?.addEventListener('click', () => CameraManager.toggleCamera());
   </script>
 </body>
 </html>
