@@ -865,8 +865,74 @@ const normalizeMenuTextLine = (value) => String(value || '')
 
 const menuMonthKey = (year, month) => `${Number(year)}-${pad2(month)}`;
 
-const isOriginLine = (line) => /(원산|국내산|중국산|미국산|호주산|러시아|스페인|덴마크|캐나다|브라질|베트남|태국|칠레|뉴질랜드|수입산|한우|육우|돈육|계육|오리|돼지|닭|소고기|쇠고기|쌀\s*[:：]|김치\s*[:：])/i.test(line);
-const isNoiseMenuLine = (line) => /^(중식|월식|원산지|요일|월요일|화요일|수요일|목요일|금요일|토요일|일요일|메뉴와|※|◎|\*+)$/.test(line);
+const compactMenuLine = (line) => normalizeMenuTextLine(line).replace(/\s+/g, '');
+
+const isMenuEventLine = (line) => {
+  const compact = compactMenuLine(line).replace(/[★☆★☆]/g, '');
+  return /(일품데이|일품|입품데이|품데이|데이)$/.test(compact) || /^(일품데이|일품|입품데이|품데이|데이)$/.test(compact);
+};
+
+const isHolidayLine = (line) => {
+  const compact = compactMenuLine(line);
+  return /(공휴일|대체공휴일|임시공휴일|휴일|휴무|휴업|재량휴업|방학|선거|지방선거|현충일|광복절|개천절|한글날|성탄|석가탄신|부처님오신날|설날|추석)/.test(compact);
+};
+
+const isOriginLine = (line) => {
+  const compact = compactMenuLine(line);
+  return /(원산|국내산|국내|국산|외국산|수입산|중국산|미국산|호주산|러시아산|스페인산|덴마크산|캐나다산|브라질산|베트남산|태국산|칠레산|뉴질랜드산|한우|육우|우육|돈육|계육|대두|고춧가루|쌀[:：]|김치[:：]|오리[:：]|오리\s*국내산)/i.test(compact);
+};
+
+const isOriginFragmentLine = (line) => {
+  const compact = compactMenuLine(line);
+  return /^(국내|국내산|국산|외국산|수입산|중국|중국산|미국|미국산|호주|호주산|러시아|러시아산|스페인|스페인산|덴마크|덴마크산|브라질|브라질산|베트남|베트남산|우육|돈육|계육|대두|고춧가루|원산|원산지)$/.test(compact);
+};
+
+const isNoiseMenuLine = (line) => {
+  const compact = compactMenuLine(line);
+  if (!compact || compact.length < 2) return true;
+  if (/^(중식|월식|원산지|원산|요일|월요일|화요일|수요일|목요일|금요일|토요일|일요일|메뉴와|없음|해당없음)$/.test(compact)) return true;
+  if (/^[※◎*|＿_~`^·•●□■◆◇○△▲▽▼=+\-]+$/.test(compact)) return true;
+  return isMenuEventLine(compact) || isHolidayLine(compact) || isOriginFragmentLine(compact);
+};
+
+const cleanMenuCandidate = (line) => {
+  let clean = normalizeMenuTextLine(line)
+    .replace(/^[•·ㆍ\-–—*★☆★☆\s]+/, '')
+    .replace(/[★☆★☆]+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const compact = compactMenuLine(clean);
+  if (!compact || isNoiseMenuLine(compact) || isOriginLine(compact)) return '';
+  if (!/[가-힣]/.test(compact)) return '';
+  if (/[\[\]{}]|[A-Za-z]{2,}/.test(clean)) return '';
+  if (/^[가-힣]$/.test(compact)) return '';
+  if (/^(일품|입품|품데이|데이|선거|공휴일|휴무|휴업|국내|국산|원산)$/.test(compact)) return '';
+  return compact.slice(0, 80);
+};
+
+const cleanOriginCandidate = (line) => {
+  let clean = normalizeMenuTextLine(line)
+    .replace(/^[•·ㆍ\-–—*★☆★☆\s]+/, '')
+    .replace(/[★☆★☆]+/g, '')
+    .replace(/\s+/g, '')
+    .trim();
+  if (!clean || isHolidayLine(clean) || isMenuEventLine(clean)) return '';
+  if (!isOriginLine(clean) && !isOriginFragmentLine(clean)) return '';
+  if (clean.length < 2) return '';
+  return clean.slice(0, 100);
+};
+
+const pushMenuCandidate = (day, text, section = 'menu') => {
+  if (!day) return;
+  day.rawLines.push(normalizeMenuTextLine(text));
+  const origin = cleanOriginCandidate(text);
+  if (section === 'origin' || origin) {
+    if (origin) day.origins.push(origin);
+    return;
+  }
+  const menu = cleanMenuCandidate(text);
+  if (menu) day.menu.push(menu);
+};
 
 const detectMenuYearMonth = (text, selectedYear, selectedMonth) => {
   const clean = String(text || '').replace(/\s+/g, ' ');
@@ -874,8 +940,6 @@ const detectMenuYearMonth = (text, selectedYear, selectedMonth) => {
   if (match) return { year: Number(match[1]), month: Number(match[2]) };
   match = /(20\d{2})[-./](\d{1,2})/.exec(clean);
   if (match) return { year: Number(match[1]), month: Number(match[2]) };
-  match = /(?:^|\D)(\d{1,2})\s*월/.exec(clean);
-  if (match) return { year: Number(selectedYear), month: Number(match[1]) };
   return { year: Number(selectedYear), month: Number(selectedMonth) };
 };
 
@@ -918,26 +982,20 @@ const parseMenuOCRText = ({ text, selectedYear, selectedMonth }) => {
       if (day >= 1 && day <= 31 && day !== lastDay) ensureDay(day);
       const rest = normalizeMenuTextLine(line.replace(/.*?\d{1,2}\s*일/, ''));
       if (!rest || isNoiseMenuLine(rest)) continue;
-      if (currentDate) {
-        days[currentDate].rawLines.push(rest);
-        if (isOriginLine(rest)) days[currentDate].origins.push(rest);
-        else days[currentDate].menu.push(rest);
-      }
+      if (currentDate) pushMenuCandidate(days[currentDate], rest);
       continue;
     }
 
     if (!currentDate) continue;
     if (isNoiseMenuLine(line)) continue;
-    days[currentDate].rawLines.push(line);
-    if (isOriginLine(line)) days[currentDate].origins.push(line);
-    else days[currentDate].menu.push(line);
+    pushMenuCandidate(days[currentDate], line);
   }
 
   // 같은 줄이 반복 인식되는 경우 정리
   Object.values(days).forEach(day => {
-    day.menu = [...new Set(day.menu)].slice(0, 12);
-    day.origins = [...new Set(day.origins)].slice(0, 12);
-    day.rawLines = [...new Set(day.rawLines)].slice(0, 30);
+    day.menu = [...new Set(day.menu.map(cleanMenuCandidate).filter(Boolean))].slice(0, 12);
+    day.origins = [...new Set(day.origins.map(cleanOriginCandidate).filter(Boolean))].slice(0, 12);
+    day.rawLines = [...new Set(day.rawLines.map(normalizeMenuTextLine).filter(Boolean))].slice(0, 30);
   });
 
   return {
@@ -986,98 +1044,153 @@ const extractWordsFromTesseract = (data) => {
   }).filter(word => word.text && Number.isFinite(word.x0) && Number.isFinite(word.y0) && word.x1 > word.x0 && word.y1 > word.y0 && (word.confidence >= 0 || hasHangul(word.text)));
 };
 
+const groupWordsIntoRows = (words, tolerance = 18) => {
+  const rows = [];
+  words
+    .slice()
+    .sort((a, b) => (a.y0 - b.y0) || (a.x0 - b.x0))
+    .forEach(word => {
+      const centerY = (word.y0 + word.y1) / 2;
+      const last = rows[rows.length - 1];
+      if (!last || Math.abs(centerY - last.centerY) > tolerance) {
+        rows.push({ minY: word.y0, maxY: word.y1, centerY, words: [word] });
+      } else {
+        last.minY = Math.min(last.minY, word.y0);
+        last.maxY = Math.max(last.maxY, word.y1);
+        last.centerY = (last.centerY * last.words.length + centerY) / (last.words.length + 1);
+        last.words.push(word);
+      }
+    });
+  return rows;
+};
+
+const getQuantile = (values, q) => {
+  const sorted = values.filter(Number.isFinite).sort((a, b) => a - b);
+  if (!sorted.length) return 0;
+  const idx = Math.min(sorted.length - 1, Math.max(0, Math.floor((sorted.length - 1) * q)));
+  return sorted[idx];
+};
+
+const findMenuWeekBands = (rows) => {
+  const contentRows = rows
+    .filter(row => row.maxY > 45)
+    .filter(row => hasHangul(row.words.map(w => w.text).join('')))
+    .filter(row => !/화성|오산|교육청|식단표|FOOD|MENU|메뉴와/.test(mergeOCRTokens(row.words.map(w => w.text))));
+
+  const bands = [];
+  contentRows.forEach(row => {
+    const last = bands[bands.length - 1];
+    if (!last || row.minY - last.lastY > 70) {
+      bands.push({ minY: row.minY, maxY: row.maxY, lastY: row.maxY, rows: [row] });
+    } else {
+      last.minY = Math.min(last.minY, row.minY);
+      last.maxY = Math.max(last.maxY, row.maxY);
+      last.lastY = row.maxY;
+      last.rows.push(row);
+    }
+  });
+
+  return bands
+    .filter(band => band.rows.length >= 3)
+    .slice(0, 6);
+};
+
+const getCellColumn = (word, xStart, colWidth) => {
+  const centerX = (word.x0 + word.x1) / 2;
+  const col = Math.floor((centerX - xStart) / colWidth);
+  return col >= 0 && col < 5 ? col : -1;
+};
+
 const parseMenuOCRLayout = ({ words, selectedYear, selectedMonth }) => {
   const year = Number(selectedYear);
   const month = Number(selectedMonth);
   const monthKey = menuMonthKey(year, month);
   const firstWeekday = getMonthWeekdayIndex(year, month);
+  const firstVisibleMondayDay = firstWeekday <= 4 ? 1 - firstWeekday : 8 - firstWeekday;
   const lastDay = getLastDayOfMonth(year, month);
 
-  const usableWords = (Array.isArray(words) ? words : [])
+  const cleanWords = (Array.isArray(words) ? words : [])
     .filter(word => hasHangul(word.text))
-    .filter(word => word.y0 > 50)
-    .filter(word => !/화성|오산|교육청|식단표|FOOD|MENU|원산지|중식|요일/.test(word.text));
+    .filter(word => word.y0 > 35)
+    .filter(word => !/화성|오산|교육청|식단표|FOOD|MENU|요일|메뉴와/.test(word.text));
 
-  if (usableWords.length < 20) {
+  if (cleanWords.length < 20) {
     return { year, month, detectedYear: year, detectedMonth: month, monthMismatch: false, days: {} };
   }
 
-  const xMin = Math.max(0, Math.min(...usableWords.map(w => w.x0)) - 55);
-  const xMax = Math.max(...usableWords.map(w => w.x1)) + 55;
-  const colWidth = Math.max(1, (xMax - xMin) / 5);
+  // 식단표는 좌측에 '중식/원산지' 세로 라벨이 있고, 그 오른쪽 5칸이 월~금입니다.
+  // OCR이 날짜 헤더를 놓쳐도 5열×주차 구조로 안정적으로 분배합니다.
+  const xCandidates = cleanWords
+    .filter(w => w.x0 > 35)
+    .map(w => w.x0);
+  const xStart = Math.max(45, getQuantile(xCandidates, 0.03) - 45);
+  const xEnd = Math.max(...cleanWords.map(w => w.x1)) + 10;
+  const colWidth = Math.max(1, (xEnd - xStart) / 5);
 
-  const rows = [];
-  usableWords
-    .slice()
-    .sort((a, b) => (a.y0 - b.y0) || (a.x0 - b.x0))
-    .forEach(word => {
-      const last = rows[rows.length - 1];
-      if (!last || Math.abs(word.y0 - last.anchorY) > 18) {
-        rows.push({ minY: word.y0, maxY: word.y1, anchorY: word.y0, words: [word] });
-      } else {
-        last.minY = Math.min(last.minY, word.y0);
-        last.maxY = Math.max(last.maxY, word.y1);
-        last.words.push(word);
-      }
-    });
-
-  const richRows = rows
-    .map(row => ({ ...row, text: mergeOCRTokens(row.words.slice().sort((a, b) => a.x0 - b.x0).map(w => w.text)) }))
-    .filter(row => hasHangul(row.text) && row.text.length >= 2)
-    .filter(row => !isNoiseMenuLine(row.text));
-
-  const bands = [];
-  richRows.forEach(row => {
-    const last = bands[bands.length - 1];
-    if (!last || row.minY - last.lastRowY > 80) {
-      bands.push({ minY: row.minY, maxY: row.maxY, lastRowY: row.minY, rows: [row] });
-    } else {
-      last.maxY = Math.max(last.maxY, row.maxY);
-      last.lastRowY = row.minY;
-      last.rows.push(row);
-    }
-  });
-
+  const rows = groupWordsIntoRows(cleanWords, 18);
+  const bands = findMenuWeekBands(rows);
   const days = {};
-  bands.slice(0, 6).forEach((band, weekIndex) => {
+
+  bands.forEach((band, weekIndex) => {
+    const bandHeight = Math.max(1, band.maxY - band.minY);
+    // 상단 15%는 날짜/요일 헤더, 하단 22%는 원산지 구역으로 봅니다.
+    // 원본 식단표 양식이 바뀌어도 행 위치 비율만 맞으면 메뉴와 원산지를 분리할 수 있습니다.
+    const menuTop = band.minY + bandHeight * 0.12;
+    const originTop = band.minY + bandHeight * 0.80;
+
     band.rows.forEach(row => {
-      const cells = [[], [], [], [], []];
+      if (row.maxY < menuTop) return;
+      const section = row.minY > originTop ? 'origin' : 'menu';
+      const cellWords = [[], [], [], [], []];
+
       row.words.forEach(word => {
-        const centerX = (word.x0 + word.x1) / 2;
-        const col = Math.floor((centerX - xMin) / colWidth);
-        if (col >= 0 && col < 5) cells[col].push(word);
+        const col = getCellColumn(word, xStart, colWidth);
+        if (col >= 0) cellWords[col].push(word);
       });
 
-      cells.forEach((cellWords, col) => {
-        if (!cellWords.length) return;
-        const dayNumber = 1 + (weekIndex * 7) + col - firstWeekday;
+      cellWords.forEach((wordsInCell, col) => {
+        if (!wordsInCell.length) return;
+        const dayNumber = firstVisibleMondayDay + (weekIndex * 7) + col;
         if (dayNumber < 1 || dayNumber > lastDay) return;
 
         const date = `${monthKey}-${pad2(dayNumber)}`;
         if (!parseISODate(date) || isWeekendDateStr(date)) return;
 
-        const text = mergeOCRTokens(cellWords.slice().sort((a, b) => a.x0 - b.x0).map(w => w.text));
-        if (!text || text.length < 2 || !hasHangul(text)) return;
-        if (isNoiseMenuLine(text) || /^[가-힣]$/.test(text)) return;
+        const text = mergeOCRTokens(wordsInCell.slice().sort((a, b) => a.x0 - b.x0).map(w => w.text));
+        if (!text || isNoiseMenuLine(text)) return;
 
         if (!days[date]) days[date] = { date, menu: [], origins: [], rawLines: [] };
-        days[date].rawLines.push(text);
-        if (isOriginLine(text) || /국내산|중국산|미국산|호주산|러시아산|스페인산|덴마크산|우육|돈육|계육|오리/.test(text)) {
-          days[date].origins.push(text);
-        } else {
-          days[date].menu.push(text);
-        }
+        pushMenuCandidate(days[date], text, section);
       });
     });
   });
 
   Object.values(days).forEach(day => {
-    day.menu = [...new Set(day.menu)].filter(line => line.length >= 2).slice(0, 14);
-    day.origins = [...new Set(day.origins)].filter(line => line.length >= 2).slice(0, 10);
-    day.rawLines = [...new Set(day.rawLines)].slice(0, 35);
+    day.menu = [...new Set(day.menu.map(cleanMenuCandidate).filter(Boolean))]
+      .filter(line => !isHolidayLine(line) && !isMenuEventLine(line))
+      .slice(0, 12);
+    day.origins = [...new Set(day.origins.map(cleanOriginCandidate).filter(Boolean))]
+      .slice(0, 10);
+    day.rawLines = [...new Set(day.rawLines.map(normalizeMenuTextLine).filter(Boolean))]
+      .slice(0, 35);
   });
 
   return { year, month, detectedYear: year, detectedMonth: month, monthMismatch: false, days };
+};
+
+const scoreMenuParse = (parsed) => {
+  const days = Object.values(parsed?.days || {});
+  const dayCount = days.length;
+  const menuCount = days.reduce((sum, day) => sum + (Array.isArray(day.menu) ? day.menu.length : 0), 0);
+  const badCount = days.reduce((sum, day) => sum + (day.menu || []).filter(line => isNoiseMenuLine(line) || isHolidayLine(line) || isMenuEventLine(line) || isOriginLine(line)).length, 0);
+  return dayCount * 12 + menuCount - badCount * 8;
+};
+
+const chooseBestMenuParse = (textParsed, layoutParsed) => {
+  const layoutScore = scoreMenuParse(layoutParsed);
+  const textScore = scoreMenuParse(textParsed);
+  if (Object.keys(layoutParsed?.days || {}).length >= 5 && layoutScore >= textScore * 0.65) return layoutParsed;
+  return textScore >= layoutScore ? textParsed : layoutParsed;
 };
 
 const runMenuOCR = async (buffer) => {
@@ -1132,16 +1245,7 @@ app.post('/api/admin/menu/upload-image', requireAdmin, (req, res) => {
     const ocr = await runMenuOCR(req.file.buffer);
     const parsedByText = parseMenuOCRText({ text: ocr.text, selectedYear: year, selectedMonth: month });
     const parsedByLayout = parseMenuOCRLayout({ words: ocr.words, selectedYear: year, selectedMonth: month });
-    const textDayCount = Object.keys(parsedByText.days || {}).length;
-    const layoutDayCount = Object.keys(parsedByLayout.days || {}).length;
-    const parsed = layoutDayCount > textDayCount
-      ? {
-          ...parsedByLayout,
-          detectedYear: parsedByText.detectedYear,
-          detectedMonth: parsedByText.detectedMonth,
-          monthMismatch: parsedByText.monthMismatch
-        }
-      : parsedByText;
+    const parsed = chooseBestMenuParse(parsedByText, parsedByLayout);
     const confirmMismatch = String(req.body.confirmMismatch || '').toLowerCase() === 'true';
 
     if (parsed.monthMismatch && !confirmMismatch) {
