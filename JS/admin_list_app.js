@@ -432,6 +432,18 @@ function formatAdminMenuDate(dateStr) {
   return `${month}/${day}(${weekday})`;
 }
 
+
+function renderAdminOriginItem(item) {
+  const text = String(item || '').trim();
+  const colonIndex = text.indexOf(':');
+  if (colonIndex > 0) {
+    const menuName = text.slice(0, colonIndex).trim();
+    const origin = text.slice(colonIndex + 1).trim();
+    return `<span class="inline-flex flex-col rounded-xl border border-amber-100 bg-amber-50 px-2 py-1 mr-1 mb-1"><b class="text-amber-900">${escapeHTML(menuName)}</b><span class="text-gray-600">${escapeHTML(origin)}</span></span>`;
+  }
+  return `<span class="inline-flex rounded-xl border border-amber-100 bg-amber-50 px-2 py-1 mr-1 mb-1 text-gray-600">${escapeHTML(text)}</span>`;
+}
+
 function renderAdminMenuPreview(data) {
   const wrap = $('menu-admin-preview');
   if (!wrap) return;
@@ -452,7 +464,7 @@ function renderAdminMenuPreview(data) {
         <div class="text-xs font-black text-amber-700 mb-1">메뉴</div>
         <ul class="text-sm font-bold text-gray-900 space-y-0.5 mb-3">${menus.length ? menus.map(item => `<li>• ${escapeHTML(item)}</li>`).join('') : '<li class="text-gray-400">없음</li>'}</ul>
         <div class="text-xs font-black text-amber-700 mb-1">원산지</div>
-        <p class="text-xs text-gray-600 leading-relaxed">${origins.length ? origins.map(escapeHTML).join(' / ') : '없음'}</p>
+        <div class="text-xs text-gray-600 leading-relaxed">${origins.length ? origins.map(renderAdminOriginItem).join('') : '없음'}</div>
       </article>`;
   }).join('');
 }

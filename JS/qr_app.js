@@ -59,6 +59,17 @@ $('btn-close-ios-modal')?.addEventListener('click', () => {
 // ==========================================
 // 식단표 보기
 // ==========================================
+function renderOriginItem(item) {
+  const text = String(item || '').trim();
+  const colonIndex = text.indexOf(':');
+  if (colonIndex > 0) {
+    const menuName = text.slice(0, colonIndex).trim();
+    const origin = text.slice(colonIndex + 1).trim();
+    return `<span class="menu-origin-chip"><strong>${escapeHTML(menuName)}</strong><em>${escapeHTML(origin)}</em></span>`;
+  }
+  return `<span class="menu-origin-chip"><em>${escapeHTML(text)}</em></span>`;
+}
+
 function renderMenuMonth(data) {
   const list = $('menu-list');
   if (!list) return;
@@ -93,7 +104,7 @@ function renderMenuMonth(data) {
         </div>
         <div>
           <div class="text-xs font-black text-amber-700 mb-1">원산지</div>
-          ${origins.length ? `<div>${origins.map(item => `<span class="menu-pill">${escapeHTML(item)}</span>`).join('')}</div>` : '<p class="text-gray-400 text-sm">추출된 원산지가 없습니다.</p>'}
+          ${origins.length ? `<div class="flex flex-col gap-1">${origins.map(renderOriginItem).join('')}</div>` : '<p class="text-gray-400 text-sm">추출된 원산지가 없습니다.</p>'}
         </div>
       </article>`;
   }).join('');

@@ -890,7 +890,8 @@ const isOriginFragmentLine = (line) => {
 const isNoiseMenuLine = (line) => {
   const compact = compactMenuLine(line);
   if (!compact || compact.length < 2) return true;
-  if (/^(중식|월식|원산지|원산|요일|월요일|화요일|수요일|목요일|금요일|토요일|일요일|메뉴와|없음|해당없음)$/.test(compact)) return true;
+  if (/^(중식|월식|원산지|원산|요일|월요일|화요일|수요일|목요일|금요일|토요일|일요일|메뉴와|없음|해당없음|물물|봉기|볼|엘로|훨|지)$/.test(compact)) return true;
+  if (/^\d{1,2}월?\d{1,2}일?$/.test(compact) || /^\d{1,2}일$/.test(compact)) return true;
   if (/^[※◎*|＿_~`^·•●□■◆◇○△▲▽▼=+\-]+$/.test(compact)) return true;
   return isMenuEventLine(compact) || isHolidayLine(compact) || isOriginFragmentLine(compact);
 };
@@ -906,28 +907,119 @@ const cleanMenuCandidate = (line) => {
   if (!/[가-힣]/.test(compact)) return '';
   if (/[\[\]{}]|[A-Za-z]{2,}/.test(clean)) return '';
   if (/^[가-힣]$/.test(compact)) return '';
-  if (/^(일품|입품|품데이|데이|선거|공휴일|휴무|휴업|국내|국산|원산)$/.test(compact)) return '';
-  return compact.slice(0, 80);
+  if (/^(일품|입품|품데이|데이|선거|공휴일|휴무|휴업|국내|국산|원산|물물|봉기|볼|엘로|훨|지)$/.test(compact)) return '';
+  const menu = compact.replace(/[|ㅣ:：.;,]+$/g, '').replace(/^[|ㅣ:：.;,]+/g, '');
+  if (!menu || menu.length < 2) return '';
+  return menu.slice(0, 80);
+};
+
+const ORIGIN_ITEM_PATTERN = '(쌀|백미|흑미|현미|찹쌀|돈육|돼지고기|계육|닭고기|우육|소고기|한우|육우|오리|삼치|새우|가다랑어|참치|코다리|대두|두부|순두부|연두부|배추|고춧가루|고추가루|오징어|명태|동태|낙지|주꾸미|쭈꾸미|고등어|갈치|미꾸라지|장어|메밀)';
+const ORIGIN_COUNTRY_PATTERN = '(국내산|국산|중국산|미국산|호주산|러시아산|스페인산|덴마크산|캐나다산|브라질산|베트남산|태국산|칠레산|뉴질랜드산|원양산|외국산|수입산)';
+const ORIGIN_SOURCE_RE = new RegExp(`${ORIGIN_ITEM_PATTERN}[:：\\s\\-]*${ORIGIN_COUNTRY_PATTERN}`, 'i');
+
+const normalizeOriginText = (value) => normalizeMenuTextLine(value)
+  .replace(/[|ㅣ]/g, ' ')
+  .replace(/[()\[\]{}]/g, ' ')
+  .replace(/[★☆★☆]/g, '')
+  .replace(/^[•·ㆍ\-–—*\s]+/, '')
+  .replace(/\s+/g, '')
+  .replace(/국\s*내\s*산/g, '국내산')
+  .replace(/국\s*산/g, '국산')
+  .replace(/중\s*국\s*산/g, '중국산')
+  .replace(/미\s*국\s*산/g, '미국산')
+  .replace(/호\s*주\s*산/g, '호주산')
+  .replace(/러\s*시\s*아\s*산/g, '러시아산')
+  .replace(/스\s*페\s*인\s*산/g, '스페인산')
+  .replace(/베\s*트\s*남\s*산/g, '베트남산')
+  .replace(/계욕/g, '계육')
+  .replace(/돋육/g, '돈육')
+  .replace(/돈국내산/g, '돈육국내산')
+  .replace(/자육국내산/g, '돈육국내산')
+  .replace(/고자육국내산/g, '돈육국내산')
+  .replace(/초주산/g, '호주산')
+  .replace(/러시산/g, '러시아산')
+  .replace(/국내산국내산/g, '국내산')
+  .trim();
+
+const formatOriginSource = (value) => {
+  let clean = normalizeOriginText(value);
+  if (!clean || isHolidayLine(clean) || isMenuEventLine(clean)) return '';
+  clean = clean
+    .replace(new RegExp(`${ORIGIN_ITEM_PATTERN}[:：\\s\\-]*${ORIGIN_COUNTRY_PATTERN}`, 'gi'), (match, item, country) => `${item}: ${country}`)
+    .replace(/[:：]{2,}/g, ':')
+    .replace(/\s*:\s*/g, ': ')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/^[:：\-–—]+|[:：\-–—]+$/g, '')
+    .replace(/[.。]+$/g, '')
+    .trim();
+  if (!clean || !isOriginLine(clean)) return '';
+  return clean.slice(0, 120);
+};
+
+const cleanOriginMenuName = (line) => {
+  const clean = cleanMenuCandidate(line);
+  if (!clean) return '';
+  if (isOriginLine(clean) || isOriginFragmentLine(clean)) return '';
+  if (/^(원산지|원산|중식|월식|메뉴)$/.test(clean)) return '';
+  return clean.slice(0, 60);
+};
+
+const matchOriginMenuName = (day, menuName) => {
+  const key = compactMenuLine(menuName).replace(/[^가-힣0-9*]/g, '');
+  if (!key || !Array.isArray(day?.menu)) return menuName;
+  const candidates = day.menu
+    .map(item => cleanMenuCandidate(item))
+    .filter(Boolean);
+  const exact = candidates.find(item => compactMenuLine(item) === key);
+  if (exact) return exact;
+  const contained = candidates.find(item => {
+    const candidateKey = compactMenuLine(item);
+    return candidateKey.includes(key) || key.includes(candidateKey) || (key.length >= 4 && candidateKey.includes(key.slice(-4)));
+  });
+  return contained || menuName;
 };
 
 const cleanOriginCandidate = (line) => {
-  let clean = normalizeMenuTextLine(line)
-    .replace(/^[•·ㆍ\-–—*★☆★☆\s]+/, '')
-    .replace(/[★☆★☆]+/g, '')
-    .replace(/\s+/g, '')
-    .trim();
+  let clean = normalizeOriginText(line);
   if (!clean || isHolidayLine(clean) || isMenuEventLine(clean)) return '';
+  const match = ORIGIN_SOURCE_RE.exec(clean);
+  if (match && match.index > 0) {
+    const menuName = cleanOriginMenuName(clean.slice(0, match.index));
+    const source = formatOriginSource(clean.slice(match.index));
+    if (source) return menuName ? `${menuName}: ${source}` : source;
+  }
+  const source = formatOriginSource(clean);
+  if (source) return source;
   if (!isOriginLine(clean) && !isOriginFragmentLine(clean)) return '';
   if (clean.length < 2) return '';
-  return clean.slice(0, 100);
+  return clean.slice(0, 120);
+};
+
+const pushOriginPairCandidate = (day, menuText, sourceText) => {
+  if (!day) return;
+  const source = formatOriginSource(sourceText) || cleanOriginCandidate(sourceText);
+  if (!source) return;
+  let menuName = cleanOriginMenuName(menuText);
+  menuName = matchOriginMenuName(day, menuName);
+  day.origins.push(menuName ? `${menuName}: ${source}` : source);
+};
+
+const pushOriginCandidate = (day, text) => {
+  if (!day) return;
+  const origin = cleanOriginCandidate(text);
+  if (origin) day.origins.push(origin);
 };
 
 const pushMenuCandidate = (day, text, section = 'menu') => {
   if (!day) return;
   day.rawLines.push(normalizeMenuTextLine(text));
+  if (section === 'origin') {
+    pushOriginCandidate(day, text);
+    return;
+  }
   const origin = cleanOriginCandidate(text);
-  if (section === 'origin' || origin) {
-    if (origin) day.origins.push(origin);
+  if (origin) {
+    day.origins.push(origin);
     return;
   }
   const menu = cleanMenuCandidate(text);
@@ -1095,6 +1187,39 @@ const findMenuWeekBands = (rows) => {
     .slice(0, 6);
 };
 
+const isMenuFooterRow = (row) => {
+  const compact = mergeOCRTokens(row.words.map(w => w.text));
+  return /(계절|식자재|수급|부득이|변경|백미밥쌀|흑미밥|현미밥|볶음김치|포기김치배추|고춧가루|사골농축|원산지는|메뉴와원산지)/.test(compact);
+};
+
+const buildCalendarWeekBands = (rows, firstVisibleMondayDay, lastDay) => {
+  const weekCount = Math.max(1, Math.min(6, Math.ceil((lastDay - firstVisibleMondayDay + 1) / 7)));
+  const contentRows = rows
+    .filter(row => row.maxY > 45)
+    .filter(row => hasHangul(row.words.map(w => w.text).join('')))
+    .filter(row => !isMenuFooterRow(row))
+    .filter(row => !/화성|오산|교육청|식단표|FOOD|MENU|메뉴와/.test(mergeOCRTokens(row.words.map(w => w.text))));
+
+  if (contentRows.length < weekCount * 3) return [];
+
+  const yMin = contentRows[0].minY;
+  const centerCut = getQuantile(contentRows.map(row => row.centerY), 0.95) + 30;
+  const trimmedRows = contentRows.filter(row => row.centerY <= centerCut);
+  const yMax = trimmedRows[trimmedRows.length - 1].maxY;
+  const bandHeight = Math.max(1, (yMax - yMin + 1) / weekCount);
+
+  return Array.from({ length: weekCount }, (_, idx) => {
+    const minY = yMin + idx * bandHeight;
+    const maxY = idx === weekCount - 1 ? yMax + 1 : yMin + (idx + 1) * bandHeight;
+    const bandRows = trimmedRows.filter(row => row.centerY >= minY && row.centerY < maxY);
+    return {
+      minY: bandRows.length ? Math.min(...bandRows.map(r => r.minY)) : minY,
+      maxY: bandRows.length ? Math.max(...bandRows.map(r => r.maxY)) : maxY,
+      rows: bandRows
+    };
+  }).filter(band => band.rows.length >= 3);
+};
+
 const getCellColumn = (word, xStart, colWidth) => {
   const centerX = (word.x0 + word.x1) / 2;
   const col = Math.floor((centerX - xStart) / colWidth);
@@ -1128,19 +1253,21 @@ const parseMenuOCRLayout = ({ words, selectedYear, selectedMonth }) => {
   const colWidth = Math.max(1, (xEnd - xStart) / 5);
 
   const rows = groupWordsIntoRows(cleanWords, 18);
-  const bands = findMenuWeekBands(rows);
+  const calendarBands = buildCalendarWeekBands(rows, firstVisibleMondayDay, lastDay);
+  const bands = calendarBands.length ? calendarBands : findMenuWeekBands(rows);
   const days = {};
 
   bands.forEach((band, weekIndex) => {
     const bandHeight = Math.max(1, band.maxY - band.minY);
-    // 상단 15%는 날짜/요일 헤더, 하단 22%는 원산지 구역으로 봅니다.
-    // 원본 식단표 양식이 바뀌어도 행 위치 비율만 맞으면 메뉴와 원산지를 분리할 수 있습니다.
-    const menuTop = band.minY + bandHeight * 0.12;
-    const originTop = band.minY + bandHeight * 0.80;
+    // 굵은 대표 메뉴가 주차 블록의 첫 OCR 행으로 잡히는 경우가 많아서 상단 컷을 거의 두지 않습니다.
+    // 대신 날짜/요일/공휴일/이벤트 문구는 cleanMenuCandidate 쪽에서 제거합니다.
+    const menuTop = band.minY - 2;
+    // 원산지 행은 보통 각 주차 블록의 하단 20~25%에 배치됩니다. 조금 넉넉하게 잡아 누락을 줄입니다.
+    const originTop = band.minY + bandHeight * 0.74;
 
     band.rows.forEach(row => {
       if (row.maxY < menuTop) return;
-      const section = row.minY > originTop ? 'origin' : 'menu';
+      const section = row.minY >= originTop ? 'origin' : 'menu';
       const cellWords = [[], [], [], [], []];
 
       row.words.forEach(word => {
@@ -1155,11 +1282,29 @@ const parseMenuOCRLayout = ({ words, selectedYear, selectedMonth }) => {
 
         const date = `${monthKey}-${pad2(dayNumber)}`;
         if (!parseISODate(date) || isWeekendDateStr(date)) return;
+        if (!days[date]) days[date] = { date, menu: [], origins: [], rawLines: [] };
 
-        const text = mergeOCRTokens(wordsInCell.slice().sort((a, b) => a.x0 - b.x0).map(w => w.text));
+        const sortedWords = wordsInCell.slice().sort((a, b) => a.x0 - b.x0);
+        const text = mergeOCRTokens(sortedWords.map(w => w.text));
         if (!text || isNoiseMenuLine(text)) return;
 
-        if (!days[date]) days[date] = { date, menu: [], origins: [], rawLines: [] };
+        if (section === 'origin') {
+          days[date].rawLines.push(normalizeMenuTextLine(text));
+          const cellLeft = xStart + col * colWidth;
+          const midX = cellLeft + colWidth * 0.50;
+          const leftWords = sortedWords.filter(w => ((w.x0 + w.x1) / 2) < midX);
+          const rightWords = sortedWords.filter(w => ((w.x0 + w.x1) / 2) >= midX);
+          const leftText = mergeOCRTokens(leftWords.map(w => w.text));
+          const rightText = mergeOCRTokens(rightWords.map(w => w.text));
+
+          if (leftText && rightText) {
+            pushOriginPairCandidate(days[date], leftText, rightText);
+          } else {
+            pushOriginCandidate(days[date], text);
+          }
+          return;
+        }
+
         pushMenuCandidate(days[date], text, section);
       });
     });
@@ -1197,11 +1342,16 @@ const runMenuOCR = async (buffer) => {
   try {
     const { recognize } = require('tesseract.js');
     const lang = process.env.OCR_LANG || 'kor+eng';
-    const result = await recognize(buffer, lang, { logger: () => {} });
+    const result = await recognize(buffer, lang, {
+      logger: () => {},
+      tessedit_pageseg_mode: '4',
+      preserve_interword_spaces: '1',
+      user_defined_dpi: '300'
+    });
     return {
       text: result?.data?.text || '',
       words: extractWordsFromTesseract(result?.data),
-      engine: `tesseract.js:${lang}`
+      engine: `tesseract.js:${lang}:psm4`
     };
   } catch (e) {
     return { text: '', words: [], engine: 'unavailable', error: e.message };
