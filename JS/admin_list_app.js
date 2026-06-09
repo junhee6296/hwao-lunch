@@ -88,6 +88,16 @@ async function apiFetch(url, options = {}) {
   return res;
 }
 
+async function readApiJson(res) {
+  const text = await res.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch (_) {
+    return { message: text.slice(0, 300) || '서버 응답 형식이 올바르지 않습니다.' };
+  }
+}
+
 async function checkAdminSession() {
   try {
     const res = await fetch(`${API_BASE_URL}/admin/me`, { credentials: 'same-origin', cache: 'no-store' });
@@ -489,7 +499,7 @@ async function uploadMenuImage(confirmMismatch = false) {
       method: 'POST',
       body: formData
     });
-    const data = await res.json();
+    const data = await readApiJson(res);
 
     if (res.status === 409 && data.code === 'MONTH_MISMATCH') {
       const summary = data.summary || {};

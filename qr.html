@@ -102,7 +102,7 @@
 
         <div class="input-row">
           <label for="phoneLast4" class="input-label text-amber-950">전화번호 뒷자리</label>
-          <input type="text" id="phoneLast4" class="form-input border-amber-100 bg-amber-50/50 focus:border-amber-400" placeholder="숫자 4자리" maxlength="4" inputmode="numeric" autocomplete="off">
+          <input type="text" id="phoneLast4" class="form-input border-amber-100 bg-amber-50/50 focus:border-amber-400" placeholder="전화번호 맨 뒷 4자리 입력" maxlength="4" inputmode="numeric" autocomplete="off">
         </div>
 
         <button id="btn-generate-qr" class="btn btn-primary w-full mt-6 text-2xl h-20 rounded-3xl font-black shadow-xl shadow-orange-200/70">
@@ -151,14 +151,29 @@
     </div>
 
     <div id="ios-install-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm transition-opacity">
-      <div class="bg-white rounded-3xl p-6 max-w-sm w-full text-center shadow-2xl border-4 border-amber-100">
-        <div class="text-4xl mb-2">🍎</div>
-        <h3 class="text-xl font-extrabold text-gray-900 mb-2">아이폰 앱 설치 방법</h3>
-        <p class="text-gray-500 text-sm mb-6">애플 정책상 아이폰은 아래 방법으로만<br>바탕화면 추가가 가능합니다.</p>
-        <div class="bg-amber-50 rounded-2xl p-5 mb-6 text-left text-sm text-gray-700 leading-relaxed border border-amber-100">
-          <p class="mb-3">1. 화면 하단 또는 주소창 옆 <b class="text-amber-700">[공유]</b> 아이콘을 누릅니다.</p>
-          <p>2. 메뉴에서 <b class="text-amber-700">[홈 화면에 추가]</b>를 선택합니다.</p>
+      <div class="bg-white rounded-3xl p-6 max-w-md w-full text-center shadow-2xl border-4 border-amber-100">
+        <div class="flex items-center justify-center gap-3 mb-3">
+          <img src="/img/ios-share-icon.png" alt="iOS 공유 버튼" class="w-12 h-12 rounded-2xl shadow-sm">
+          <h3 class="text-xl font-extrabold text-gray-900">아이폰 홈 화면 추가</h3>
         </div>
+        <p class="text-gray-500 text-sm mb-5">Safari에서 공유 메뉴를 연 뒤<br>밥Check 바로가기를 홈 화면에 추가하세요.</p>
+        <div class="bg-amber-50 rounded-2xl p-5 mb-4 text-left text-sm text-gray-700 leading-relaxed border border-amber-100 space-y-3">
+          <div class="flex gap-3">
+            <span class="shrink-0 w-7 h-7 rounded-full bg-amber-500 text-white font-black flex items-center justify-center">1</span>
+            <p>화면 상단 주소창 옆 또는 하단 도구막대의 <img src="/img/ios-share-icon.png" alt="공유" class="inline-block w-5 h-5 mx-1 align-[-3px]"> <b class="text-amber-700">공유 버튼</b>을 탭합니다.</p>
+          </div>
+          <div class="flex gap-3">
+            <span class="shrink-0 w-7 h-7 rounded-full bg-amber-500 text-white font-black flex items-center justify-center">2</span>
+            <p>공유 메뉴가 열리면 목록을 아래로 스크롤해 <b class="text-amber-700">홈 화면에 추가</b>를 선택합니다.</p>
+          </div>
+          <div class="flex gap-3">
+            <span class="shrink-0 w-7 h-7 rounded-full bg-amber-500 text-white font-black flex items-center justify-center">3</span>
+            <p>오른쪽 위의 <b class="text-amber-700">추가</b>를 누르면 홈 화면에 밥Check 아이콘이 생깁니다.</p>
+          </div>
+        </div>
+        <a href="https://support.apple.com/ko-kr/guide/iphone/iph42ab2f3a7/ios" target="_blank" rel="noopener noreferrer" class="inline-flex items-center justify-center text-xs font-black text-blue-600 hover:text-blue-800 mb-5 underline underline-offset-4">
+          Apple 공식 안내 보기
+        </a>
         <button id="btn-close-ios-modal" class="btn btn-primary w-full h-14 rounded-2xl font-bold text-lg shadow-md shadow-orange-100">
           확인했습니다
         </button>
@@ -170,6 +185,6 @@
     </footer>
   </div>
 
-  <script type="module" src="JS/qr_app.js?v=20260609"></script>
+  <script type="module" src="JS/qr_app.js?v=20260609-hotfix1"></script>
 </body>
 </html>

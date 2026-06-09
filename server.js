@@ -245,6 +245,13 @@ loadFiles();
 app.disable('x-powered-by');
 app.use(express.json({ limit: MAX_JSON_SIZE }));
 
+app.use((err, req, res, next) => {
+  if (err && (err.type === 'entity.parse.failed' || err instanceof SyntaxError) && req.path.startsWith('/api/')) {
+    return res.status(400).json({ message: '요청 데이터 형식이 올바르지 않습니다. 새로고침 후 다시 시도해 주세요.' });
+  }
+  next(err);
+});
+
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
@@ -867,6 +874,8 @@ const detectMenuYearMonth = (text, selectedYear, selectedMonth) => {
   if (match) return { year: Number(match[1]), month: Number(match[2]) };
   match = /(20\d{2})[-./](\d{1,2})/.exec(clean);
   if (match) return { year: Number(match[1]), month: Number(match[2]) };
+  match = /(?:^|\D)(\d{1,2})\s*월/.exec(clean);
+  if (match) return { year: Number(selectedYear), month: Number(match[1]) };
   return { year: Number(selectedYear), month: Number(selectedMonth) };
 };
 
@@ -941,14 +950,148 @@ const parseMenuOCRText = ({ text, selectedYear, selectedMonth }) => {
   };
 };
 
+const getMonthWeekdayIndex = (year, month) => {
+  const weekday = new Date(Date.UTC(Number(year), Number(month) - 1, 1)).getUTCDay();
+  return weekday === 0 ? 6 : weekday - 1; // 월=0, 화=1, ... 금=4, 토=5, 일=6
+};
+
+const getLastDayOfMonth = (year, month) => new Date(Date.UTC(Number(year), Number(month), 0)).getUTCDate();
+
+const normalizeOCRToken = (value) => normalizeMenuTextLine(value)
+  .replace(/[|＿_~`^·•●□■◆◇○◎△▲▽▼※=+]+/g, '')
+  .replace(/^[\[\]{}()0-9A-Za-z:;,.\-\s]+$/g, '')
+  .trim();
+
+const mergeOCRTokens = (tokens) => normalizeMenuTextLine(
+  tokens
+    .map(t => String(t || '').trim())
+    .filter(Boolean)
+    .join('')
+    .replace(/\s+/g, '')
+);
+
+const hasHangul = (value) => /[가-힣]/.test(String(value || ''));
+
+const extractWordsFromTesseract = (data) => {
+  const words = Array.isArray(data?.words) ? data.words : [];
+  return words.map(word => {
+    const bbox = word.bbox || {};
+    const x0 = Number(bbox.x0 ?? word.x0 ?? word.left ?? 0);
+    const y0 = Number(bbox.y0 ?? word.y0 ?? word.top ?? 0);
+    const x1 = Number(bbox.x1 ?? word.x1 ?? (word.left != null && word.width != null ? Number(word.left) + Number(word.width) : x0));
+    const y1 = Number(bbox.y1 ?? word.y1 ?? (word.top != null && word.height != null ? Number(word.top) + Number(word.height) : y0));
+    const text = normalizeOCRToken(word.text || word.symbol || '');
+    const confidence = Number(word.confidence ?? word.conf ?? 0);
+    return { text, x0, y0, x1, y1, confidence };
+  }).filter(word => word.text && Number.isFinite(word.x0) && Number.isFinite(word.y0) && word.x1 > word.x0 && word.y1 > word.y0 && (word.confidence >= 0 || hasHangul(word.text)));
+};
+
+const parseMenuOCRLayout = ({ words, selectedYear, selectedMonth }) => {
+  const year = Number(selectedYear);
+  const month = Number(selectedMonth);
+  const monthKey = menuMonthKey(year, month);
+  const firstWeekday = getMonthWeekdayIndex(year, month);
+  const lastDay = getLastDayOfMonth(year, month);
+
+  const usableWords = (Array.isArray(words) ? words : [])
+    .filter(word => hasHangul(word.text))
+    .filter(word => word.y0 > 50)
+    .filter(word => !/화성|오산|교육청|식단표|FOOD|MENU|원산지|중식|요일/.test(word.text));
+
+  if (usableWords.length < 20) {
+    return { year, month, detectedYear: year, detectedMonth: month, monthMismatch: false, days: {} };
+  }
+
+  const xMin = Math.max(0, Math.min(...usableWords.map(w => w.x0)) - 55);
+  const xMax = Math.max(...usableWords.map(w => w.x1)) + 55;
+  const colWidth = Math.max(1, (xMax - xMin) / 5);
+
+  const rows = [];
+  usableWords
+    .slice()
+    .sort((a, b) => (a.y0 - b.y0) || (a.x0 - b.x0))
+    .forEach(word => {
+      const last = rows[rows.length - 1];
+      if (!last || Math.abs(word.y0 - last.anchorY) > 18) {
+        rows.push({ minY: word.y0, maxY: word.y1, anchorY: word.y0, words: [word] });
+      } else {
+        last.minY = Math.min(last.minY, word.y0);
+        last.maxY = Math.max(last.maxY, word.y1);
+        last.words.push(word);
+      }
+    });
+
+  const richRows = rows
+    .map(row => ({ ...row, text: mergeOCRTokens(row.words.slice().sort((a, b) => a.x0 - b.x0).map(w => w.text)) }))
+    .filter(row => hasHangul(row.text) && row.text.length >= 2)
+    .filter(row => !isNoiseMenuLine(row.text));
+
+  const bands = [];
+  richRows.forEach(row => {
+    const last = bands[bands.length - 1];
+    if (!last || row.minY - last.lastRowY > 80) {
+      bands.push({ minY: row.minY, maxY: row.maxY, lastRowY: row.minY, rows: [row] });
+    } else {
+      last.maxY = Math.max(last.maxY, row.maxY);
+      last.lastRowY = row.minY;
+      last.rows.push(row);
+    }
+  });
+
+  const days = {};
+  bands.slice(0, 6).forEach((band, weekIndex) => {
+    band.rows.forEach(row => {
+      const cells = [[], [], [], [], []];
+      row.words.forEach(word => {
+        const centerX = (word.x0 + word.x1) / 2;
+        const col = Math.floor((centerX - xMin) / colWidth);
+        if (col >= 0 && col < 5) cells[col].push(word);
+      });
+
+      cells.forEach((cellWords, col) => {
+        if (!cellWords.length) return;
+        const dayNumber = 1 + (weekIndex * 7) + col - firstWeekday;
+        if (dayNumber < 1 || dayNumber > lastDay) return;
+
+        const date = `${monthKey}-${pad2(dayNumber)}`;
+        if (!parseISODate(date) || isWeekendDateStr(date)) return;
+
+        const text = mergeOCRTokens(cellWords.slice().sort((a, b) => a.x0 - b.x0).map(w => w.text));
+        if (!text || text.length < 2 || !hasHangul(text)) return;
+        if (isNoiseMenuLine(text) || /^[가-힣]$/.test(text)) return;
+
+        if (!days[date]) days[date] = { date, menu: [], origins: [], rawLines: [] };
+        days[date].rawLines.push(text);
+        if (isOriginLine(text) || /국내산|중국산|미국산|호주산|러시아산|스페인산|덴마크산|우육|돈육|계육|오리/.test(text)) {
+          days[date].origins.push(text);
+        } else {
+          days[date].menu.push(text);
+        }
+      });
+    });
+  });
+
+  Object.values(days).forEach(day => {
+    day.menu = [...new Set(day.menu)].filter(line => line.length >= 2).slice(0, 14);
+    day.origins = [...new Set(day.origins)].filter(line => line.length >= 2).slice(0, 10);
+    day.rawLines = [...new Set(day.rawLines)].slice(0, 35);
+  });
+
+  return { year, month, detectedYear: year, detectedMonth: month, monthMismatch: false, days };
+};
+
 const runMenuOCR = async (buffer) => {
   try {
     const { recognize } = require('tesseract.js');
     const lang = process.env.OCR_LANG || 'kor+eng';
     const result = await recognize(buffer, lang, { logger: () => {} });
-    return { text: result?.data?.text || '', engine: `tesseract.js:${lang}` };
+    return {
+      text: result?.data?.text || '',
+      words: extractWordsFromTesseract(result?.data),
+      engine: `tesseract.js:${lang}`
+    };
   } catch (e) {
-    return { text: '', engine: 'unavailable', error: e.message };
+    return { text: '', words: [], engine: 'unavailable', error: e.message };
   }
 };
 
@@ -987,7 +1130,18 @@ app.post('/api/admin/menu/upload-image', requireAdmin, (req, res) => {
     if (!req.file || !req.file.buffer) return res.status(400).json({ message: '식단표 이미지 파일을 업로드해 주세요.' });
 
     const ocr = await runMenuOCR(req.file.buffer);
-    const parsed = parseMenuOCRText({ text: ocr.text, selectedYear: year, selectedMonth: month });
+    const parsedByText = parseMenuOCRText({ text: ocr.text, selectedYear: year, selectedMonth: month });
+    const parsedByLayout = parseMenuOCRLayout({ words: ocr.words, selectedYear: year, selectedMonth: month });
+    const textDayCount = Object.keys(parsedByText.days || {}).length;
+    const layoutDayCount = Object.keys(parsedByLayout.days || {}).length;
+    const parsed = layoutDayCount > textDayCount
+      ? {
+          ...parsedByLayout,
+          detectedYear: parsedByText.detectedYear,
+          detectedMonth: parsedByText.detectedMonth,
+          monthMismatch: parsedByText.monthMismatch
+        }
+      : parsedByText;
     const confirmMismatch = String(req.body.confirmMismatch || '').toLowerCase() === 'true';
 
     if (parsed.monthMismatch && !confirmMismatch) {
@@ -1042,7 +1196,8 @@ app.post('/api/admin/menu/upload-image', requireAdmin, (req, res) => {
         detectedYear: monthData.detectedYear,
         detectedMonth: monthData.detectedMonth,
         ocrEngine: monthData.ocrEngine,
-        ocrError: monthData.ocrError
+        ocrError: monthData.ocrError,
+        layoutWords: Array.isArray(ocr.words) ? ocr.words.length : 0
       }
     });
   });
