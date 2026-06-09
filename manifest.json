@@ -1,15 +1,24 @@
 {
-  "name": "화성오산교육지원청 점심체크",
-  "short_name": "점심QR",
+  "name": "밥Check",
+  "short_name": "밥Check",
+  "description": "화성오산교육지원청 점심 식사 QR 체크 앱",
   "start_url": "/qr.html",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#059669",
+  "background_color": "#fff7d1",
+  "theme_color": "#f59e0b",
   "icons": [
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/2814/2814424.png",
+      "src": "/img/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/img/icon.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }

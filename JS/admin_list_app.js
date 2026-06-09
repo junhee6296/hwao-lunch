@@ -70,6 +70,7 @@ function showMain(email) {
     $('admin-email-label').classList.toggle('hidden', !loggedInEmail);
   }
   setupImportSelectors();
+  setupMenuSelectors();
   loadUsers();
 }
 
@@ -378,10 +379,8 @@ async function exportMonthly() {
   XLSX.writeFile(wb, `식사명단_${month}.xlsx`);
 }
 
-function setupImportSelectors() {
-  const yearSelect = $('import-year');
-  const monthSelect = $('import-month');
-  if (!yearSelect || yearSelect.options.length > 0) return;
+function populateYearMonthSelects(yearSelect, monthSelect) {
+  if (!yearSelect || !monthSelect || yearSelect.options.length > 0) return;
 
   const thisYear = Number(getTodayStr().slice(0, 4));
   for (let year = thisYear - 1; year <= thisYear + 2; year++) {
@@ -399,6 +398,127 @@ function setupImportSelectors() {
     opt.textContent = `${month}월`;
     if (month === thisMonth) opt.selected = true;
     monthSelect.appendChild(opt);
+  }
+}
+
+function setupImportSelectors() {
+  populateYearMonthSelects($('import-year'), $('import-month'));
+}
+
+function setupMenuSelectors() {
+  populateYearMonthSelects($('menu-year'), $('menu-month-select'));
+}
+
+function getSelectedMenuYearMonth() {
+  const year = Number($('menu-year')?.value || getTodayStr().slice(0, 4));
+  const month = Number($('menu-month-select')?.value || getTodayStr().slice(5, 7));
+  return { year, month, yearMonth: `${year}-${pad2(month)}` };
+}
+
+function formatAdminMenuDate(dateStr) {
+  const [year, month, day] = String(dateStr || '').split('-').map(Number);
+  if (!year || !month || !day) return dateStr;
+  const weekday = ['일', '월', '화', '수', '목', '금', '토'][new Date(Date.UTC(year, month - 1, day)).getUTCDay()];
+  return `${month}/${day}(${weekday})`;
+}
+
+function renderAdminMenuPreview(data) {
+  const wrap = $('menu-admin-preview');
+  if (!wrap) return;
+  const days = data?.days || {};
+  const dates = Object.keys(days).sort();
+  if (dates.length === 0) {
+    wrap.innerHTML = '<div class="col-span-full bg-white border border-amber-100 rounded-2xl p-8 text-center text-amber-800 font-bold">아직 추출된 식단표가 없습니다.</div>';
+    return;
+  }
+
+  wrap.innerHTML = dates.map(date => {
+    const day = days[date] || {};
+    const menus = Array.isArray(day.menu) ? day.menu : [];
+    const origins = Array.isArray(day.origins) ? day.origins : [];
+    return `
+      <article class="bg-white border border-amber-100 rounded-2xl p-4 shadow-sm">
+        <h3 class="font-black text-amber-950 mb-2">${escapeHTML(formatAdminMenuDate(date))}</h3>
+        <div class="text-xs font-black text-amber-700 mb-1">메뉴</div>
+        <ul class="text-sm font-bold text-gray-900 space-y-0.5 mb-3">${menus.length ? menus.map(item => `<li>• ${escapeHTML(item)}</li>`).join('') : '<li class="text-gray-400">없음</li>'}</ul>
+        <div class="text-xs font-black text-amber-700 mb-1">원산지</div>
+        <p class="text-xs text-gray-600 leading-relaxed">${origins.length ? origins.map(escapeHTML).join(' / ') : '없음'}</p>
+      </article>`;
+  }).join('');
+}
+
+async function loadAdminMenuMonth() {
+  const status = $('menu-upload-status');
+  const { yearMonth } = getSelectedMenuYearMonth();
+  if (status) status.textContent = `${yearMonth} 식단표를 불러오는 중...`;
+  try {
+    const res = await apiFetch(`${API_BASE_URL}/admin/menu/month/${yearMonth}`, { cache: 'no-store' });
+    const data = await res.json();
+    if (!res.ok) return alert(data.message || '식단표 조회 실패');
+    renderAdminMenuPreview(data);
+    if (status) {
+      const count = Object.keys(data.days || {}).length;
+      status.textContent = count ? `${yearMonth} 식단 ${count}일치가 등록되어 있습니다.` : `${yearMonth} 등록 식단표가 없습니다.`;
+    }
+  } catch (e) {
+    if (status) status.textContent = '식단표 조회 실패';
+  }
+}
+
+async function uploadMenuImage(confirmMismatch = false) {
+  const file = $('menu-image-file')?.files?.[0];
+  if (!file) return alert('식단표 이미지 파일을 선택해 주세요.');
+  const { year, month, yearMonth } = getSelectedMenuYearMonth();
+
+  const formData = new FormData();
+  formData.append('year', String(year));
+  formData.append('month', String(month));
+  formData.append('confirmMismatch', confirmMismatch ? 'true' : 'false');
+  formData.append('image', file);
+
+  const btn = $('btn-upload-menu-image');
+  const status = $('menu-upload-status');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '분석 중...';
+  }
+  if (status) status.textContent = '이미지를 업로드하고 OCR로 식단표를 분석하는 중입니다. 이미지 크기에 따라 시간이 걸릴 수 있습니다.';
+
+  try {
+    const res = await apiFetch(`${API_BASE_URL}/admin/menu/upload-image`, {
+      method: 'POST',
+      body: formData
+    });
+    const data = await res.json();
+
+    if (res.status === 409 && data.code === 'MONTH_MISMATCH') {
+      const summary = data.summary || {};
+      const detected = summary.detectedYear && summary.detectedMonth ? `${summary.detectedYear}년 ${summary.detectedMonth}월` : '확인 불가';
+      const proceed = confirm(`선택한 식단 기간은 ${year}년 ${month}월입니다.\n\n이미지에서 인식한 기간은 ${detected}입니다.\n선택 기간 외 다른 파일이 업로드되었을 수 있습니다.\n\n계속 진행하겠습니까?`);
+      if (proceed) {
+        await uploadMenuImage(true);
+        return;
+      }
+      if (status) status.textContent = '기간 불일치로 업로드를 취소했습니다.';
+      return;
+    }
+
+    if (!res.ok) return alert(data.message || '식단표 업로드 실패');
+    const count = Object.keys(data.month?.days || {}).length;
+    if (status) {
+      const warn = data.summary?.ocrError ? ` OCR 엔진 경고: ${data.summary.ocrError}` : '';
+      status.textContent = `${yearMonth} 식단표 업로드 완료 · 추출 ${count}일치.${warn}`;
+    }
+    renderAdminMenuPreview(data.month);
+    if (data.summary?.ocrError) alert('이미지는 저장했지만 OCR 엔진을 사용할 수 없어 자동 추출이 제한되었습니다. 서버에서 tesseract.js 설치 여부를 확인해 주세요.');
+  } catch (e) {
+    alert(e.message || '식단표 업로드 실패');
+    if (status) status.textContent = '식단표 업로드 실패';
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '이미지 분석·업로드';
+    }
   }
 }
 
@@ -550,6 +670,9 @@ export function initAdminList() {
   $('btn-export-daily')?.addEventListener('click', exportDaily);
   $('btn-export-monthly')?.addEventListener('click', exportMonthly);
   $('btn-analyze-import')?.addEventListener('click', analyzeMonthlyImport);
+  $('btn-upload-menu-image')?.addEventListener('click', () => uploadMenuImage(false));
+  $('menu-year')?.addEventListener('change', loadAdminMenuMonth);
+  $('menu-month-select')?.addEventListener('change', loadAdminMenuMonth);
   $('btn-register-selected-import')?.addEventListener('click', () => registerImportRows('selected'));
   $('btn-register-all-import')?.addEventListener('click', () => registerImportRows('all'));
   $('btn-delete-selected-import')?.addEventListener('click', () => {
@@ -572,11 +695,29 @@ export function initAdminList() {
 window.switchTab = (tab) => {
   currentTab = tab;
   const isDaily = tab === 'daily';
-  $('tab-daily').className = isDaily ? 'flex-1 py-4 font-black text-blue-600 border-b-4 border-blue-600 bg-white' : 'flex-1 py-4 font-bold text-gray-400 bg-gray-50 hover:bg-gray-100';
-  $('tab-monthly').className = !isDaily ? 'flex-1 py-4 font-black text-blue-600 border-b-4 border-blue-600 bg-white' : 'flex-1 py-4 font-bold text-gray-400 bg-gray-50 hover:bg-gray-100';
-  $('daily-date-wrapper').classList.toggle('hidden', !isDaily);
-  $('monthly-bulk-actions').classList.toggle('hidden', isDaily);
-  $('monthly-import-panel').classList.toggle('hidden', isDaily);
+  const isMonthly = tab === 'monthly';
+  const isMenu = tab === 'menu';
+  const active = 'flex-1 py-4 font-black text-blue-600 border-b-4 border-blue-600 bg-white';
+  const inactive = 'flex-1 py-4 font-bold text-gray-400 bg-gray-50 hover:bg-gray-100';
+
+  $('tab-daily').className = isDaily ? active : inactive;
+  $('tab-monthly').className = isMonthly ? active : inactive;
+  $('tab-menu').className = isMenu ? active : inactive;
+
+  $('menu-management-section')?.classList.toggle('hidden', !isMenu);
+  $('user-toolbar-section')?.classList.toggle('hidden', isMenu);
+  $('user-table-section')?.classList.toggle('hidden', isMenu);
+  $('bulk-action-section')?.classList.toggle('hidden', isMenu);
+  $('import-preview-section')?.classList.toggle('hidden', isMenu || importRows.length === 0);
+
+  if (isMenu) {
+    loadAdminMenuMonth();
+    return;
+  }
+
+  $('daily-date-wrapper')?.classList.toggle('hidden', !isDaily);
+  $('monthly-bulk-actions')?.classList.toggle('hidden', isDaily);
+  $('monthly-import-panel')?.classList.toggle('hidden', !isMonthly);
   $('th-endDate').textContent = isDaily ? '지정 날짜 목록' : '마감 기한';
   $('form-title').textContent = isDaily ? '일식 등록' : '월식 등록';
   renderUsers();

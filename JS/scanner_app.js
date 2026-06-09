@@ -11,8 +11,8 @@ const audioSets = {
     '/audio/delicious_f_2.mp3'
   ],
   dupe: [
-    '/audio/dupe_1.mp3',
-    '/audio/dupe_2.mp3'
+    '/audio/dupe1.mp3',
+    '/audio/dupe2.mp3'
   ]
 };
 
@@ -56,39 +56,20 @@ function applyDateColor(dateStr) {
   else dateInput.style.color = '#1e40af';
 }
 
-function updatePhoneFilterOptions(diners) {
-  const filterSelect = document.getElementById('phone-filter');
-  if (!filterSelect) return;
-
-  const currentValue = filterSelect.value;
-  const phoneValues = [...new Set(diners.map(d => d.phoneLast4).filter(Boolean))].sort();
-  filterSelect.innerHTML = '<option value="all">뒷자리 전체</option>' + phoneValues.map(phone => `<option value="${escapeHTML(phone)}">${escapeHTML(phone)}</option>`).join('');
-
-  if (phoneValues.includes(currentValue)) filterSelect.value = currentValue;
-}
-
 async function loadDiners(date) {
   try {
     applyDateColor(date);
     const res = await fetch(`${API_BASE_URL}/scanner/attendees/${date}`, { cache: 'no-store' });
     if (!res.ok) throw new Error('데이터를 불러올 수 없습니다.');
 
-    const diners = await res.json();
-    updatePhoneFilterOptions(diners);
-
-    const filterVal = document.getElementById('phone-filter')?.value || 'all';
-    let attendedOnly = diners.sort((a, b) => new Date(b.scannedAt) - new Date(a.scannedAt));
+    const attendedOnly = (await res.json()).sort((a, b) => new Date(b.scannedAt) - new Date(a.scannedAt));
 
     document.getElementById('recent-diner').textContent = attendedOnly.length > 0 ? attendedOnly[0].name : '-';
-
-    if (filterVal !== 'all') attendedOnly = attendedOnly.filter(d => d.phoneLast4 === filterVal);
-
     document.getElementById('stat-count').textContent = `${attendedOnly.length}명`;
 
     const tbody = document.getElementById('diner-table-body');
     tbody.innerHTML = attendedOnly.map(d => `
       <tr class="hover:bg-gray-50 transition-colors">
-        <td class="p-4 text-gray-700 font-mono font-bold border-b">${escapeHTML(d.phoneLast4 || '-')}</td>
         <td class="p-4 font-bold text-gray-900 border-b">${escapeHTML(d.name)}</td>
         <td class="p-4 text-center text-green-600 text-sm font-mono border-b">
           ${d.scannedAt ? new Date(d.scannedAt).toLocaleTimeString('ko-KR', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '-'}
@@ -127,13 +108,13 @@ window.startScanner = function(facingMode = 'environment') {
 
         if (res.ok) {
           msgEl.textContent = `✅ ${data.name}님 확인`;
-          subMsgEl.textContent = `전화번호 뒷자리 ${data.phoneLast4 || '-'}`;
+          subMsgEl.textContent = '식사 명단에 등록되었습니다';
           msgEl.className = 'text-xl lg:text-2xl font-bold text-blue-600';
           playTTS('delicious');
           loadDiners(document.getElementById('date-selector').value);
         } else {
           msgEl.textContent = `❌ ${data.message}`;
-          subMsgEl.textContent = data.phoneLast4 ? `전화번호 뒷자리 ${data.phoneLast4}` : '다시 확인해 주세요';
+          subMsgEl.textContent = '다시 확인해 주세요';
           msgEl.className = 'text-xl lg:text-2xl font-bold text-red-500';
           if (data.code === 'DUPLICATE') playTTS('dupe');
         }
@@ -160,7 +141,6 @@ function initScannerPage() {
   window.startScanner();
 
   datePicker.addEventListener('change', (e) => loadDiners(e.target.value));
-  document.getElementById('phone-filter')?.addEventListener('change', () => loadDiners(datePicker.value));
   document.getElementById('btn-refresh-diners')?.addEventListener('click', () => loadDiners(datePicker.value));
   setInterval(() => loadDiners(datePicker.value), 15000);
 }

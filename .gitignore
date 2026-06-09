@@ -4,3 +4,5 @@ data.json
 allowed_users.json
 npm-debug.log*
 .DS_Store
+menus.json
+menu_images/

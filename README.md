@@ -1,33 +1,27 @@
-# 화성오산교육지원청 점심 QR
+# 밥Check
 
-## 주요 URL
+화성오산교육지원청 점심 식사 QR 체크 앱입니다.
 
-- `/qr.html` : 사용자 QR 발급 화면
-- `/scanner.html` 또는 `/scanner` : 인증 없는 스캐너 전용 화면
-- `/admin.html` 또는 `/admin` : 관리자 인증 후 명단 관리, 엑셀 다운로드, 월식 엑셀 자동 등록
+## 주요 화면
 
-## 운영 환경 변수
+- `/qr.html` : 사용자 QR 발급, 식단표 보기, 홈 화면 바로가기 추가
+- `/scanner.html` : 인증 없는 스캐너 전용 화면
+- `/admin.html` : 관리자 인증 후 일식/월식 명단, 엑셀 등록, 식단표 이미지 OCR 업로드
 
-```env
-PORT=5000
-EMAIL_USER=메일계정
-EMAIL_PASS=앱비밀번호
-ADMIN_EMAILS=admin1@example.com,admin2@example.com
-DATA_DIR=/secure/path/for/json
-PUBLIC_ORIGIN=https://example.com
-NODE_ENV=production
-COOKIE_SECURE=true
-ADMIN_SESSION_MINUTES=240
-AUTH_SECRET=긴_랜덤_문자열
-```
-
-## 설치
+## 실행
 
 ```bash
 npm install
 npm start
 ```
 
-## TTS 음성 파일
+식단표 이미지 자동 추출은 `tesseract.js` OCR을 사용합니다. 서버 환경에서 한국어 OCR 데이터 접근이 제한되면 이미지는 저장되지만 자동 추출 결과가 비어 있을 수 있습니다.
 
-`audio/README.txt`의 파일명대로 MP3를 넣으면 스캐너에서 랜덤 재생됩니다. MP3가 없으면 브라우저 기본 음성 합성으로 대체 안내를 재생합니다.
+## 운영 데이터
+
+운영 데이터는 `DATA_DIR` 환경변수로 지정한 서버 내부 경로에 저장하는 것을 권장합니다.
+
+- `data.json`
+- `allowed_users.json`
+- `menus.json`
+- `menu_images/`

@@ -14,6 +14,8 @@ const ROOT_DIR = __dirname;
 const DATA_DIR = path.resolve(process.env.DATA_DIR || ROOT_DIR);
 const dbPath = path.join(DATA_DIR, 'data.json');
 const userListPath = path.join(DATA_DIR, 'allowed_users.json');
+const menuPath = path.join(DATA_DIR, 'menus.json');
+const menuImageDir = path.join(DATA_DIR, 'menu_images');
 
 const COOKIE_NAME = 'hwao_lunch_admin_session';
 const SESSION_MINUTES = Number(process.env.ADMIN_SESSION_MINUTES || 240);
@@ -22,13 +24,16 @@ const CODE_COOLDOWN_MS = 30 * 1000;
 const MAX_AUTH_ATTEMPTS = 3;
 const MAX_JSON_SIZE = '1mb';
 const MAX_UPLOAD_SIZE = 8 * 1024 * 1024;
+const MAX_MENU_IMAGE_SIZE = 12 * 1024 * 1024;
 const MAX_UPLOAD_FILES = 10;
 const AUTH_SECRET = process.env.AUTH_SECRET || process.env.EMAIL_PASS || crypto.randomBytes(32).toString('hex');
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
+fs.mkdirSync(menuImageDir, { recursive: true });
 
 let db = { days: {} };
 let allowedUsers = [];
+let menus = { months: {} };
 let authCodes = new Map();
 let sessions = new Map();
 
@@ -121,7 +126,6 @@ const sanitizeUserForClient = (u) => ({
 
 const sanitizeDinerForScanner = (d) => ({
   name: d.name,
-  phoneLast4: d.phoneLast4 || normalizePhoneLast4(d.orgRole || ''),
   scannedAt: d.scannedAt
 });
 
@@ -167,6 +171,7 @@ const normalizeAllowedUser = (u) => {
 
 const saveDB = () => fs.writeFileSync(dbPath, JSON.stringify(db, null, 2), 'utf-8');
 const saveUserList = () => fs.writeFileSync(userListPath, JSON.stringify(allowedUsers.map(sanitizeUserForClient), null, 2), 'utf-8');
+const saveMenus = () => fs.writeFileSync(menuPath, JSON.stringify(menus, null, 2), 'utf-8');
 
 const cleanupExpiredUsers = () => {
   const todayStr = getKSTDateStr();
@@ -219,6 +224,16 @@ const loadFiles = () => {
     }
   }
 
+
+  if (fs.existsSync(menuPath)) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(menuPath, 'utf-8'));
+      menus = parsed && parsed.months ? parsed : { months: {} };
+    } catch (e) {
+      menus = { months: {} };
+    }
+  }
+
   cleanupExpiredUsers();
 };
 
@@ -252,6 +267,7 @@ app.use((req, res, next) => {
 app.use('/CSS', express.static(path.join(ROOT_DIR, 'CSS'), { fallthrough: false, maxAge: '1h' }));
 app.use('/JS', express.static(path.join(ROOT_DIR, 'JS'), { fallthrough: false, maxAge: '0', setHeaders: res => res.setHeader('Cache-Control', 'no-store') }));
 app.use('/audio', express.static(path.join(ROOT_DIR, 'audio'), { fallthrough: true, maxAge: '1h' }));
+app.use('/img', express.static(path.join(ROOT_DIR, 'img'), { fallthrough: false, maxAge: '1d' }));
 app.get('/manifest.json', (req, res) => res.sendFile(path.join(ROOT_DIR, 'manifest.json')));
 
 const sendHtml = (res, fileName) => {
@@ -380,7 +396,7 @@ app.post('/api/admin/request-code', async (req, res) => {
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: email,
-      subject: '[화성오산교육청] 관리자 보안 인증번호',
+      subject: '[밥Check] 관리자 보안 인증번호',
       text: `인증번호: [${code}]\n유효시간: 3분`
     });
     res.json({ message: '인증 메일이 발송되었습니다.', cooldownSeconds: 30, expiresInSeconds: 180, sent: true });
@@ -580,18 +596,31 @@ app.delete('/api/admin/allowed-users', requireAdmin, (req, res) => {
 // ==========================================
 // 월식 엑셀 자동 등록 API
 // ==========================================
-let uploadMiddleware = null;
+let excelUploadMiddleware = null;
+let menuImageUploadMiddleware = null;
 let uploadDependencyError = null;
 try {
   const multer = require('multer');
-  uploadMiddleware = multer({
-    storage: multer.memoryStorage(),
+  const memoryStorage = multer.memoryStorage();
+  excelUploadMiddleware = multer({
+    storage: memoryStorage,
     limits: { fileSize: MAX_UPLOAD_SIZE, files: MAX_UPLOAD_FILES },
     fileFilter: (req, file, cb) => {
       if (/\.xlsx$/i.test(file.originalname || '')) cb(null, true);
       else cb(new Error('xlsx 파일만 업로드할 수 있습니다.'));
     }
   }).array('files', MAX_UPLOAD_FILES);
+
+  menuImageUploadMiddleware = multer({
+    storage: memoryStorage,
+    limits: { fileSize: MAX_MENU_IMAGE_SIZE, files: 1 },
+    fileFilter: (req, file, cb) => {
+      const name = String(file.originalname || '');
+      const type = String(file.mimetype || '');
+      if (/\.(png|jpe?g|webp)$/i.test(name) && /^image\/(png|jpeg|webp)$/i.test(type)) cb(null, true);
+      else cb(new Error('png, jpg, jpeg, webp 이미지 파일만 업로드할 수 있습니다.'));
+    }
+  }).single('image');
 } catch (e) {
   uploadDependencyError = e;
 }
@@ -688,11 +717,11 @@ const dedupeImportRows = (rows) => {
 };
 
 app.post('/api/admin/monthly-import/analyze', requireAdmin, (req, res) => {
-  if (!uploadMiddleware) {
+  if (!excelUploadMiddleware) {
     return res.status(500).json({ message: '엑셀 업로드 기능을 사용하려면 multer 패키지를 설치해야 합니다.', detail: uploadDependencyError && uploadDependencyError.message });
   }
 
-  uploadMiddleware(req, res, (err) => {
+  excelUploadMiddleware(req, res, (err) => {
     if (err) return res.status(400).json({ message: err.message || '파일 업로드 실패' });
 
     let XLSX;
@@ -817,6 +846,221 @@ app.post('/api/admin/monthly-import/register', requireAdmin, (req, res) => {
   res.json({ message: '월식 명단 등록 완료', added, skipped, skippedRows });
 });
 
+
+// ==========================================
+// 식단표 이미지 OCR / 조회 API
+// ==========================================
+const normalizeMenuTextLine = (value) => String(value || '')
+  .replace(/[<>]/g, '')
+  .replace(/[\u0000-\u001F\u007F]/g, ' ')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+const menuMonthKey = (year, month) => `${Number(year)}-${pad2(month)}`;
+
+const isOriginLine = (line) => /(원산|국내산|중국산|미국산|호주산|러시아|스페인|덴마크|캐나다|브라질|베트남|태국|칠레|뉴질랜드|수입산|한우|육우|돈육|계육|오리|돼지|닭|소고기|쇠고기|쌀\s*[:：]|김치\s*[:：])/i.test(line);
+const isNoiseMenuLine = (line) => /^(중식|월식|원산지|요일|월요일|화요일|수요일|목요일|금요일|토요일|일요일|메뉴와|※|◎|\*+)$/.test(line);
+
+const detectMenuYearMonth = (text, selectedYear, selectedMonth) => {
+  const clean = String(text || '').replace(/\s+/g, ' ');
+  let match = /(20\d{2})\s*년?\s*(\d{1,2})\s*월/.exec(clean);
+  if (match) return { year: Number(match[1]), month: Number(match[2]) };
+  match = /(20\d{2})[-./](\d{1,2})/.exec(clean);
+  if (match) return { year: Number(match[1]), month: Number(match[2]) };
+  return { year: Number(selectedYear), month: Number(selectedMonth) };
+};
+
+const parseMenuOCRText = ({ text, selectedYear, selectedMonth }) => {
+  const detected = detectMenuYearMonth(text, selectedYear, selectedMonth);
+  const year = Number(selectedYear || detected.year);
+  const month = Number(selectedMonth || detected.month);
+  const monthKey = menuMonthKey(year, month);
+  const lines = String(text || '')
+    .split(/\r?\n/)
+    .map(normalizeMenuTextLine)
+    .filter(Boolean);
+
+  const days = {};
+  let currentDate = null;
+  let lastDay = 0;
+
+  const ensureDay = (day) => {
+    if (!day || day < 1 || day > 31) return null;
+    const date = `${monthKey}-${pad2(day)}`;
+    if (!parseISODate(date)) return null;
+    if (!days[date]) days[date] = { date, menu: [], origins: [], rawLines: [] };
+    currentDate = date;
+    lastDay = day;
+    return date;
+  };
+
+  for (const line of lines) {
+    const compact = line.replace(/\s/g, '');
+    const fullDateMatch = /(\d{1,2})월(\d{1,2})일/.exec(compact);
+    if (fullDateMatch) {
+      ensureDay(Number(fullDateMatch[2]));
+      continue;
+    }
+
+    let dayMatch = /^(\d{1,2})일/.exec(compact);
+    if (!dayMatch) dayMatch = /(?:^|\D)(\d{1,2})일(?:\D|$)/.exec(compact);
+    if (dayMatch) {
+      const day = Number(dayMatch[1]);
+      if (day >= 1 && day <= 31 && day !== lastDay) ensureDay(day);
+      const rest = normalizeMenuTextLine(line.replace(/.*?\d{1,2}\s*일/, ''));
+      if (!rest || isNoiseMenuLine(rest)) continue;
+      if (currentDate) {
+        days[currentDate].rawLines.push(rest);
+        if (isOriginLine(rest)) days[currentDate].origins.push(rest);
+        else days[currentDate].menu.push(rest);
+      }
+      continue;
+    }
+
+    if (!currentDate) continue;
+    if (isNoiseMenuLine(line)) continue;
+    days[currentDate].rawLines.push(line);
+    if (isOriginLine(line)) days[currentDate].origins.push(line);
+    else days[currentDate].menu.push(line);
+  }
+
+  // 같은 줄이 반복 인식되는 경우 정리
+  Object.values(days).forEach(day => {
+    day.menu = [...new Set(day.menu)].slice(0, 12);
+    day.origins = [...new Set(day.origins)].slice(0, 12);
+    day.rawLines = [...new Set(day.rawLines)].slice(0, 30);
+  });
+
+  return {
+    year,
+    month,
+    detectedYear: detected.year,
+    detectedMonth: detected.month,
+    monthMismatch: Boolean(detected.year && detected.month && (detected.year !== year || detected.month !== month)),
+    days
+  };
+};
+
+const runMenuOCR = async (buffer) => {
+  try {
+    const { recognize } = require('tesseract.js');
+    const lang = process.env.OCR_LANG || 'kor+eng';
+    const result = await recognize(buffer, lang, { logger: () => {} });
+    return { text: result?.data?.text || '', engine: `tesseract.js:${lang}` };
+  } catch (e) {
+    return { text: '', engine: 'unavailable', error: e.message };
+  }
+};
+
+const sanitizeMenuMonthForClient = (monthData) => {
+  if (!monthData) return null;
+  const days = {};
+  Object.entries(monthData.days || {}).forEach(([date, day]) => {
+    days[date] = {
+      date,
+      menu: Array.isArray(day.menu) ? day.menu.map(normalizeMenuTextLine).filter(Boolean) : [],
+      origins: Array.isArray(day.origins) ? day.origins.map(normalizeMenuTextLine).filter(Boolean) : []
+    };
+  });
+  return {
+    year: monthData.year,
+    month: monthData.month,
+    yearMonth: monthData.yearMonth,
+    updatedAt: monthData.updatedAt,
+    ocrEngine: monthData.ocrEngine,
+    ocrError: monthData.ocrError || null,
+    days
+  };
+};
+
+app.post('/api/admin/menu/upload-image', requireAdmin, (req, res) => {
+  if (!menuImageUploadMiddleware) {
+    return res.status(500).json({ message: '이미지 업로드 기능을 사용하려면 multer 패키지를 설치해야 합니다.', detail: uploadDependencyError && uploadDependencyError.message });
+  }
+
+  menuImageUploadMiddleware(req, res, async (err) => {
+    if (err) return res.status(400).json({ message: err.message || '이미지 업로드 실패' });
+
+    const year = Number(req.body.year);
+    const month = Number(req.body.month);
+    if (!year || month < 1 || month > 12) return res.status(400).json({ message: '식단 연도와 월을 올바르게 선택해 주세요.' });
+    if (!req.file || !req.file.buffer) return res.status(400).json({ message: '식단표 이미지 파일을 업로드해 주세요.' });
+
+    const ocr = await runMenuOCR(req.file.buffer);
+    const parsed = parseMenuOCRText({ text: ocr.text, selectedYear: year, selectedMonth: month });
+    const confirmMismatch = String(req.body.confirmMismatch || '').toLowerCase() === 'true';
+
+    if (parsed.monthMismatch && !confirmMismatch) {
+      return res.status(409).json({
+        code: 'MONTH_MISMATCH',
+        message: '식단표 이미지에서 인식한 연도/월이 선택한 기간과 다릅니다.',
+        summary: {
+          monthMismatch: true,
+          detectedYear: parsed.detectedYear,
+          detectedMonth: parsed.detectedMonth,
+          selectedYear: year,
+          selectedMonth: month,
+          extractedDays: Object.keys(parsed.days || {}).length,
+          ocrEngine: ocr.engine,
+          ocrError: ocr.error || null
+        }
+      });
+    }
+
+    const extMatch = /\.(png|jpe?g|webp)$/i.exec(req.file.originalname || '');
+    const ext = extMatch ? extMatch[1].toLowerCase().replace('jpeg', 'jpg') : 'png';
+    const safeName = `${year}-${pad2(month)}-${Date.now()}-${crypto.randomBytes(6).toString('hex')}.${ext}`;
+    fs.writeFileSync(path.join(menuImageDir, safeName), req.file.buffer);
+
+    const yearMonth = menuMonthKey(year, month);
+    const monthData = {
+      year,
+      month,
+      yearMonth,
+      imageFile: safeName,
+      updatedAt: new Date().toISOString(),
+      uploadedBy: req.adminEmail,
+      ocrEngine: ocr.engine,
+      ocrError: ocr.error || null,
+      detectedYear: parsed.detectedYear,
+      detectedMonth: parsed.detectedMonth,
+      monthMismatch: parsed.monthMismatch,
+      rawText: String(ocr.text || '').slice(0, 50000),
+      days: parsed.days
+    };
+
+    if (!menus.months) menus.months = {};
+    menus.months[yearMonth] = monthData;
+    saveMenus();
+
+    res.json({
+      message: ocr.error ? '이미지는 저장했지만 OCR 엔진을 사용할 수 없어 식단 자동 추출은 완료되지 않았습니다.' : '식단표 이미지 분석 완료',
+      month: sanitizeMenuMonthForClient(monthData),
+      summary: {
+        extractedDays: Object.keys(monthData.days || {}).length,
+        monthMismatch: monthData.monthMismatch,
+        detectedYear: monthData.detectedYear,
+        detectedMonth: monthData.detectedMonth,
+        ocrEngine: monthData.ocrEngine,
+        ocrError: monthData.ocrError
+      }
+    });
+  });
+});
+
+app.get('/api/admin/menu/month/:yearMonth', requireAdmin, (req, res) => {
+  const yearMonth = String(req.params.yearMonth || '');
+  if (!/^\d{4}-\d{2}$/.test(yearMonth)) return res.status(400).json({ message: '월 형식은 YYYY-MM이어야 합니다.' });
+  res.json(sanitizeMenuMonthForClient(menus.months?.[yearMonth]) || { yearMonth, days: {} });
+});
+
+app.get('/api/menu/month/:yearMonth', (req, res) => {
+  const yearMonth = String(req.params.yearMonth || '');
+  if (!/^\d{4}-\d{2}$/.test(yearMonth)) return res.status(400).json({ message: '월 형식은 YYYY-MM이어야 합니다.' });
+  res.setHeader('Cache-Control', 'no-store');
+  res.json(sanitizeMenuMonthForClient(menus.months?.[yearMonth]) || { yearMonth, days: {} });
+});
+
 // ==========================================
 // QR 발급 / 스캔 / 조회 API
 // ==========================================
@@ -877,12 +1121,12 @@ app.post('/api/qr/scan', (req, res) => {
 
   if (!diner) return res.status(410).json({ message: '유효하지 않거나 만료된 QR입니다.', code: 'INVALID_OR_EXPIRED' });
   if (diner.tokenExpiresAt < Date.now()) return res.status(410).json({ message: '유효하지 않거나 만료된 QR입니다.', code: 'INVALID_OR_EXPIRED' });
-  if (diner.attended) return res.status(409).json({ message: '이미 처리된 QR입니다.', code: 'DUPLICATE', name: diner.name, phoneLast4: diner.phoneLast4 });
+  if (diner.attended) return res.status(409).json({ message: '이미 처리된 QR입니다.', code: 'DUPLICATE', name: diner.name });
 
   diner.attended = true;
   diner.scannedAt = new Date().toISOString();
   saveDB();
-  res.json({ message: 'success', name: diner.name, phoneLast4: diner.phoneLast4 });
+  res.json({ message: 'success', name: diner.name });
 });
 
 app.get('/api/scanner/attendees/:date', (req, res) => {

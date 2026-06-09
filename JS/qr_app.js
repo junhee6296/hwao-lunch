@@ -1,9 +1,20 @@
-import { API_BASE_URL, getTodayStr, isWeekend, normalizePhoneLast4 } from './config.js';
+import { API_BASE_URL, getTodayStr, isWeekend, normalizePhoneLast4, escapeHTML } from './config.js';
 
 let timerInterval;
+let deferredPrompt;
 
-const nameInput = () => document.getElementById('userName');
-const phoneInput = () => document.getElementById('phoneLast4');
+const $ = (id) => document.getElementById(id);
+const nameInput = () => $('userName');
+const phoneInput = () => $('phoneLast4');
+
+const formatKoreanDate = (dateStr) => {
+  const [year, month, day] = String(dateStr || '').split('-').map(Number);
+  if (!year || !month || !day) return dateStr;
+  const weekday = ['일', '월', '화', '수', '목', '금', '토'][new Date(Date.UTC(year, month - 1, day)).getUTCDay()];
+  return `${month}월 ${day}일(${weekday})`;
+};
+
+const getCurrentMonth = () => getTodayStr().slice(0, 7);
 
 // 앱 시작 시 저장된 이름과 전화번호 뒷자리를 자동으로 불러옴
 // 예전 버전의 부서 저장값은 더 이상 사용하지 않습니다.
@@ -11,39 +22,118 @@ document.addEventListener('DOMContentLoaded', () => {
   const savedName = localStorage.getItem('hwao_lunch_name');
   const savedPhoneLast4 = localStorage.getItem('hwao_lunch_phoneLast4');
 
-  if (savedName) nameInput().value = savedName;
-  if (savedPhoneLast4) phoneInput().value = savedPhoneLast4;
+  if (savedName && nameInput()) nameInput().value = savedName;
+  if (savedPhoneLast4 && phoneInput()) phoneInput().value = savedPhoneLast4;
 
   phoneInput()?.addEventListener('input', (e) => {
     e.target.value = normalizePhoneLast4(e.target.value);
   });
+
+  if ($('menu-month')) $('menu-month').value = getCurrentMonth();
 });
 
 // ==========================================
 // 스마트폰 홈 화면 바로가기(PWA) 설치 로직
 // ==========================================
-let deferredPrompt;
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   deferredPrompt = e;
 });
 
-document.getElementById('btn-add-shortcut')?.addEventListener('click', async () => {
+$('btn-add-shortcut')?.addEventListener('click', async () => {
   if (deferredPrompt) {
     deferredPrompt.prompt();
     await deferredPrompt.userChoice;
     deferredPrompt = null;
   } else {
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-    if (isIOS) document.getElementById('ios-install-modal').classList.remove('hidden');
+    if (isIOS) $('ios-install-modal')?.classList.remove('hidden');
     else alert('브라우저 우측 상단 메뉴에서 [홈 화면에 추가] 또는 [앱 설치]를 선택해주세요.');
   }
 });
 
-document.getElementById('btn-close-ios-modal')?.addEventListener('click', () => {
-  document.getElementById('ios-install-modal').classList.add('hidden');
+$('btn-close-ios-modal')?.addEventListener('click', () => {
+  $('ios-install-modal')?.classList.add('hidden');
 });
 
+// ==========================================
+// 식단표 보기
+// ==========================================
+function renderMenuMonth(data) {
+  const list = $('menu-list');
+  if (!list) return;
+  const days = data?.days || {};
+  const dates = Object.keys(days).sort();
+
+  if (dates.length === 0) {
+    list.innerHTML = `
+      <div class="text-center py-12 text-amber-900">
+        <div class="text-4xl mb-3">🍽️</div>
+        <p class="font-black">등록된 식단표가 없습니다.</p>
+        <p class="text-sm mt-2 text-amber-700/70">관리자 페이지에서 해당 월 식단표 이미지를 업로드해 주세요.</p>
+      </div>`;
+    return;
+  }
+
+  const today = getTodayStr();
+  list.innerHTML = dates.map(date => {
+    const day = days[date] || {};
+    const menus = Array.isArray(day.menu) ? day.menu : [];
+    const origins = Array.isArray(day.origins) ? day.origins : [];
+    const isToday = date === today;
+    return `
+      <article class="menu-day-card ${isToday ? 'ring-4 ring-amber-300' : ''}">
+        <div class="flex items-start justify-between gap-3 mb-3">
+          <h4 class="text-lg font-black text-amber-950">${escapeHTML(formatKoreanDate(date))}</h4>
+          ${isToday ? '<span class="menu-pill">오늘</span>' : ''}
+        </div>
+        <div class="mb-3">
+          <div class="text-xs font-black text-amber-700 mb-1">메뉴</div>
+          ${menus.length ? `<ul class="grid grid-cols-1 sm:grid-cols-2 gap-1 text-gray-900 font-bold">${menus.map(item => `<li>• ${escapeHTML(item)}</li>`).join('')}</ul>` : '<p class="text-gray-400 text-sm">추출된 메뉴가 없습니다.</p>'}
+        </div>
+        <div>
+          <div class="text-xs font-black text-amber-700 mb-1">원산지</div>
+          ${origins.length ? `<div>${origins.map(item => `<span class="menu-pill">${escapeHTML(item)}</span>`).join('')}</div>` : '<p class="text-gray-400 text-sm">추출된 원산지가 없습니다.</p>'}
+        </div>
+      </article>`;
+  }).join('');
+
+  setTimeout(() => {
+    const todayCard = list.querySelector('.ring-4');
+    if (todayCard) todayCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 80);
+}
+
+async function loadMenuMonth(monthValue = $('menu-month')?.value || getCurrentMonth()) {
+  const list = $('menu-list');
+  if (!/^\d{4}-\d{2}$/.test(monthValue)) return alert('식단표 월 형식이 올바르지 않습니다.');
+  if (list) list.innerHTML = '<div class="text-center text-amber-800 font-bold py-10">식단표를 불러오는 중입니다.</div>';
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/menu/month/${monthValue}`, { cache: 'no-store' });
+    const data = await res.json();
+    if (!res.ok) return alert(data.message || '식단표 조회 실패');
+    renderMenuMonth(data);
+  } catch (e) {
+    if (list) list.innerHTML = '<div class="text-center text-red-500 font-bold py-10">식단표를 불러오지 못했습니다.</div>';
+  }
+}
+
+$('btn-open-menu')?.addEventListener('click', () => {
+  if ($('menu-month')) $('menu-month').value = getCurrentMonth();
+  $('menu-modal')?.classList.remove('hidden');
+  loadMenuMonth(getCurrentMonth());
+});
+
+$('btn-load-menu')?.addEventListener('click', () => loadMenuMonth());
+$('btn-close-menu')?.addEventListener('click', () => $('menu-modal')?.classList.add('hidden'));
+$('menu-modal')?.addEventListener('click', (e) => {
+  if (e.target === $('menu-modal')) $('menu-modal')?.classList.add('hidden');
+});
+
+// ==========================================
+// QR 발급
+// ==========================================
 async function generateLunchQR(isReissue = false) {
   const today = getTodayStr();
   if (isWeekend(today)) return alert('오늘은 주말입니다. 점심 체크를 운영하지 않습니다.');
@@ -66,6 +156,11 @@ async function generateLunchQR(isReissue = false) {
     localStorage.setItem('hwao_lunch_phoneLast4', phoneLast4);
   }
 
+  if (!name || !/^\d{4}$/.test(phoneLast4)) {
+    resetToForm();
+    return alert('이름과 전화번호 뒷자리를 다시 입력해 주세요.');
+  }
+
   try {
     const res = await fetch(`${API_BASE_URL}/qr/generate`, {
       method: 'POST',
@@ -82,15 +177,15 @@ async function generateLunchQR(isReissue = false) {
 }
 
 function renderQR(token, name, phoneLast4, expiresAt) {
-  document.getElementById('qr-form-container').classList.add('hidden');
-  document.getElementById('qrcode-container').classList.remove('hidden');
+  $('qr-form-container')?.classList.add('hidden');
+  $('qrcode-container')?.classList.remove('hidden');
 
-  document.getElementById('qr-result-name').textContent = `${name}님 (${phoneLast4})`;
+  $('qr-result-name').textContent = `${name}님 (${phoneLast4})`;
 
-  const qrDiv = document.getElementById('qrcode');
+  const qrDiv = $('qrcode');
   qrDiv.innerHTML = '';
   qrDiv.style.opacity = '1';
-  new QRCode(qrDiv, { text: token, width: 280, height: 280, colorDark: '#059669' });
+  new QRCode(qrDiv, { text: token, width: 280, height: 280, colorDark: '#92400e', colorLight: '#ffffff' });
 
   startTimer(expiresAt);
 }
@@ -101,15 +196,23 @@ function startTimer(expiresAt) {
     const diff = Math.floor((expiresAt - Date.now()) / 1000);
     if (diff <= 0) {
       clearInterval(timerInterval);
-      document.getElementById('timer').textContent = '00:00 (만료)';
-      document.getElementById('qrcode').style.opacity = '0.2';
+      $('timer').textContent = '00:00 (만료)';
+      $('qrcode').style.opacity = '0.2';
     } else {
       const m = Math.floor(diff / 60);
       const s = diff % 60;
-      document.getElementById('timer').textContent = `0${m}:${s < 10 ? '0' : ''}${s}`;
+      $('timer').textContent = `0${m}:${s < 10 ? '0' : ''}${s}`;
     }
   }, 1000);
 }
 
-document.getElementById('btn-generate-qr').onclick = () => generateLunchQR(false);
-document.getElementById('btn-reissue-qr').onclick = () => generateLunchQR(true);
+function resetToForm() {
+  clearInterval(timerInterval);
+  $('qrcode-container')?.classList.add('hidden');
+  $('qr-form-container')?.classList.remove('hidden');
+  if ($('qrcode')) $('qrcode').innerHTML = '';
+}
+
+$('btn-generate-qr')?.addEventListener('click', () => generateLunchQR(false));
+$('btn-reissue-qr')?.addEventListener('click', () => generateLunchQR(true));
+$('btn-back-to-form')?.addEventListener('click', resetToForm);
