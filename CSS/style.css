@@ -68,3 +68,92 @@ body {
 .btn-primary { background-color: var(--primary-color); color: white; }
 .btn-secondary { background-color: #e5e7eb; color: #374151; }
 .btn-danger { background-color: #ef4444; color: white; }
+
+
+/* QR page visual hotfix */
+.form-input::placeholder {
+  font-size: 1.05rem;
+  color: #94a3b8;
+}
+
+.brand-plate {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 1.8rem;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(255,255,255,0.88), rgba(241,245,249,0.75));
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.12);
+}
+.brand-plate::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 8%, rgba(255,255,255,0.92), rgba(255,255,255,0.08) 54%, transparent 78%);
+  pointer-events: none;
+}
+.brand-plate::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.72), inset 0 -14px 22px rgba(15,23,42,0.03);
+  pointer-events: none;
+}
+.brand-plate-sm {
+  width: 2.9rem;
+  height: 2.9rem;
+  border-radius: 1rem;
+}
+.brand-plate-lg {
+  width: 8rem;
+  height: 8rem;
+  border-radius: 2rem;
+}
+.brand-icon {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1.035);
+  filter: blur(0.08px) drop-shadow(0 12px 16px rgba(15,23,42,0.14));
+  -webkit-mask-image: radial-gradient(circle at center, black 82%, rgba(0,0,0,0.88) 90%, transparent 100%);
+  mask-image: radial-gradient(circle at center, black 82%, rgba(0,0,0,0.88) 90%, transparent 100%);
+}
+
+#qrcode-container {
+  position: relative;
+  overflow: hidden;
+}
+#qrcode-container::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgba(255,255,255,0.18), transparent 16%, transparent 84%, rgba(15,23,42,0.03));
+  pointer-events: none;
+}
+#qrcode-container::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.62), inset 0 -22px 28px rgba(148,163,184,0.08);
+  pointer-events: none;
+}
+#qrcode {
+  position: relative;
+  box-shadow: 0 18px 34px rgba(15, 23, 42, 0.12) !important;
+}
+
+@media (max-width: 480px) {
+  .form-input::placeholder {
+    font-size: 0.94rem;
+  }
+  .brand-plate-lg {
+    width: 7.25rem;
+    height: 7.25rem;
+  }
+}

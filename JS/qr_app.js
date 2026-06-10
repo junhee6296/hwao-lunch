@@ -197,7 +197,7 @@ function renderQR(token, name, phoneLast4, expiresAt) {
   const qrDiv = $('qrcode');
   qrDiv.innerHTML = '';
   qrDiv.style.opacity = '1';
-  new QRCode(qrDiv, { text: token, width: 280, height: 280, colorDark: '#92400e', colorLight: '#ffffff' });
+  new QRCode(qrDiv, { text: token, width: 280, height: 280, colorDark: '#111111', colorLight: '#ffffff' });
 
   startTimer(expiresAt);
 }
