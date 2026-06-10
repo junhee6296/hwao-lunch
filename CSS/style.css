@@ -83,17 +83,20 @@ body {
   justify-content: center;
   overflow: hidden;
   isolation: isolate;
-  background: transparent;
-  box-shadow: none;
+  background: linear-gradient(180deg, rgba(245,246,248,0.98), rgba(234,237,241,0.96));
+  box-shadow: 0 10px 18px rgba(15,23,42,0.05);
 }
 .brand-plate::before {
   content: '';
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: radial-gradient(circle at 50% 26%, rgba(255,255,255,0.72) 0%, rgba(242,244,247,0.52) 34%, rgba(226,229,234,0.18) 62%, rgba(226,229,234,0) 100%);
-  filter: blur(10px);
-  transform: scale(1.04);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(255,255,255,0.78) 0%, rgba(255,255,255,0.22) 36%, transparent 62%),
+    radial-gradient(circle at 100% 0%, rgba(255,255,255,0.72) 0%, rgba(255,255,255,0.16) 34%, transparent 60%),
+    radial-gradient(circle at 0% 100%, rgba(229,233,238,0.34) 0%, rgba(229,233,238,0.1) 32%, transparent 58%),
+    radial-gradient(circle at 100% 100%, rgba(229,233,238,0.34) 0%, rgba(229,233,238,0.1) 32%, transparent 58%);
+  opacity: .92;
   pointer-events: none;
 }
 .brand-plate::after {
@@ -101,8 +104,7 @@ body {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0) 28%, rgba(15,23,42,0.04) 100%);
-  opacity: .5;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.9), inset 0 -12px 16px rgba(148,163,184,0.12);
   pointer-events: none;
 }
 .brand-icon {
@@ -112,11 +114,12 @@ body {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transform: scale(1.03);
-  filter: blur(0.02px) drop-shadow(0 14px 18px rgba(15,23,42,0.12));
-  -webkit-mask-image: radial-gradient(circle at center, black 80%, rgba(0,0,0,0.82) 88%, rgba(0,0,0,0.34) 94%, transparent 100%);
-  mask-image: radial-gradient(circle at center, black 80%, rgba(0,0,0,0.82) 88%, rgba(0,0,0,0.34) 94%, transparent 100%);
+  transform: scale(1.08);
+  border-radius: inherit;
+  clip-path: inset(2.2% round 21%);
+  filter: drop-shadow(0 10px 16px rgba(15,23,42,0.1));
 }
+
 
 
 #qrcode-container {
