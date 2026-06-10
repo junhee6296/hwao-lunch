@@ -81,16 +81,19 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 1.8rem;
   overflow: hidden;
-  background: linear-gradient(180deg, rgba(255,255,255,0.88), rgba(241,245,249,0.75));
-  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.12);
+  isolation: isolate;
+  background: transparent;
+  box-shadow: none;
 }
 .brand-plate::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at 50% 8%, rgba(255,255,255,0.92), rgba(255,255,255,0.08) 54%, transparent 78%);
+  border-radius: inherit;
+  background: radial-gradient(circle at 50% 26%, rgba(255,255,255,0.72) 0%, rgba(242,244,247,0.52) 34%, rgba(226,229,234,0.18) 62%, rgba(226,229,234,0) 100%);
+  filter: blur(10px);
+  transform: scale(1.04);
   pointer-events: none;
 }
 .brand-plate::after {
@@ -98,30 +101,23 @@ body {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.72), inset 0 -14px 22px rgba(15,23,42,0.03);
+  background: linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0) 28%, rgba(15,23,42,0.04) 100%);
+  opacity: .5;
   pointer-events: none;
-}
-.brand-plate-sm {
-  width: 2.9rem;
-  height: 2.9rem;
-  border-radius: 1rem;
-}
-.brand-plate-lg {
-  width: 8rem;
-  height: 8rem;
-  border-radius: 2rem;
 }
 .brand-icon {
   position: relative;
+  z-index: 1;
   display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transform: scale(1.035);
-  filter: blur(0.08px) drop-shadow(0 12px 16px rgba(15,23,42,0.14));
-  -webkit-mask-image: radial-gradient(circle at center, black 82%, rgba(0,0,0,0.88) 90%, transparent 100%);
-  mask-image: radial-gradient(circle at center, black 82%, rgba(0,0,0,0.88) 90%, transparent 100%);
+  transform: scale(1.03);
+  filter: blur(0.02px) drop-shadow(0 14px 18px rgba(15,23,42,0.12));
+  -webkit-mask-image: radial-gradient(circle at center, black 80%, rgba(0,0,0,0.82) 88%, rgba(0,0,0,0.34) 94%, transparent 100%);
+  mask-image: radial-gradient(circle at center, black 80%, rgba(0,0,0,0.82) 88%, rgba(0,0,0,0.34) 94%, transparent 100%);
 }
+
 
 #qrcode-container {
   position: relative;
