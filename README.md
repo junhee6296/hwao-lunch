@@ -1,4 +1,4 @@
-# 밥Check
+# Lunch Check
 
 화성오산교육지원청 점심 식사 QR 체크 앱입니다.
 

@@ -6,3 +6,4 @@ npm-debug.log*
 .DS_Store
 menus.json
 menu_images/
+holidays_kr_cache.json

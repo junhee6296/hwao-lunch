@@ -78,10 +78,10 @@ function renderMenuMonth(data) {
 
   if (dates.length === 0) {
     list.innerHTML = `
-      <div class="text-center py-12 text-amber-900">
+      <div class="text-center py-12 text-slate-700">
         <div class="text-4xl mb-3">🍽️</div>
         <p class="font-black">등록된 식단표가 없습니다.</p>
-        <p class="text-sm mt-2 text-amber-700/70">관리자 페이지에서 해당 월 식단표 이미지를 업로드해 주세요.</p>
+        <p class="text-sm mt-2 text-slate-500">관리자 페이지에서 해당 월 식단표 이미지를 업로드해 주세요.</p>
       </div>`;
     return;
   }
@@ -91,19 +91,20 @@ function renderMenuMonth(data) {
     const day = days[date] || {};
     const menus = Array.isArray(day.menu) ? day.menu : [];
     const origins = Array.isArray(day.origins) ? day.origins : [];
+    const isHoliday = menus.includes('공휴일') || Boolean(day.holidayName);
     const isToday = date === today;
     return `
-      <article class="menu-day-card ${isToday ? 'ring-4 ring-amber-300' : ''}">
+      <article class="menu-day-card ${isToday ? 'ring-4 ring-slate-300' : ''}">
         <div class="flex items-start justify-between gap-3 mb-3">
-          <h4 class="text-lg font-black text-amber-950">${escapeHTML(formatKoreanDate(date))}</h4>
-          ${isToday ? '<span class="menu-pill">오늘</span>' : ''}
+          <h4 class="text-lg font-black text-slate-900">${escapeHTML(formatKoreanDate(date))}</h4>
+          <div class="flex gap-1 flex-wrap justify-end">${isToday ? '<span class="menu-pill">오늘</span>' : ''}${isHoliday ? '<span class="menu-pill">공휴일</span>' : ''}</div>
         </div>
         <div class="mb-3">
-          <div class="text-xs font-black text-amber-700 mb-1">메뉴</div>
-          ${menus.length ? `<ul class="grid grid-cols-1 sm:grid-cols-2 gap-1 text-gray-900 font-bold">${menus.map(item => `<li>• ${escapeHTML(item)}</li>`).join('')}</ul>` : '<p class="text-gray-400 text-sm">추출된 메뉴가 없습니다.</p>'}
+          <div class="text-xs font-black text-slate-600 mb-1">메뉴</div>
+          ${isHoliday ? `<p class="text-slate-800 font-black">공휴일${day.holidayName && day.holidayName !== '공휴일' ? ` <span class="text-sm text-slate-500">(${escapeHTML(day.holidayName)})</span>` : ''}</p>` : (menus.length ? `<ul class="grid grid-cols-1 sm:grid-cols-2 gap-1 text-gray-900 font-bold">${menus.map(item => `<li>• ${escapeHTML(item)}</li>`).join('')}</ul>` : '<p class="text-gray-400 text-sm">추출된 메뉴가 없습니다.</p>')}
         </div>
-        <div>
-          <div class="text-xs font-black text-amber-700 mb-1">원산지</div>
+        <div class="${isHoliday ? 'hidden' : ''}">
+          <div class="text-xs font-black text-slate-600 mb-1">원산지</div>
           ${origins.length ? `<div class="flex flex-col gap-1">${origins.map(renderOriginItem).join('')}</div>` : '<p class="text-gray-400 text-sm">추출된 원산지가 없습니다.</p>'}
         </div>
       </article>`;
@@ -118,7 +119,7 @@ function renderMenuMonth(data) {
 async function loadMenuMonth(monthValue = $('menu-month')?.value || getCurrentMonth()) {
   const list = $('menu-list');
   if (!/^\d{4}-\d{2}$/.test(monthValue)) return alert('식단표 월 형식이 올바르지 않습니다.');
-  if (list) list.innerHTML = '<div class="text-center text-amber-800 font-bold py-10">식단표를 불러오는 중입니다.</div>';
+  if (list) list.innerHTML = '<div class="text-center text-slate-600 font-bold py-10">식단표를 불러오는 중입니다.</div>';
 
   try {
     const res = await fetch(`${API_BASE_URL}/menu/month/${monthValue}`, { cache: 'no-store' });

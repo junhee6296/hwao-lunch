@@ -439,9 +439,9 @@ function renderAdminOriginItem(item) {
   if (colonIndex > 0) {
     const menuName = text.slice(0, colonIndex).trim();
     const origin = text.slice(colonIndex + 1).trim();
-    return `<span class="inline-flex flex-col rounded-xl border border-amber-100 bg-amber-50 px-2 py-1 mr-1 mb-1"><b class="text-amber-900">${escapeHTML(menuName)}</b><span class="text-gray-600">${escapeHTML(origin)}</span></span>`;
+    return `<span class="inline-flex flex-col rounded-xl border border-slate-200 bg-slate-50 px-2 py-1 mr-1 mb-1"><b class="text-slate-700">${escapeHTML(menuName)}</b><span class="text-gray-600">${escapeHTML(origin)}</span></span>`;
   }
-  return `<span class="inline-flex rounded-xl border border-amber-100 bg-amber-50 px-2 py-1 mr-1 mb-1 text-gray-600">${escapeHTML(text)}</span>`;
+  return `<span class="inline-flex rounded-xl border border-slate-200 bg-slate-50 px-2 py-1 mr-1 mb-1 text-gray-600">${escapeHTML(text)}</span>`;
 }
 
 function renderAdminMenuPreview(data) {
@@ -450,7 +450,7 @@ function renderAdminMenuPreview(data) {
   const days = data?.days || {};
   const dates = Object.keys(days).sort();
   if (dates.length === 0) {
-    wrap.innerHTML = '<div class="col-span-full bg-white border border-amber-100 rounded-2xl p-8 text-center text-amber-800 font-bold">아직 추출된 식단표가 없습니다.</div>';
+    wrap.innerHTML = '<div class="col-span-full bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-600 font-bold">아직 추출된 식단표가 없습니다.</div>';
     return;
   }
 
@@ -458,13 +458,13 @@ function renderAdminMenuPreview(data) {
     const day = days[date] || {};
     const menus = Array.isArray(day.menu) ? day.menu : [];
     const origins = Array.isArray(day.origins) ? day.origins : [];
+    const isHoliday = menus.includes('공휴일') || Boolean(day.holidayName);
     return `
-      <article class="bg-white border border-amber-100 rounded-2xl p-4 shadow-sm">
-        <h3 class="font-black text-amber-950 mb-2">${escapeHTML(formatAdminMenuDate(date))}</h3>
-        <div class="text-xs font-black text-amber-700 mb-1">메뉴</div>
-        <ul class="text-sm font-bold text-gray-900 space-y-0.5 mb-3">${menus.length ? menus.map(item => `<li>• ${escapeHTML(item)}</li>`).join('') : '<li class="text-gray-400">없음</li>'}</ul>
-        <div class="text-xs font-black text-amber-700 mb-1">원산지</div>
-        <div class="text-xs text-gray-600 leading-relaxed">${origins.length ? origins.map(renderAdminOriginItem).join('') : '없음'}</div>
+      <article class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+        <h3 class="font-black text-slate-900 mb-2">${escapeHTML(formatAdminMenuDate(date))}</h3>
+        <div class="text-xs font-black text-slate-600 mb-1">메뉴</div>
+        ${isHoliday ? `<div class="text-sm font-black text-slate-800 mb-3">공휴일${day.holidayName && day.holidayName !== '공휴일' ? ` <span class="text-xs text-slate-500">(${escapeHTML(day.holidayName)})</span>` : ''}</div>` : `<ul class="text-sm font-bold text-gray-900 space-y-0.5 mb-3">${menus.length ? menus.map(item => `<li>• ${escapeHTML(item)}</li>`).join('') : '<li class="text-gray-400">없음</li>'}</ul>`}
+        ${isHoliday ? '' : `<div class="text-xs font-black text-slate-600 mb-1">원산지</div><div class="text-xs text-gray-600 leading-relaxed">${origins.length ? origins.map(renderAdminOriginItem).join('') : '없음'}</div>`}
       </article>`;
   }).join('');
 }
