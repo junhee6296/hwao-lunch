@@ -2,16 +2,16 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <title>Lunch Check : 점심 QR</title>
   <link rel="manifest" href="/manifest.json">
-  <link rel="icon" href="/img/icon.png?v=20260610-qrfix15" type="image/png">
-  <link rel="apple-touch-icon" href="/img/icon.png?v=20260610-qrfix15">
+  <link rel="icon" href="/img/icon.png?v=20260610-transparentcorners" type="image/png">
+  <link rel="apple-touch-icon" href="/img/icon.png?v=20260610-transparentcorners">
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <link rel="stylesheet" href="CSS/style.css?v=20260610-qrfix15">
+  <link rel="stylesheet" href="CSS/style.css?v=20260610-transparentcorners">
 
   <style>
     :root {
@@ -22,11 +22,19 @@
       --cool-border: #cbd5e1;
       --cool-shadow: 0 24px 70px rgba(15, 23, 42, 0.16);
     }
+    html, body {
+      color-scheme: light;
+      background-color: #e5e7eb;
+      forced-color-adjust: none;
+      -webkit-text-size-adjust: 100%;
+    }
     body {
       background:
         radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.86) 0, rgba(255, 255, 255, 0.28) 20%, transparent 42%),
         linear-gradient(145deg, #eef2f7 0%, #d9e0e8 52%, #b7c0cc 100%);
       color: #0f172a;
+      min-height: 100vh;
+      overflow-x: hidden;
     }
     .hidden { display: none !important; }
     .btn-primary {
@@ -111,6 +119,59 @@
       font-style: normal;
       font-weight: 700;
     }
+
+    #qrcode-container {
+      width: min(100%, 34rem);
+      margin-inline: auto;
+    }
+    #qrcode {
+      --qr-render-size: 280px;
+      width: 100%;
+      max-width: min(calc(100vw - 72px), 380px);
+      aspect-ratio: 1 / 1;
+      margin: 0 auto 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: clamp(12px, 2.6vw, 18px);
+      overflow: hidden;
+      box-sizing: border-box;
+      background: #ffffff;
+      forced-color-adjust: none;
+    }
+    #qrcode canvas,
+    #qrcode img,
+    #qrcode table {
+      width: 100% !important;
+      height: 100% !important;
+      max-width: 100% !important;
+      max-height: 100% !important;
+      object-fit: contain;
+      display: block;
+      margin: 0 auto;
+      image-rendering: pixelated;
+      background: #ffffff;
+    }
+    #qrcode > div {
+      width: min(var(--qr-render-size), 100%);
+      height: min(var(--qr-render-size), 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    @media (orientation: landscape) and (max-height: 560px) {
+      header { padding-top: 1rem !important; padding-bottom: 1rem !important; }
+      header .brand-plate-lg img { width: 4.75rem !important; height: 4.75rem !important; }
+      header h1 { font-size: 2.4rem !important; }
+      main { padding-top: 0.5rem !important; }
+      #qrcode-container, #qr-form-container { padding: 1rem 1rem 1.2rem !important; }
+      #qrcode { max-width: min(calc(100vw - 68px), 300px); margin-bottom: 1rem; }
+      #qr-result-name { font-size: 1.9rem !important; margin-bottom: 0.35rem !important; }
+      #qrcode-container p { margin-bottom: 0.85rem !important; font-size: 1rem !important; }
+      #btn-reissue-qr { height: 3.4rem !important; }
+      #btn-back-to-form { height: 3rem !important; margin-top: 0.6rem !important; }
+    }
+
     @media (max-width: 480px) {
       .input-label { font-size: 1.1rem; }
       .form-input { height: 64px; font-size: 1.05rem; }
@@ -123,7 +184,7 @@
   <div class="max-w-4xl mx-auto min-h-screen flex flex-col warm-shell shadow-2xl">
     <div class="flex justify-between items-center pt-4 px-4 sm:px-6">
       <div class="flex items-center gap-2 text-slate-700 font-black">
-        <span class="brand-plate brand-plate-sm"><img src="/img/icon.png?v=20260610-qrfix15" alt="Lunch Check 아이콘" class="w-10 h-10 rounded-2xl brand-icon"></span>
+        <span class="brand-plate brand-plate-sm"><img src="/img/icon.png?v=20260610-transparentcorners" alt="Lunch Check 아이콘" class="w-10 h-10 rounded-2xl brand-icon"></span>
         <span>Lunch Check</span>
       </div>
       <a href="/scanner.html" class="quiet-link font-black py-2 px-3 rounded-2xl text-sm flex items-center gap-1 shadow-sm transition-colors">
@@ -132,7 +193,7 @@
     </div>
 
     <header class="pb-7 pt-6 px-5 text-center">
-      <span class="brand-plate brand-plate-lg mb-4"><img src="/img/icon.png?v=20260610-qrfix15" alt="Lunch Check" class="w-28 h-28 mx-auto rounded-[1.6rem] brand-icon"></span>
+      <span class="brand-plate brand-plate-lg mb-4"><img src="/img/icon.png?v=20260610-transparentcorners" alt="Lunch Check" class="w-28 h-28 mx-auto rounded-[1.6rem] brand-icon"></span>
       <h1 class="text-4xl sm:text-5xl font-black text-slate-900 leading-tight">Lunch Check</h1>
     </header>
 
@@ -162,8 +223,8 @@
         </div>
       </div>
 
-      <div id="qrcode-container" class="hidden w-full max-w-md text-center p-6 sm:p-8 rounded-[2rem] border-2 warm-card">
-        <div id="qrcode" class="qr-frame flex justify-center p-5 bg-white border-4 border-slate-400 rounded-[2rem] shadow-2xl mb-6"></div>
+      <div id="qrcode-container" class="hidden w-full text-center p-6 sm:p-8 rounded-[2rem] border-2 warm-card">
+        <div id="qrcode" class="bg-white border-4 border-slate-400 rounded-[2rem] shadow-2xl"></div>
         <h2 id="qr-result-name" class="text-3xl font-black text-slate-900 mb-2"></h2>
         <p class="text-slate-500 text-lg mb-6 font-bold">이 QR은 <span id="timer" class="text-red-500 font-black">15:00</span> 동안 유효합니다.</p>
 
@@ -241,6 +302,6 @@
     </footer>
   </div>
 
-  <script type="module" src="JS/qr_app.js?v=20260610-qrfix15"></script>
+  <script type="module" src="JS/qr_app.js?v=20260610-visualhotfix"></script>
 </body>
 </html>
