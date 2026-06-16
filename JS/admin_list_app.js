@@ -8,6 +8,7 @@ let requestCooldownInterval = null;
 let selectedDailyDates = new Set();
 let importRows = [];
 let importMeta = null;
+let currentMenuMonthData = null;
 
 const $ = (id) => document.getElementById(id);
 const pad2 = value => String(value).padStart(2, '0');
@@ -445,12 +446,13 @@ function renderAdminOriginItem(item) {
 }
 
 function renderAdminMenuPreview(data) {
+  currentMenuMonthData = data || currentMenuMonthData;
   const wrap = $('menu-admin-preview');
   if (!wrap) return;
   const days = data?.days || {};
   const dates = Object.keys(days).sort();
   if (dates.length === 0) {
-    wrap.innerHTML = '<div class="col-span-full bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-600 font-bold">아직 추출된 식단표가 없습니다.</div>';
+    wrap.innerHTML = '<div class="col-span-full bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-600 font-bold">아직 추출된 식단표가 없습니다. 위의 수동 수정 영역에서 날짜별 식단을 직접 추가할 수 있습니다.</div>';
     return;
   }
 
@@ -461,13 +463,18 @@ function renderAdminMenuPreview(data) {
     const isHoliday = menus.includes('공휴일') || Boolean(day.holidayName);
     return `
       <article class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
-        <h3 class="font-black text-slate-900 mb-2">${escapeHTML(formatAdminMenuDate(date))}</h3>
-        <div class="text-xs font-black text-slate-600 mb-1">메뉴</div>
-        ${isHoliday ? `<div class="text-sm font-black text-slate-800 mb-3">공휴일${day.holidayName && day.holidayName !== '공휴일' ? ` <span class="text-xs text-slate-500">(${escapeHTML(day.holidayName)})</span>` : ''}</div>` : `<ul class="text-sm font-bold text-gray-900 space-y-0.5 mb-3">${menus.length ? menus.map(item => `<li>• ${escapeHTML(item)}</li>`).join('') : '<li class="text-gray-400">없음</li>'}</ul>`}
-        ${isHoliday ? '' : `<div class="text-xs font-black text-slate-600 mb-1">원산지</div><div class="text-xs text-gray-600 leading-relaxed">${origins.length ? origins.map(renderAdminOriginItem).join('') : '없음'}</div>`}
+        <div class="flex items-start justify-between gap-2 mb-2">
+          <h3 class="font-black text-slate-900">${escapeHTML(formatAdminMenuDate(date))}</h3>
+          <button type="button" onclick="window.fillMenuDayEditor('${escapeAttr(date)}')" class="text-xs font-black text-slate-500 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg px-2 py-1">수정</button>
+        </div>
+        ${isHoliday
+          ? `<div class="text-red-600 font-black text-lg mb-2">공휴일${day.holidayName && day.holidayName !== '공휴일' ? ` <span class="text-xs text-red-500">(${escapeHTML(day.holidayName)})</span>` : ''}</div>`
+          : `<div class="text-xs font-black text-slate-600 mb-1">메뉴</div><ul class="text-sm font-bold text-gray-900 space-y-0.5 mb-3">${menus.length ? menus.map(item => `<li>• ${escapeHTML(item)}</li>`).join('') : '<li class="text-gray-400">없음</li>'}</ul>
+             <div class="text-xs font-black text-slate-600 mb-1">원산지</div><div class="text-xs text-gray-600 leading-relaxed">${origins.length ? origins.map(renderAdminOriginItem).join('') : '없음'}</div>`}
       </article>`;
   }).join('');
 }
+
 
 async function loadAdminMenuMonth() {
   const status = $('menu-upload-status');
@@ -477,6 +484,7 @@ async function loadAdminMenuMonth() {
     const res = await apiFetch(`${API_BASE_URL}/admin/menu/month/${yearMonth}`, { cache: 'no-store' });
     const data = await res.json();
     if (!res.ok) return alert(data.message || '식단표 조회 실패');
+    currentMenuMonthData = data;
     renderAdminMenuPreview(data);
     if (status) {
       const count = Object.keys(data.days || {}).length;
@@ -485,6 +493,54 @@ async function loadAdminMenuMonth() {
   } catch (e) {
     if (status) status.textContent = '식단표 조회 실패';
   }
+}
+
+
+function splitManualLines(value) {
+  return String(value || '').split(/\r?\n/).map(v => v.trim()).filter(Boolean);
+}
+
+function fillManualDateDefaults(force = false) {
+  const { yearMonth } = getSelectedMenuYearMonth();
+  const input = $('manual-menu-date');
+  if (input && (force || !input.value || input.value.slice(0, 7) !== yearMonth)) input.value = `${yearMonth}-01`;
+}
+
+window.fillMenuDayEditor = (date) => {
+  const day = currentMenuMonthData?.days?.[date] || {};
+  if ($('manual-menu-date')) $('manual-menu-date').value = date;
+  if ($('manual-menu-items')) $('manual-menu-items').value = Array.isArray(day.menu) && !day.menu.includes('공휴일') ? day.menu.join('\n') : '';
+  if ($('manual-origin-items')) $('manual-origin-items').value = Array.isArray(day.origins) ? day.origins.join('\n') : '';
+  $('manual-menu-date')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+};
+
+async function saveMenuDayManual(isHoliday = false) {
+  const date = $('manual-menu-date')?.value;
+  if (!date) return alert('수정할 날짜를 선택해 주세요.');
+
+  const payload = {
+    date,
+    menu: splitManualLines($('manual-menu-items')?.value),
+    origins: splitManualLines($('manual-origin-items')?.value),
+    isHoliday,
+    holidayName: isHoliday ? '공휴일' : ''
+  };
+
+  if (!isHoliday && payload.menu.length === 0 && !confirm('메뉴가 비어 있습니다. 그대로 저장할까요?')) return;
+
+  const res = await apiFetch(`${API_BASE_URL}/admin/menu/day`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  const data = await readApiJson(res);
+  if (!res.ok) return alert(data.message || '식단 날짜 수정 실패');
+
+  currentMenuMonthData = data.month;
+  renderAdminMenuPreview(data.month);
+  const status = $('menu-upload-status');
+  if (status) status.textContent = `${date} 식단을 저장했습니다.`;
+  alert('식단 날짜 수정 완료');
 }
 
 async function uploadMenuImage(confirmMismatch = false) {
@@ -531,6 +587,7 @@ async function uploadMenuImage(confirmMismatch = false) {
       const warn = data.summary?.ocrError ? ` OCR 엔진 경고: ${data.summary.ocrError}` : '';
       status.textContent = `${yearMonth} 식단표 업로드 완료 · 추출 ${count}일치.${warn}`;
     }
+    currentMenuMonthData = data.month;
     renderAdminMenuPreview(data.month);
     if (data.summary?.ocrError) alert('이미지는 저장했지만 OCR 엔진을 사용할 수 없어 자동 추출이 제한되었습니다. 서버에서 tesseract.js 설치 여부를 확인해 주세요.');
   } catch (e) {
@@ -693,8 +750,10 @@ export function initAdminList() {
   $('btn-export-monthly')?.addEventListener('click', exportMonthly);
   $('btn-analyze-import')?.addEventListener('click', analyzeMonthlyImport);
   $('btn-upload-menu-image')?.addEventListener('click', () => uploadMenuImage(false));
-  $('menu-year')?.addEventListener('change', loadAdminMenuMonth);
-  $('menu-month-select')?.addEventListener('change', loadAdminMenuMonth);
+  $('btn-save-menu-day')?.addEventListener('click', () => saveMenuDayManual(false));
+  $('btn-mark-menu-holiday')?.addEventListener('click', () => saveMenuDayManual(true));
+  $('menu-year')?.addEventListener('change', () => { fillManualDateDefaults(true); loadAdminMenuMonth(); });
+  $('menu-month-select')?.addEventListener('change', () => { fillManualDateDefaults(true); loadAdminMenuMonth(); });
   $('btn-register-selected-import')?.addEventListener('click', () => registerImportRows('selected'));
   $('btn-register-all-import')?.addEventListener('click', () => registerImportRows('all'));
   $('btn-delete-selected-import')?.addEventListener('click', () => {
@@ -733,6 +792,7 @@ window.switchTab = (tab) => {
   $('import-preview-section')?.classList.toggle('hidden', isMenu || importRows.length === 0);
 
   if (isMenu) {
+    fillManualDateDefaults();
     loadAdminMenuMonth();
     return;
   }

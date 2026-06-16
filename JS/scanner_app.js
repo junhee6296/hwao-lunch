@@ -86,12 +86,24 @@ window.startScanner = function(facingMode = 'environment') {
 
   const qrBoxFunction = (vw, vh) => {
     const min = Math.min(vw, vh);
-    return { width: Math.floor(min * 0.6), height: Math.floor(min * 0.6) };
+    const size = Math.max(180, Math.min(460, Math.floor(min * 0.78)));
+    return { width: size, height: size };
   };
+
+  const scanConfig = {
+    fps: 15,
+    qrbox: qrBoxFunction,
+    aspectRatio: 1.0,
+    rememberLastUsedCamera: true,
+    experimentalFeatures: { useBarCodeDetectorIfSupported: true }
+  };
+  if (window.Html5QrcodeSupportedFormats) {
+    scanConfig.formatsToSupport = [window.Html5QrcodeSupportedFormats.QR_CODE];
+  }
 
   return window.html5QrCode.start(
     { facingMode },
-    { fps: 12, qrbox: qrBoxFunction, aspectRatio: 1.0 },
+    scanConfig,
     async (decodedText) => {
       if (window.isScanningAction) return;
       window.isScanningAction = true;

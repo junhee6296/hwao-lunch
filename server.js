@@ -22,6 +22,7 @@ const COOKIE_NAME = 'hwao_lunch_admin_session';
 const SESSION_MINUTES = Number(process.env.ADMIN_SESSION_MINUTES || 240);
 const CODE_EXPIRES_MS = 3 * 60 * 1000;
 const CODE_COOLDOWN_MS = 30 * 1000;
+const QR_EXPIRES_MS = Number(process.env.QR_EXPIRES_MINUTES || 15) * 60 * 1000;
 const MAX_AUTH_ATTEMPTS = 3;
 const MAX_JSON_SIZE = '1mb';
 const MAX_UPLOAD_SIZE = 8 * 1024 * 1024;
@@ -1173,7 +1174,10 @@ const extractOriginEntriesForDay = (day, text) => {
     .filter(Boolean)
     .sort((a, b) => a.index - b.index);
 
-  if (!menuPositions.length) return [];
+  if (!menuPositions.length) {
+    const detailedEntries = extractOriginSourcesDetailed(clean).map(source => source.text);
+    return [...new Set(detailedEntries)].slice(0, 8);
+  }
   const entries = [];
   menuPositions.forEach((pos, idx) => {
     const nextIndex = idx + 1 < menuPositions.length ? menuPositions[idx + 1].index : clean.length + 1;
@@ -1523,8 +1527,8 @@ const parseMenuOCRLayout = ({ words, selectedYear, selectedMonth }) => {
           return;
         }
 
-        const isOriginSection = section === 'origin' || isOriginLine(text) || extractOriginSourcesDetailed(text).length > 0;
-        if (isOriginSection) {
+        const hasOriginDetail = isOriginLine(text) || extractOriginSourcesDetailed(text).length > 0;
+        if (hasOriginDetail) {
           days[date].rawLines.push(normalizeMenuTextLine(text));
           const cellLeft = xStart + col * colWidth;
           const midX = cellLeft + colWidth * 0.50;
@@ -1533,7 +1537,7 @@ const parseMenuOCRLayout = ({ words, selectedYear, selectedMonth }) => {
           const leftText = mergeOCRTokens(leftWords.map(w => w.text));
           const rightText = mergeOCRTokens(rightWords.map(w => w.text));
 
-          if (leftText && rightText) {
+          if (leftText && rightText && (isOriginLine(rightText) || extractOriginSourcesDetailed(rightText).length > 0)) {
             pushOriginPairCandidate(days[date], leftText, rightText);
           } else {
             pushOriginCandidate(days[date], text);
@@ -1543,7 +1547,9 @@ const parseMenuOCRLayout = ({ words, selectedYear, selectedMonth }) => {
 
         if (isNoiseMenuLine(text)) return;
 
-        pushMenuCandidate(days[date], text, section);
+        // OCR이 주차 블록 하단 메뉴를 원산지 구역으로 잘못 분류해도 메뉴가 누락되지 않도록,
+        // 실제 원산지 키워드가 없는 행은 메뉴 후보로 되돌립니다.
+        pushMenuCandidate(days[date], text, 'menu');
       });
     });
   });
@@ -1557,15 +1563,47 @@ const scoreMenuParse = (parsed) => {
   const days = Object.values(parsed?.days || {});
   const dayCount = days.length;
   const menuCount = days.reduce((sum, day) => sum + (Array.isArray(day.menu) ? day.menu.length : 0), 0);
+  const originCount = days.reduce((sum, day) => sum + (Array.isArray(day.origins) ? day.origins.length : 0), 0);
   const badCount = days.reduce((sum, day) => sum + (day.menu || []).filter(line => isNoiseMenuLine(line) || isHolidayLine(line) || isMenuEventLine(line) || isOriginLine(line)).length, 0);
-  return dayCount * 12 + menuCount - badCount * 8;
+  return dayCount * 12 + menuCount + Math.min(originCount, dayCount * 3) * 0.6 - badCount * 8;
+};
+
+const mergeMenuParses = (primary, secondary) => {
+  const base = primary ? JSON.parse(JSON.stringify(primary)) : { days: {} };
+  const extra = secondary || { days: {} };
+  base.days = base.days || {};
+
+  Object.entries(extra.days || {}).forEach(([date, extraDay]) => {
+    if (!base.days[date]) {
+      base.days[date] = JSON.parse(JSON.stringify(extraDay));
+      return;
+    }
+
+    const day = base.days[date];
+    const isHoliday = Boolean(day.holidayName) || Boolean(extraDay.holidayName) || (day.menu || []).includes('공휴일') || (extraDay.menu || []).includes('공휴일');
+    if (isHoliday) {
+      day.holidayName = day.holidayName || extraDay.holidayName || '공휴일';
+      day.menu = ['공휴일'];
+      day.origins = [];
+      return;
+    }
+
+    day.menu = [...new Set([...(day.menu || []), ...(extraDay.menu || [])])];
+    day.origins = [...new Set([...(day.origins || []), ...(extraDay.origins || [])])];
+    day.rawLines = [...new Set([...(day.rawLines || []), ...(extraDay.rawLines || [])])];
+  });
+
+  Object.values(base.days).forEach(finalizeParsedMenuDay);
+  return base;
 };
 
 const chooseBestMenuParse = (textParsed, layoutParsed) => {
   const layoutScore = scoreMenuParse(layoutParsed);
   const textScore = scoreMenuParse(textParsed);
-  if (Object.keys(layoutParsed?.days || {}).length >= 5 && layoutScore >= textScore * 0.65) return layoutParsed;
-  return textScore >= layoutScore ? textParsed : layoutParsed;
+  const useLayout = Object.keys(layoutParsed?.days || {}).length >= 5 && layoutScore >= textScore * 0.65;
+  const primary = useLayout ? layoutParsed : (textScore >= layoutScore ? textParsed : layoutParsed);
+  const secondary = primary === layoutParsed ? textParsed : layoutParsed;
+  return mergeMenuParses(primary, secondary);
 };
 
 const runMenuOCR = async (buffer) => {
@@ -1697,6 +1735,105 @@ app.get('/api/admin/menu/month/:yearMonth', requireAdmin, async (req, res) => {
   res.json(sanitizeMenuMonthForClient(monthData) || { yearMonth, days: {} });
 });
 
+
+const normalizeManualMenuLines = (value) => {
+  const list = Array.isArray(value) ? value : String(value || '').split(/\r?\n|,/);
+  return [...new Set(list.map(cleanMenuCandidate).filter(Boolean))]
+    .filter(line => !isHolidayLine(line) && !isMenuEventLine(line))
+    .slice(0, 20);
+};
+
+const normalizeManualOriginLines = (value) => {
+  const list = Array.isArray(value) ? value : String(value || '').split(/\r?\n/);
+  return [...new Set(list.map(line => {
+    const clean = normalizeMenuTextLine(line);
+    if (!clean) return '';
+    // 관리자가 이미 "메뉴: 원산지" 형태로 입력한 값은 최대한 보존합니다.
+    const colon = clean.indexOf(':');
+    if (colon > 0) {
+      const menuName = clean.slice(0, colon).trim();
+      const source = clean.slice(colon + 1).trim();
+      const formatted = formatOriginSource(source) || source;
+      return menuName && formatted ? `${menuName}: ${formatted}` : formatted;
+    }
+    return cleanOriginCandidate(clean) || formatOriginSource(clean) || clean;
+  }).map(normalizeMenuTextLine).filter(Boolean))]
+    .filter(line => !isHolidayLine(line))
+    .slice(0, 24);
+};
+
+app.post('/api/admin/menu/day', requireAdmin, async (req, res) => {
+  const date = String(req.body.date || '').slice(0, 10);
+  if (!parseISODate(date)) return res.status(400).json({ message: '날짜 형식은 YYYY-MM-DD이어야 합니다.' });
+
+  const [yearStr, monthStr] = date.split('-');
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+  const yearMonth = `${yearStr}-${monthStr}`;
+  const holidayName = normalizeMenuTextLine(req.body.holidayName || '');
+  const isHoliday = Boolean(req.body.isHoliday) || isHolidayLine(holidayName);
+
+  if (!menus.months) menus.months = {};
+  if (!menus.months[yearMonth]) {
+    menus.months[yearMonth] = {
+      year,
+      month,
+      yearMonth,
+      updatedAt: new Date().toISOString(),
+      uploadedBy: req.adminEmail,
+      ocrEngine: 'manual',
+      days: {}
+    };
+  }
+
+  const monthData = menus.months[yearMonth];
+  monthData.days = monthData.days || {};
+  const existing = monthData.days[date] || { date, menu: [], origins: [], rawLines: [] };
+
+  if (isHoliday) {
+    monthData.days[date] = {
+      ...existing,
+      date,
+      menu: ['공휴일'],
+      origins: [],
+      holidayName: normalizeHolidayName(holidayName || '공휴일'),
+      manualEdited: true,
+      updatedAt: new Date().toISOString()
+    };
+  } else {
+    const menu = normalizeManualMenuLines(req.body.menu);
+    const origins = normalizeManualOriginLines(req.body.origins);
+    monthData.days[date] = {
+      ...existing,
+      date,
+      menu,
+      origins,
+      holidayName: null,
+      manualEdited: true,
+      updatedAt: new Date().toISOString()
+    };
+  }
+
+  monthData.updatedAt = new Date().toISOString();
+  monthData.uploadedBy = req.adminEmail;
+  saveMenus();
+
+  const enriched = await enrichMenuMonthWithHolidays(monthData, yearMonth);
+  res.json({ message: '식단 날짜 수정 완료', month: sanitizeMenuMonthForClient(enriched) });
+});
+
+app.delete('/api/admin/menu/day/:date', requireAdmin, (req, res) => {
+  const date = String(req.params.date || '').slice(0, 10);
+  if (!parseISODate(date)) return res.status(400).json({ message: '날짜 형식은 YYYY-MM-DD이어야 합니다.' });
+  const yearMonth = date.slice(0, 7);
+  if (menus.months?.[yearMonth]?.days) {
+    delete menus.months[yearMonth].days[date];
+    menus.months[yearMonth].updatedAt = new Date().toISOString();
+    saveMenus();
+  }
+  res.json({ message: '식단 날짜 삭제 완료' });
+});
+
 app.get('/api/menu/month/:yearMonth', async (req, res) => {
   const yearMonth = String(req.params.yearMonth || '');
   if (!/^\d{4}-\d{2}$/.test(yearMonth)) return res.status(400).json({ message: '월 형식은 YYYY-MM이어야 합니다.' });
@@ -1732,7 +1869,7 @@ app.post('/api/qr/generate', (req, res) => {
   if (!db.days[todayStr]) db.days[todayStr] = [];
   let diner = db.days[todayStr].find(d => d.name === cleaned.name && d.phoneLast4 === cleaned.phoneLast4);
   const qrToken = crypto.randomBytes(24).toString('base64url');
-  const expiresAt = Date.now() + 180000;
+  const expiresAt = Date.now() + QR_EXPIRES_MS;
 
   if (!diner) {
     db.days[todayStr].push({

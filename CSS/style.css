@@ -139,3 +139,105 @@ body {
     height: 7.25rem;
   }
 }
+
+/* QR reliability / dark-mode / landscape hotfix */
+html, body {
+  color-scheme: light;
+}
+
+#qrcode-container,
+#qrcode-container *,
+.qr-frame,
+.qr-frame * {
+  color-scheme: light;
+  forced-color-adjust: none;
+}
+
+.qr-frame {
+  width: fit-content;
+  max-width: min(100%, calc(100vw - 3rem));
+  margin-left: auto;
+  margin-right: auto;
+  box-sizing: border-box;
+  overflow: visible !important;
+  background: #ffffff !important;
+  border-color: #94a3b8 !important;
+  padding: clamp(14px, 3vw, 24px) !important;
+}
+
+.qr-frame canvas,
+.qr-frame img {
+  display: block !important;
+  width: min(var(--qr-size, 280px), calc(100vw - 6rem)) !important;
+  height: auto !important;
+  max-width: 100% !important;
+  background: #ffffff !important;
+  filter: none !important;
+  mix-blend-mode: normal !important;
+  image-rendering: pixelated;
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    background:
+      radial-gradient(circle at 50% 0%, rgba(255,255,255,0.86) 0, rgba(255,255,255,0.28) 20%, transparent 42%),
+      linear-gradient(145deg, #eef2f7 0%, #d9e0e8 52%, #b7c0cc 100%) !important;
+    color: #0f172a !important;
+  }
+  .warm-shell,
+  .warm-card,
+  .menu-day-card,
+  #menu-modal > div,
+  #ios-install-modal > div {
+    background-color: rgba(255,255,255,0.92) !important;
+    color: #0f172a !important;
+  }
+  input, select, textarea {
+    background-color: #f8fafc !important;
+    color: #0f172a !important;
+  }
+  .qr-frame {
+    background: #ffffff !important;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 640px) {
+  body .warm-shell > header {
+    padding-top: 0.5rem !important;
+    padding-bottom: 0.75rem !important;
+  }
+  body .warm-shell > header .brand-plate-lg {
+    width: 4.75rem !important;
+    height: 4.75rem !important;
+    margin-bottom: 0.45rem !important;
+  }
+  body .warm-shell > header h1 {
+    font-size: 2.15rem !important;
+    line-height: 1.05 !important;
+  }
+  body main {
+    justify-content: flex-start !important;
+    padding-bottom: 0.75rem !important;
+  }
+  #qrcode-container {
+    max-width: min(26rem, calc(100vw - 2rem)) !important;
+    padding: 0.9rem !important;
+    margin-top: 0 !important;
+  }
+  #qrcode {
+    margin-bottom: 0.75rem !important;
+  }
+  #qrcode-container h2 {
+    font-size: 1.45rem !important;
+    margin-bottom: 0.25rem !important;
+  }
+  #qrcode-container p {
+    font-size: 0.95rem !important;
+    margin-bottom: 0.75rem !important;
+  }
+  #btn-reissue-qr,
+  #btn-back-to-form {
+    height: 2.75rem !important;
+    font-size: 0.95rem !important;
+  }
+}

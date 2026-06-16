@@ -2,6 +2,8 @@ import { API_BASE_URL, getTodayStr, isWeekend, normalizePhoneLast4, escapeHTML }
 
 let timerInterval;
 let deferredPrompt;
+let lastQRState = null;
+let qrResizeTimer = null;
 
 const $ = (id) => document.getElementById(id);
 const nameInput = () => $('userName');
@@ -97,11 +99,10 @@ function renderMenuMonth(data) {
       <article class="menu-day-card ${isToday ? 'ring-4 ring-slate-300' : ''}">
         <div class="flex items-start justify-between gap-3 mb-3">
           <h4 class="text-lg font-black text-slate-900">${escapeHTML(formatKoreanDate(date))}</h4>
-          <div class="flex gap-1 flex-wrap justify-end">${isToday ? '<span class="menu-pill">오늘</span>' : ''}${isHoliday ? '<span class="menu-pill">공휴일</span>' : ''}</div>
+          <div class="flex gap-1 flex-wrap justify-end">${isToday ? '<span class="menu-pill">오늘</span>' : ''}</div>
         </div>
         <div class="mb-3">
-          <div class="text-xs font-black text-slate-600 mb-1">메뉴</div>
-          ${isHoliday ? `<p class="text-slate-800 font-black">공휴일${day.holidayName && day.holidayName !== '공휴일' ? ` <span class="text-sm text-slate-500">(${escapeHTML(day.holidayName)})</span>` : ''}</p>` : (menus.length ? `<ul class="grid grid-cols-1 sm:grid-cols-2 gap-1 text-gray-900 font-bold">${menus.map(item => `<li>• ${escapeHTML(item)}</li>`).join('')}</ul>` : '<p class="text-gray-400 text-sm">추출된 메뉴가 없습니다.</p>')}
+          ${isHoliday ? `<p class="text-red-600 font-black text-xl">공휴일${day.holidayName && day.holidayName !== '공휴일' ? ` <span class="text-sm text-red-500">(${escapeHTML(day.holidayName)})</span>` : ''}</p>` : `<div class="text-xs font-black text-slate-600 mb-1">메뉴</div>${menus.length ? `<ul class="grid grid-cols-1 sm:grid-cols-2 gap-1 text-gray-900 font-bold">${menus.map(item => `<li>• ${escapeHTML(item)}</li>`).join('')}</ul>` : '<p class="text-gray-400 text-sm">추출된 메뉴가 없습니다.</p>'}`}
         </div>
         <div class="${isHoliday ? 'hidden' : ''}">
           <div class="text-xs font-black text-slate-600 mb-1">원산지</div>
@@ -188,17 +189,43 @@ async function generateLunchQR(isReissue = false) {
   }
 }
 
+function getAdaptiveQRSize() {
+  const qrDiv = $('qrcode');
+  const card = $('qrcode-container');
+  const viewportW = Math.max(240, window.innerWidth || 360);
+  const viewportH = Math.max(240, window.innerHeight || 640);
+  const cardWidth = card ? card.clientWidth : viewportW;
+  const innerLimit = Math.max(180, cardWidth - 86);
+  const orientationLimit = window.matchMedia('(orientation: landscape)').matches
+    ? Math.max(180, viewportH - 230)
+    : Math.max(220, viewportW - 104);
+  return Math.floor(Math.max(180, Math.min(340, innerLimit, orientationLimit)));
+}
+
+function drawQRCode(token) {
+  const qrDiv = $('qrcode');
+  if (!qrDiv || !token) return;
+  const size = getAdaptiveQRSize();
+  qrDiv.innerHTML = '';
+  qrDiv.style.opacity = '1';
+  qrDiv.style.setProperty('--qr-size', `${size}px`);
+  new QRCode(qrDiv, {
+    text: token,
+    width: size,
+    height: size,
+    colorDark: '#000000',
+    colorLight: '#ffffff',
+    correctLevel: QRCode.CorrectLevel.H
+  });
+}
+
 function renderQR(token, name, phoneLast4, expiresAt) {
   $('qr-form-container')?.classList.add('hidden');
   $('qrcode-container')?.classList.remove('hidden');
 
   $('qr-result-name').textContent = `${name}님 (${phoneLast4})`;
-
-  const qrDiv = $('qrcode');
-  qrDiv.innerHTML = '';
-  qrDiv.style.opacity = '1';
-  new QRCode(qrDiv, { text: token, width: 280, height: 280, colorDark: '#111111', colorLight: '#ffffff' });
-
+  lastQRState = { token, name, phoneLast4, expiresAt };
+  drawQRCode(token);
   startTimer(expiresAt);
 }
 
@@ -213,7 +240,7 @@ function startTimer(expiresAt) {
     } else {
       const m = Math.floor(diff / 60);
       const s = diff % 60;
-      $('timer').textContent = `0${m}:${s < 10 ? '0' : ''}${s}`;
+      $('timer').textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
     }
   }, 1000);
 }
@@ -223,7 +250,19 @@ function resetToForm() {
   $('qrcode-container')?.classList.add('hidden');
   $('qr-form-container')?.classList.remove('hidden');
   if ($('qrcode')) $('qrcode').innerHTML = '';
+  lastQRState = null;
 }
+
+window.addEventListener('resize', () => {
+  if (!lastQRState || $('qrcode-container')?.classList.contains('hidden')) return;
+  clearTimeout(qrResizeTimer);
+  qrResizeTimer = setTimeout(() => drawQRCode(lastQRState.token), 160);
+});
+window.addEventListener('orientationchange', () => {
+  if (!lastQRState || $('qrcode-container')?.classList.contains('hidden')) return;
+  clearTimeout(qrResizeTimer);
+  qrResizeTimer = setTimeout(() => drawQRCode(lastQRState.token), 240);
+});
 
 $('btn-generate-qr')?.addEventListener('click', () => generateLunchQR(false));
 $('btn-reissue-qr')?.addEventListener('click', () => generateLunchQR(true));

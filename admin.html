@@ -6,8 +6,8 @@
   <title>Lunch Check 관리자 메뉴</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
-  <link rel="icon" href="/img/icon.png?v=20260610-transparentcorners" type="image/png">
-  <link rel="stylesheet" href="CSS/style.css">
+  <link rel="icon" href="/img/icon.png?v=20260610-qrfix15" type="image/png">
+  <link rel="stylesheet" href="CSS/style.css?v=20260610-qrfix15">
   <style>
     input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; opacity: 0.7; transition: 0.2s; }
     .hidden { display: none !important; }
@@ -38,7 +38,7 @@
   <div id="main-content" class="max-w-7xl mx-auto bg-white rounded-3xl shadow-xl overflow-hidden flex flex-col min-h-[90vh] hidden">
     <header class="p-5 lg:p-6 border-b bg-gray-50 flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4 shrink-0">
       <div class="flex items-center gap-3">
-        <h1 class="text-2xl lg:text-3xl font-black text-gray-800 flex items-center gap-2"><img src="/img/icon.png?v=20260610-transparentcorners" alt="Lunch Check" class="w-10 h-10 rounded-2xl"> <span>👥 Lunch Check 관리자</span></h1>
+        <h1 class="text-2xl lg:text-3xl font-black text-gray-800 flex items-center gap-2"><img src="/img/icon.png?v=20260610-qrfix15" alt="Lunch Check" class="w-10 h-10 rounded-2xl"> <span>👥 Lunch Check 관리자</span></h1>
         <span id="admin-email-label" class="hidden lg:inline-flex text-xs font-bold text-gray-400 bg-white border px-2 py-1 rounded-lg"></span>
       </div>
       <div class="flex flex-wrap gap-2 items-center">
@@ -67,6 +67,22 @@
         </div>
         <p class="mt-2 text-xs text-amber-800">식단표 사진에서 날짜별 메뉴와 원산지를 OCR로 추출합니다. 이미지 상단의 연도/월이 선택값과 다르면 계속 진행 여부를 묻습니다.</p>
         <p id="menu-upload-status" class="mt-3 text-sm font-bold text-gray-600"></p>
+      </div>
+
+      <div class="mt-4 bg-white border border-slate-200 rounded-3xl p-5 shadow-sm">
+        <div class="flex flex-col xl:flex-row xl:items-start gap-3">
+          <div class="font-black text-slate-900 text-lg shrink-0 xl:w-40">✏️ 날짜별 수동 수정</div>
+          <div class="grid grid-cols-1 lg:grid-cols-[180px_1fr_1fr_auto] gap-3 flex-1">
+            <input type="date" id="manual-menu-date" class="border border-slate-200 rounded-xl px-3 py-2 font-bold bg-white">
+            <textarea id="manual-menu-items" class="border border-slate-200 rounded-xl px-3 py-2 text-sm min-h-[96px]" placeholder="메뉴를 한 줄에 하나씩 입력"></textarea>
+            <textarea id="manual-origin-items" class="border border-slate-200 rounded-xl px-3 py-2 text-sm min-h-[96px]" placeholder="원산지를 한 줄에 하나씩 입력&#10;예: 돼지두루치기: 돈육 국내산"></textarea>
+            <div class="flex lg:flex-col gap-2">
+              <button id="btn-save-menu-day" class="bg-slate-700 hover:bg-slate-900 text-white font-bold px-4 py-2 rounded-xl shadow-sm">저장</button>
+              <button id="btn-mark-menu-holiday" class="bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 font-bold px-4 py-2 rounded-xl">공휴일</button>
+            </div>
+          </div>
+        </div>
+        <p class="mt-2 text-xs text-slate-500">OCR이 놓친 메뉴·원산지는 여기서 날짜별로 직접 보정할 수 있습니다. 아래 미리보기 카드의 수정 버튼을 누르면 해당 날짜가 자동 입력됩니다.</p>
       </div>
       <div id="menu-admin-preview" class="mt-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3"></div>
     </section>
