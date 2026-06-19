@@ -6,6 +6,7 @@ let currentQRToken = '';
 let currentQRName = '';
 let currentQRPhoneLast4 = '';
 let currentQRExpiresAt = 0;
+let menuModalScrollY = 0;
 
 const $ = (id) => document.getElementById(id);
 const nameInput = () => $('userName');
@@ -201,7 +202,9 @@ function renderMenuMonth(data) {
 
   setTimeout(() => {
     const todayCard = list.querySelector('.ring-4');
-    if (todayCard) todayCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (!todayCard) return;
+    const targetTop = Math.max(0, todayCard.offsetTop - list.offsetTop - 12);
+    list.scrollTo({ top: targetTop, behavior: 'auto' });
   }, 80);
 }
 
@@ -220,16 +223,30 @@ async function loadMenuMonth(monthValue = $('menu-month')?.value || getCurrentMo
   }
 }
 
-$('btn-open-menu')?.addEventListener('click', () => {
+function openMenuModal() {
   if ($('menu-month')) $('menu-month').value = getCurrentMonth();
+  menuModalScrollY = window.scrollY || document.documentElement.scrollTop || 0;
+  document.documentElement.classList.add('menu-modal-open');
+  document.body.classList.add('menu-modal-open');
+  document.body.style.top = `-${menuModalScrollY}px`;
   $('menu-modal')?.classList.remove('hidden');
+  $('menu-list')?.scrollTo({ top: 0, behavior: 'auto' });
   loadMenuMonth(getCurrentMonth());
-});
+}
 
+function closeMenuModal() {
+  $('menu-modal')?.classList.add('hidden');
+  document.documentElement.classList.remove('menu-modal-open');
+  document.body.classList.remove('menu-modal-open');
+  document.body.style.top = '';
+  window.scrollTo(0, menuModalScrollY);
+}
+
+$('btn-open-menu')?.addEventListener('click', openMenuModal);
 $('btn-load-menu')?.addEventListener('click', () => loadMenuMonth());
-$('btn-close-menu')?.addEventListener('click', () => $('menu-modal')?.classList.add('hidden'));
+$('btn-close-menu')?.addEventListener('click', closeMenuModal);
 $('menu-modal')?.addEventListener('click', (e) => {
-  if (e.target === $('menu-modal')) $('menu-modal')?.classList.add('hidden');
+  if (e.target === $('menu-modal')) closeMenuModal();
 });
 
 // ==========================================

@@ -8,7 +8,7 @@
 
   <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
   <link rel="icon" href="/img/icon.png?v=20260619-scanner4" type="image/png">
-  <link rel="stylesheet" href="CSS/style.css?v=20260619-scanner4">
+  <link rel="stylesheet" href="CSS/style.css?v=20260619-final3">
 
   <style>
     :root {
@@ -19,14 +19,14 @@
       --scanner-safe-left: max(0.75rem, env(safe-area-inset-left));
       --scanner-menu-width: clamp(270px, 24vw, 380px);
       --scanner-right-width: clamp(235px, 22vw, 340px);
-      --scanner-panel-bg: linear-gradient(150deg, rgba(46, 39, 32, 0.92), rgba(27, 38, 34, 0.90));
-      --scanner-panel-border: rgba(255, 238, 209, 0.30);
-      --scanner-cream: #fff7e8;
-      --scanner-apricot: #f2a25f;
-      --scanner-coral: #dd6f50;
-      --scanner-sage: #98cbaa;
-      --scanner-olive: #426551;
-      --scanner-ink: #252923;
+      --scanner-panel-bg: linear-gradient(145deg, rgba(25, 23, 36, 0.94), rgba(38, 35, 58, 0.91) 56%, rgba(49, 116, 143, 0.24));
+      --scanner-panel-border: rgba(226, 232, 240, 0.20);
+      --scanner-cream: #f8fafc;
+      --scanner-apricot: #f6c177;
+      --scanner-coral: #eb6f92;
+      --scanner-sage: #9ccfd8;
+      --scanner-olive: #31748f;
+      --scanner-ink: #191724;
     }
 
     * { box-sizing: border-box; }
@@ -37,7 +37,7 @@
       height: 100%;
       margin: 0;
       overflow: hidden;
-      background: #171714;
+      background: #191724;
       color: #fff;
       overscroll-behavior: none;
     }
@@ -62,7 +62,10 @@
       height: 100vh;
       height: 100dvh;
       overflow: hidden;
-      background: #171714;
+      background:
+        radial-gradient(circle at 18% 14%, rgba(246,193,119,.14), transparent 34%),
+        radial-gradient(circle at 82% 20%, rgba(156,207,216,.13), transparent 36%),
+        linear-gradient(145deg, #191724, #26233a 52%, #1f2f45);
     }
 
     .scanner-info-zone { display: contents; }
@@ -74,8 +77,10 @@
       z-index: 8;
       pointer-events: none;
       background:
-        linear-gradient(180deg, rgba(22,18,14,.24), transparent 20%, transparent 72%, rgba(20,16,12,.40)),
-        radial-gradient(circle at center, transparent 42%, rgba(20,18,14,.22) 100%);
+        radial-gradient(circle at 18% 16%, rgba(246,193,119,.14), transparent 34%),
+        radial-gradient(circle at 84% 22%, rgba(156,207,216,.13), transparent 36%),
+        linear-gradient(180deg, rgba(25,23,36,.26), transparent 20%, transparent 72%, rgba(15,14,24,.46)),
+        radial-gradient(circle at center, transparent 42%, rgba(15,14,24,.30) 100%);
     }
 
     #reader,
@@ -173,21 +178,21 @@
     .scanner-top-btn.is-switching { opacity: .55; cursor: wait; }
 
     .scanner-flip-btn {
-      color: #4a3527;
-      background: rgba(255,247,234,.96);
-      border-color: rgba(255,255,255,.78);
+      color: #403b49;
+      background: linear-gradient(135deg, rgba(250,247,245,.98), rgba(231,229,238,.96));
+      border-color: rgba(255,255,255,.74);
     }
 
     .scanner-qr-btn {
-      color: #fff;
-      background: linear-gradient(135deg, rgba(226,108,79,.98), rgba(242,148,78,.96));
-      border-color: rgba(255,220,183,.72);
+      color: #2b2230;
+      background: linear-gradient(135deg, #f6c177 0%, #ebbcba 46%, #eb6f92 100%);
+      border-color: rgba(255,235,210,.66);
     }
 
     .scanner-admin-btn {
       color: #fff;
-      background: linear-gradient(135deg, rgba(72,107,85,.98), rgba(42,70,57,.98));
-      border-color: rgba(184,222,196,.58);
+      background: linear-gradient(135deg, #31748f 0%, #28627a 56%, #403d62 100%);
+      border-color: rgba(156,207,216,.46);
     }
 
     .scan-guide {
@@ -207,7 +212,7 @@
       border: 2px solid rgba(255,247,234,.94);
       border-radius: clamp(18px, 4vmin, 34px);
       box-shadow:
-        0 0 0 9999px rgba(20,18,14,.56),
+        0 0 0 9999px rgba(15,14,24,.58),
         0 0 0 1px rgba(0,0,0,.42),
         0 12px 46px rgba(0,0,0,.36),
         inset 0 0 28px rgba(255,255,255,.08);
@@ -252,7 +257,7 @@
       color: #fff;
       backdrop-filter: blur(17px);
       -webkit-backdrop-filter: blur(17px);
-      box-shadow: 0 16px 38px rgba(18,14,10,.34), inset 0 1px 0 rgba(255,255,255,.06);
+      box-shadow: 0 18px 44px rgba(12,10,22,.38), inset 0 1px 0 rgba(255,255,255,.07);
     }
 
     .scanner-menu-panel {
@@ -294,7 +299,7 @@
       gap: .55rem;
       padding: .78rem .9rem;
       border-bottom: 1px solid rgba(255,255,255,.14);
-      background: linear-gradient(90deg, rgba(226,108,79,.18), rgba(146,199,165,.11));
+      background: linear-gradient(90deg, rgba(246,193,119,.20), rgba(235,111,146,.13) 48%, rgba(156,207,216,.12));
     }
 
     .scanner-panel-title {
@@ -306,7 +311,7 @@
     }
 
     .scanner-panel-meta {
-      color: rgba(255,241,222,.72);
+      color: rgba(226,232,240,.76);
       font-size: .66rem;
       font-weight: 800;
       white-space: nowrap;
@@ -329,12 +334,12 @@
       border: 1px solid rgba(255,255,255,.10);
       border-radius: .9rem;
       padding: .78rem .82rem .84rem;
-      background: linear-gradient(145deg, rgba(255,247,232,.08), rgba(146,199,165,.05));
+      background: linear-gradient(145deg, rgba(246,193,119,.08), rgba(38,35,58,.36) 58%, rgba(49,116,143,.10));
     }
 
     .scanner-menu-day.is-today {
-      border-color: rgba(242,162,95,.46);
-      background: linear-gradient(145deg, rgba(242,162,95,.15), rgba(255,247,232,.06));
+      border-color: rgba(246,193,119,.46);
+      background: linear-gradient(145deg, rgba(246,193,119,.19), rgba(235,111,146,.10) 54%, rgba(49,116,143,.09));
     }
 
     .scanner-menu-day-head {
@@ -354,8 +359,8 @@
     .scanner-menu-day-badge {
       padding: .2rem .45rem;
       border-radius: 999px;
-      color: #4b3728;
-      background: rgba(255,215,171,.92);
+      color: #2b2230;
+      background: linear-gradient(135deg, rgba(246,193,119,.98), rgba(235,188,186,.96));
       font-size: .58rem;
       font-weight: 900;
     }
@@ -371,7 +376,7 @@
     .scanner-menu-day-list li {
       position: relative;
       padding-left: .72rem;
-      color: rgba(255,249,240,.97);
+      color: rgba(248,250,252,.97);
       font-size: .82rem;
       line-height: 1.35;
       font-weight: 800;
@@ -426,7 +431,7 @@
     }
 
     .scanner-attendee-time {
-      color: #a8e2b9;
+      color: #9ccfd8;
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       font-size: .69rem;
       font-weight: 800;
@@ -449,7 +454,7 @@
     }
 
     .scanner-stat-item:first-child {
-      background: linear-gradient(90deg, rgba(242,162,95,.18), transparent);
+      background: linear-gradient(90deg, rgba(246,193,119,.17), rgba(235,111,146,.06), transparent);
     }
 
     .scanner-stat-item + .scanner-stat-item {
@@ -458,7 +463,7 @@
 
     .scanner-stat-label {
       display: block;
-      color: rgba(255,239,220,.72);
+      color: rgba(226,232,240,.72);
       font-size: .68rem;
       line-height: 1;
       font-weight: 800;
@@ -476,13 +481,13 @@
     }
 
     .scanner-stat-item:first-child .scanner-stat-value {
-      color: #ffd3aa;
+      color: #f6c177;
       font-size: clamp(1.55rem, 2.5vw, 2.05rem);
       letter-spacing: -.03em;
     }
 
     .scanner-stat-item:last-child .scanner-stat-value {
-      color: #d9f2df;
+      color: #9ccfd8;
       font-size: clamp(.98rem, 1.45vw, 1.2rem);
     }
 
@@ -496,8 +501,8 @@
       transform: translateX(-50%);
       border: 1px solid rgba(255,255,255,.42);
       border-radius: 1.1rem;
-      background: rgba(255,248,238,.94);
-      color: #3c332a;
+      background: linear-gradient(135deg, rgba(250,247,245,.96), rgba(238,236,244,.95));
+      color: #2b2836;
       text-align: center;
       backdrop-filter: blur(16px);
       -webkit-backdrop-filter: blur(16px);
@@ -505,11 +510,11 @@
       transition: background .18s ease, border-color .18s ease, transform .18s ease;
     }
 
-    #scan-result-panel[data-state="working"] { background: rgba(255,248,238,.96); border-color: rgba(242,162,95,.72); }
-    #scan-result-panel[data-state="success"] { background: rgba(239,250,241,.96); border-color: rgba(72,107,85,.78); }
-    #scan-result-panel[data-state="success"] #scan-msg { color: #356449; }
-    #scan-result-panel[data-state="fail"] { background: rgba(255,241,235,.97); border-color: rgba(223,108,79,.78); }
-    #scan-result-panel[data-state="fail"] #scan-msg { color: #c44f37; }
+    #scan-result-panel[data-state="working"] { background: linear-gradient(135deg, rgba(250,247,245,.97), rgba(246,193,119,.20)); border-color: rgba(246,193,119,.72); }
+    #scan-result-panel[data-state="success"] { background: linear-gradient(135deg, rgba(239,250,250,.97), rgba(156,207,216,.20)); border-color: rgba(49,116,143,.68); }
+    #scan-result-panel[data-state="success"] #scan-msg { color: #28627a; }
+    #scan-result-panel[data-state="fail"] { background: linear-gradient(135deg, rgba(255,243,246,.97), rgba(235,111,146,.18)); border-color: rgba(235,111,146,.70); }
+    #scan-result-panel[data-state="fail"] #scan-msg { color: #be4b72; }
 
     #scan-msg {
       margin: 0;
@@ -555,7 +560,7 @@
         overflow-x: hidden;
         overflow-y: auto;
         overscroll-behavior-y: auto;
-        background: #f7f0e7;
+        background: #f5f3f7;
       }
 
       body {
@@ -571,7 +576,7 @@
         width: 100%;
         height: auto;
         overflow: visible;
-        background: linear-gradient(180deg, #1c1c18 0, #1c1c18 100dvh, #f7f0e7 100dvh, #eef3ec 100%);
+        background: linear-gradient(180deg, #191724 0, #191724 100dvh, #f7f5f8 100dvh, #edf3f6 100%);
       }
 
       #scanner-stage {
@@ -582,7 +587,7 @@
         height: 100dvh;
         min-height: 540px;
         overflow: hidden;
-        background: #171714;
+        background: #191724;
       }
 
       .scanner-control-bar {
@@ -622,9 +627,9 @@
         gap: 1rem;
         padding: 1.1rem .9rem calc(1.5rem + env(safe-area-inset-bottom));
         background:
-          radial-gradient(circle at 10% 0%, rgba(242,162,95,.13), transparent 34%),
-          radial-gradient(circle at 90% 16%, rgba(146,199,165,.17), transparent 38%),
-          linear-gradient(180deg, #fbf6ef, #eef3ec);
+          radial-gradient(circle at 12% 0%, rgba(246,193,119,.18), transparent 34%),
+          radial-gradient(circle at 88% 14%, rgba(156,207,216,.18), transparent 38%),
+          linear-gradient(180deg, #faf8fb, #eef3f7);
       }
 
       .scanner-menu-panel,
@@ -646,21 +651,21 @@
       .scanner-glass-panel,
       .scanner-mini-stats {
         color: #2e2d28;
-        border-color: rgba(120,94,65,.16);
+        border-color: rgba(99,102,241,.12);
         background: rgba(255,255,255,.91);
         backdrop-filter: blur(14px);
         -webkit-backdrop-filter: blur(14px);
-        box-shadow: 0 12px 30px rgba(86,62,39,.10), inset 0 1px 0 rgba(255,255,255,.9);
+        box-shadow: 0 14px 34px rgba(44,39,68,.10), inset 0 1px 0 rgba(255,255,255,.9);
       }
 
       .scanner-panel-head {
         padding: .96rem 1rem;
-        border-bottom-color: rgba(91,74,56,.12);
-        background: linear-gradient(90deg, rgba(242,162,95,.15), rgba(146,199,165,.12));
+        border-bottom-color: rgba(71,85,105,.12);
+        background: linear-gradient(90deg, rgba(246,193,119,.18), rgba(235,111,146,.10) 52%, rgba(156,207,216,.12));
       }
 
-      .scanner-panel-title { color: #312b25; font-size: 1rem; }
-      .scanner-panel-meta { color: #7c6551; font-size: .72rem; }
+      .scanner-panel-title { color: #292536; font-size: 1rem; }
+      .scanner-panel-meta { color: #6b647b; font-size: .72rem; }
 
       .scanner-menu-content {
         max-height: none;
@@ -671,19 +676,19 @@
       .scanner-menu-days { gap: .8rem; }
 
       .scanner-menu-day {
-        border-color: rgba(120,94,65,.12);
-        background: linear-gradient(145deg, #fffaf3, #f5f8f1);
+        border-color: rgba(99,102,241,.10);
+        background: linear-gradient(145deg, #fffaf5, #f5f4fa 52%, #eef7f8);
       }
 
       .scanner-menu-day.is-today {
-        border-color: rgba(221,117,79,.28);
-        background: linear-gradient(145deg, #fff2e7, #fffaf3);
+        border-color: rgba(235,111,146,.24);
+        background: linear-gradient(145deg, #fff5ed, #fff7f7 54%, #f1f7f8);
       }
 
-      .scanner-menu-day-title { color: #342f2a; font-size: .9rem; }
-      .scanner-menu-day-list li { color: #342f2a; font-size: .94rem; line-height: 1.45; }
+      .scanner-menu-day-title { color: #292536; font-size: .9rem; }
+      .scanner-menu-day-list li { color: #292536; font-size: .94rem; line-height: 1.45; }
       .scanner-menu-empty { color: #7d756d; font-size: .86rem; }
-      .scanner-menu-holiday { color: #c44f37; }
+      .scanner-menu-holiday { color: #be4b72; }
 
       .scanner-attendee-list {
         min-height: 230px;
@@ -696,8 +701,8 @@
         border-bottom-color: rgba(91,74,56,.10);
       }
 
-      .scanner-attendee-name { color: #2c2c28; font-size: .9rem; }
-      .scanner-attendee-time { color: #3f7653; font-size: .75rem; }
+      .scanner-attendee-name { color: #292536; font-size: .9rem; }
+      .scanner-attendee-time { color: #31748f; font-size: .75rem; }
       .scanner-attendee-empty { color: #7d756d; }
 
       .scanner-mini-stats {
@@ -707,10 +712,10 @@
 
       .scanner-stat-item { padding: .9rem 1.05rem; }
       .scanner-stat-item + .scanner-stat-item { border-top-color: rgba(91,74,56,.12); }
-      .scanner-stat-label { color: #816b56; font-size: .76rem; }
-      .scanner-stat-item:first-child { background: linear-gradient(90deg, rgba(242,162,95,.14), rgba(255,255,255,0)); }
-      .scanner-stat-item:first-child .scanner-stat-value { color: #c55f3e; font-size: 2.2rem; }
-      .scanner-stat-item:last-child .scanner-stat-value { color: #3d684d; font-size: 1.25rem; }
+      .scanner-stat-label { color: #6b647b; font-size: .76rem; }
+      .scanner-stat-item:first-child { background: linear-gradient(90deg, rgba(246,193,119,.18), rgba(235,111,146,.05), rgba(255,255,255,0)); }
+      .scanner-stat-item:first-child .scanner-stat-value { color: #d97706; font-size: 2.2rem; }
+      .scanner-stat-item:last-child .scanner-stat-value { color: #31748f; font-size: 1.25rem; }
     }
 
     @media (orientation: landscape) and (max-height: 620px) and (min-width: 681px) {
@@ -758,9 +763,9 @@
     </main>
 
     <section class="scanner-info-zone" aria-label="스캐너 부가 정보">
-      <aside class="scanner-glass-panel scanner-menu-panel" aria-label="오늘부터 3일 식단표">
+      <aside class="scanner-glass-panel scanner-menu-panel" aria-label="식단표">
         <div class="scanner-panel-head">
-          <h2 class="scanner-panel-title">🍱 오늘부터 3일 식단</h2>
+          <h2 class="scanner-panel-title">🍱 식단표</h2>
           <span id="scanner-menu-date" class="scanner-panel-meta"></span>
         </div>
         <div class="scanner-menu-content">
@@ -791,9 +796,9 @@
     </section>
   </div>
 
-  <script type="module" src="JS/scanner_app.js?v=20260619-scanner4"></script>
+  <script type="module" src="JS/scanner_app.js?v=20260619-final3"></script>
   <script type="module">
-    import CameraManager from './JS/camera.js?v=20260619-scanner4';
+    import CameraManager from './JS/camera.js?v=20260619-final3';
     document.getElementById('custom-flip-btn')?.addEventListener('click', () => CameraManager.toggleCamera());
   </script>
 </body>
