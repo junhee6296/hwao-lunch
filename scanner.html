@@ -2,7 +2,8 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
   <title>Lunch Check 스캐너 : 화성오산교육청</title>
 
   <script>
@@ -14,104 +15,419 @@
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
-  <link rel="icon" href="/img/icon.png?v=20260610-qrfix15" type="image/png">
-  <link rel="stylesheet" href="CSS/style.css?v=20260610-qrfix15">
+  <link rel="icon" href="/img/icon.png?v=20260619-scanner" type="image/png">
+  <link rel="stylesheet" href="CSS/style.css?v=20260619-scanner">
 
   <style>
-    #reader { width: 100% !important; height: 100% !important; border: none !important; background: black; }
-    #reader__scan_region { width: 100% !important; height: 100% !important; }
-    #reader video { object-fit: cover !important; width: 100% !important; height: 100% !important; transition: transform 0.3s ease; }
-    .scanner-control-bar {
+    :root {
+      --scanner-box-size: min(62vmin, 420px);
+      --scanner-safe-top: max(0.75rem, env(safe-area-inset-top));
+      --scanner-safe-right: max(0.75rem, env(safe-area-inset-right));
+      --scanner-safe-bottom: max(0.75rem, env(safe-area-inset-bottom));
+      --scanner-safe-left: max(0.75rem, env(safe-area-inset-left));
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #000;
+      color: #fff;
+      overscroll-behavior: none;
+    }
+
+    body {
+      position: fixed;
+      inset: 0;
+      touch-action: manipulation;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    #scanner-dashboard,
+    #scanner-stage {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      height: 100dvh;
+      overflow: hidden;
+      background: #000;
+    }
+
+    #scanner-stage::after {
+      content: '';
       position: absolute;
-      top: 1rem;
-      left: 1rem;
-      right: 1rem;
-      z-index: 60;
+      inset: 0;
+      z-index: 8;
+      pointer-events: none;
+      background:
+        linear-gradient(180deg, rgba(0,0,0,.24), transparent 24%, transparent 72%, rgba(0,0,0,.3)),
+        radial-gradient(circle at center, transparent 48%, rgba(0,0,0,.22) 100%);
+    }
+
+    #reader,
+    #reader__scan_region {
+      position: absolute !important;
+      inset: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+      min-width: 100% !important;
+      min-height: 100% !important;
+      border: 0 !important;
+      background: #000 !important;
+      overflow: hidden !important;
+    }
+
+    #reader {
+      z-index: 1;
+    }
+
+    #reader video {
+      position: absolute !important;
+      inset: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+      min-width: 100% !important;
+      min-height: 100% !important;
+      object-fit: cover !important;
+      object-position: center center !important;
+      border: 0 !important;
+      transition: transform .28s ease;
+      background: #000;
+    }
+
+    #reader__dashboard,
+    #reader__dashboard_section,
+    #reader__dashboard_section_csr,
+    #reader__header_message,
+    #reader__status_span,
+    #reader__camera_permission_button,
+    #reader__filescan_input,
+    #reader img[alt="Info icon"] {
+      display: none !important;
+    }
+
+    #qr-shaded-region {
+      border: 0 !important;
+      box-shadow: none !important;
+    }
+
+    .scanner-control-bar {
+      position: fixed;
+      top: var(--scanner-safe-top);
+      left: var(--scanner-safe-left);
+      right: var(--scanner-safe-right);
+      z-index: 80;
       display: flex;
       align-items: flex-start;
       justify-content: space-between;
-      gap: .75rem;
+      gap: .55rem;
       pointer-events: none;
     }
-    .scanner-control-bar > * { pointer-events: auto; }
-    .scanner-link-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .5rem; }
-    .scanner-top-btn { min-height: 40px; white-space: nowrap; }
-    @media (max-width: 640px) {
-      .scanner-control-bar { top: .75rem; left: .75rem; right: .75rem; align-items: stretch; }
-      .scanner-top-btn { font-size: 12px !important; padding: .55rem .7rem !important; border-radius: .85rem !important; }
-      .scanner-link-actions { flex: 1; }
-      .scanner-link-actions a { flex: 1; justify-content: center; }
+
+    .scanner-control-bar > * {
+      pointer-events: auto;
     }
-    @media (max-width: 420px) {
-      .scanner-control-bar { flex-direction: column; }
-      .scanner-link-actions { width: 100%; }
+
+    .scanner-link-actions {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: .45rem;
+      min-width: 0;
+    }
+
+    .scanner-top-btn {
+      min-height: 42px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: .35rem;
+      padding: .62rem .82rem;
+      border-radius: .9rem;
+      border: 1px solid rgba(255,255,255,.25);
+      white-space: nowrap;
+      font-size: .82rem;
+      line-height: 1;
+      font-weight: 800;
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      box-shadow: 0 8px 22px rgba(0,0,0,.25);
+      transition: transform .14s ease, opacity .14s ease, background .14s ease;
+    }
+
+    .scanner-top-btn:active {
+      transform: scale(.96);
+    }
+
+    .scanner-top-btn:disabled,
+    .scanner-top-btn.is-switching {
+      opacity: .55;
+      cursor: wait;
+    }
+
+    .scan-guide {
+      position: fixed;
+      z-index: 30;
+      left: 50%;
+      top: 50%;
+      width: var(--scanner-box-size);
+      height: var(--scanner-box-size);
+      aspect-ratio: 1 / 1;
+      transform: translate(-50%, -50%);
+      border: 2px solid rgba(255,255,255,.78);
+      border-radius: clamp(18px, 4vmin, 34px);
+      box-shadow:
+        0 0 0 9999px rgba(0,0,0,.08),
+        0 0 0 1px rgba(0,0,0,.25),
+        0 10px 42px rgba(0,0,0,.24),
+        inset 0 0 24px rgba(255,255,255,.1);
+      pointer-events: none;
+    }
+
+    .scan-guide::before,
+    .scan-guide::after {
+      content: '';
+      position: absolute;
+      width: 30%;
+      height: 30%;
+      pointer-events: none;
+    }
+
+    .scan-guide::before {
+      left: -3px;
+      top: -3px;
+      border-left: 5px solid #fff;
+      border-top: 5px solid #fff;
+      border-radius: 18px 0 0 0;
+    }
+
+    .scan-guide::after {
+      right: -3px;
+      bottom: -3px;
+      border-right: 5px solid #fff;
+      border-bottom: 5px solid #fff;
+      border-radius: 0 0 18px 0;
+    }
+
+    .scanner-mini-stats {
+      position: fixed;
+      left: var(--scanner-safe-left);
+      bottom: var(--scanner-safe-bottom);
+      z-index: 70;
+      display: flex;
+      align-items: stretch;
+      max-width: min(330px, 48vw);
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,.28);
+      border-radius: 1rem;
+      background: rgba(15,23,42,.72);
+      color: #fff;
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      box-shadow: 0 12px 30px rgba(0,0,0,.28);
+    }
+
+    .scanner-stat-item {
+      min-width: 0;
+      padding: .6rem .78rem;
+    }
+
+    .scanner-stat-item + .scanner-stat-item {
+      border-left: 1px solid rgba(255,255,255,.16);
+    }
+
+    .scanner-stat-label {
+      display: block;
+      color: rgba(226,232,240,.76);
+      font-size: .68rem;
+      line-height: 1;
+      font-weight: 800;
+      margin-bottom: .32rem;
+    }
+
+    .scanner-stat-value {
+      display: block;
+      max-width: 140px;
+      overflow: hidden;
+      color: #fff;
+      font-size: 1rem;
+      line-height: 1.1;
+      font-weight: 900;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    #scan-result-panel {
+      position: fixed;
+      left: 50%;
+      bottom: var(--scanner-safe-bottom);
+      z-index: 75;
+      width: min(460px, calc(100vw - 2rem));
+      padding: .82rem 1rem;
+      transform: translateX(-50%);
+      border: 1px solid rgba(255,255,255,.42);
+      border-radius: 1.1rem;
+      background: rgba(255,255,255,.9);
+      color: #1f2937;
+      text-align: center;
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      box-shadow: 0 14px 36px rgba(0,0,0,.26);
+      transition: background .18s ease, border-color .18s ease, transform .18s ease;
+    }
+
+    #scan-result-panel[data-state="working"] {
+      background: rgba(248,250,252,.94);
+      border-color: rgba(148,163,184,.75);
+    }
+
+    #scan-result-panel[data-state="success"] {
+      background: rgba(236,253,245,.94);
+      border-color: rgba(34,197,94,.78);
+    }
+
+    #scan-result-panel[data-state="success"] #scan-msg {
+      color: #15803d;
+    }
+
+    #scan-result-panel[data-state="fail"] {
+      background: rgba(254,242,242,.95);
+      border-color: rgba(239,68,68,.76);
+    }
+
+    #scan-result-panel[data-state="fail"] #scan-msg {
+      color: #dc2626;
+    }
+
+    #scan-msg {
+      margin: 0;
+      font-size: clamp(1rem, 2.2vw, 1.35rem);
+      line-height: 1.2;
+      font-weight: 900;
+    }
+
+    #scan-sub-msg {
+      margin: .22rem 0 0;
+      color: #64748b;
+      font-size: clamp(.72rem, 1.7vw, .88rem);
+      line-height: 1.25;
+      font-weight: 700;
+    }
+
+    @media (max-width: 700px) {
+      .scanner-top-btn {
+        min-height: 38px;
+        padding: .56rem .65rem;
+        border-radius: .78rem;
+        font-size: .72rem;
+      }
+
+      .scanner-mini-stats {
+        max-width: calc(100vw - 1.5rem);
+      }
+
+      .scanner-stat-item {
+        padding: .52rem .65rem;
+      }
+
+      .scanner-stat-value {
+        max-width: 110px;
+        font-size: .9rem;
+      }
+
+      #scan-result-panel {
+        bottom: calc(var(--scanner-safe-bottom) + 4.7rem);
+        width: calc(100vw - 1.5rem);
+        padding: .72rem .85rem;
+      }
+    }
+
+    @media (max-width: 390px) {
+      .scanner-top-btn {
+        gap: .22rem;
+        padding-inline: .52rem;
+        font-size: .67rem;
+      }
+
+      .scanner-link-actions {
+        gap: .3rem;
+      }
+
+      .scanner-stat-label {
+        font-size: .62rem;
+      }
+
+      .scanner-stat-value {
+        max-width: 88px;
+        font-size: .84rem;
+      }
+    }
+
+    @media (orientation: landscape) and (max-height: 620px) {
+      .scanner-mini-stats {
+        max-width: 42vw;
+      }
+
+      #scan-result-panel {
+        left: auto;
+        right: var(--scanner-safe-right);
+        bottom: var(--scanner-safe-bottom);
+        width: min(360px, 45vw);
+        transform: none;
+      }
     }
   </style>
 </head>
-<body class="bg-gray-100">
-  <div id="scanner-dashboard" class="min-h-screen lg:h-screen flex flex-col bg-gray-100">
-    <main class="flex-1 flex flex-col lg:flex-row gap-4 lg:gap-6 p-4 lg:p-6 min-h-0 overflow-auto lg:overflow-hidden">
-      <section class="flex-1 flex flex-col gap-4 min-h-[620px] lg:min-h-0">
-        <div class="bg-black rounded-3xl shadow-lg border border-gray-200 flex-1 relative overflow-hidden flex items-center justify-center">
-          <div class="scanner-control-bar">
-            <button id="custom-flip-btn" class="scanner-top-btn bg-white/90 text-gray-800 px-3 py-2 rounded-xl shadow-md text-sm font-bold flex items-center gap-1 backdrop-blur active:scale-95 transition-transform hover:bg-gray-100">
-              🔄 전면/후면 전환
-            </button>
-            <div class="scanner-link-actions">
-              <a href="/qr.html" class="scanner-top-btn bg-white/90 hover:bg-white text-gray-700 font-bold py-2 px-4 rounded-xl shadow-md text-sm flex items-center gap-1 backdrop-blur transition">📱 QR 발급</a>
-              <a href="/admin.html" class="scanner-top-btn bg-gray-900/90 hover:bg-black text-white font-bold py-2 px-4 rounded-xl shadow-md text-sm flex items-center gap-1 backdrop-blur transition">🔐 관리자</a>
-            </div>
-          </div>
+<body>
+  <div id="scanner-dashboard">
+    <main id="scanner-stage" aria-label="Lunch Check QR 스캐너">
+      <div id="reader"></div>
+      <div class="scan-guide" aria-hidden="true"></div>
 
-          <div id="reader" class="w-full h-full"></div>
+      <div class="scanner-control-bar">
+        <button id="custom-flip-btn" type="button" class="scanner-top-btn bg-white/88 text-slate-800 hover:bg-white" aria-label="후면 카메라로 전환">
+          <span aria-hidden="true">🔄</span>
+          <span>전면/후면 전환</span>
+        </button>
 
-          <div id="scan-result-panel" class="absolute bottom-6 left-1/2 -translate-x-1/2 w-11/12 max-w-md p-4 text-center rounded-2xl bg-white/95 backdrop-blur shadow-2xl z-50 transition-all border-4 border-transparent">
-             <p id="scan-msg" class="text-xl lg:text-2xl font-bold text-gray-700">QR 코드를 보여주세요</p>
-             <p id="scan-sub-msg" class="text-sm text-gray-500 mt-1">인식 시 자동으로 식사 명단에 등록됩니다</p>
-          </div>
+        <div class="scanner-link-actions">
+          <a href="/qr.html" class="scanner-top-btn bg-white/88 text-slate-700 hover:bg-white">
+            <span aria-hidden="true">📱</span>
+            <span>QR 발급</span>
+          </a>
+          <a href="/admin.html" class="scanner-top-btn bg-slate-950/82 text-white hover:bg-black">
+            <span aria-hidden="true">🔐</span>
+            <span>관리자</span>
+          </a>
         </div>
+      </div>
 
-        <div class="grid grid-cols-2 gap-4 shrink-0">
-          <div class="bg-white p-5 lg:p-6 rounded-2xl shadow-md border-b-4 border-green-500">
-            <p class="text-gray-500 font-bold">오늘 현재 식수</p>
-            <h3 id="stat-count" class="text-4xl lg:text-5xl font-black text-gray-900 mt-2">0명</h3>
-          </div>
-          <div class="bg-white p-5 lg:p-6 rounded-2xl shadow-md border-b-4 border-blue-500">
-            <p class="text-gray-500 font-bold">최근 식사자</p>
-            <h3 id="recent-diner" class="text-xl lg:text-2xl font-bold text-blue-600 mt-2 truncate">-</h3>
-          </div>
+      <section class="scanner-mini-stats" aria-label="오늘 식수 현황">
+        <div class="scanner-stat-item">
+          <span class="scanner-stat-label">오늘 식수</span>
+          <strong id="stat-count" class="scanner-stat-value">0명</strong>
+        </div>
+        <div class="scanner-stat-item">
+          <span class="scanner-stat-label">최근 식사자</span>
+          <strong id="recent-diner" class="scanner-stat-value">없음</strong>
         </div>
       </section>
 
-      <aside class="w-full lg:w-1/3 bg-white rounded-3xl shadow-lg border border-gray-200 flex flex-col shrink-0 lg:shrink overflow-hidden h-[560px] lg:h-auto">
-        <div class="p-5 lg:p-6 border-b border-gray-100 bg-gray-50 shrink-0">
-          <div class="flex flex-col gap-3">
-            <h2 class="text-2xl font-black text-gray-800">📋 실시간 식사 명단</h2>
-            <div class="flex flex-wrap gap-2 items-center">
-              <input type="date" id="date-selector" class="bg-blue-50 border border-blue-100 text-blue-800 font-bold py-2 px-3 rounded-xl outline-none">
-              <button id="btn-refresh-diners" class="bg-gray-900 hover:bg-black text-white font-bold py-2 px-4 rounded-xl shadow-sm">조회</button>
-            </div>
-          </div>
-        </div>
-        <div class="flex-1 overflow-y-auto">
-          <table class="w-full text-left">
-            <thead class="bg-gray-50 sticky top-0">
-              <tr>
-                <th class="p-4 font-bold text-gray-600 border-b">이름</th>
-                <th class="p-4 font-bold text-gray-600 border-b text-center">시간</th>
-              </tr>
-            </thead>
-            <tbody id="diner-table-body" class="divide-y divide-gray-100"></tbody>
-          </table>
-        </div>
-      </aside>
+      <div id="scan-result-panel" data-state="idle" role="status" aria-live="polite">
+        <p id="scan-msg">QR 코드를 보여주세요</p>
+        <p id="scan-sub-msg">인식 시 자동으로 식사 처리됩니다</p>
+      </div>
     </main>
   </div>
 
-  <script type="module" src="JS/scanner_app.js?v=20260610-lunchcheck"></script>
+  <script type="module" src="JS/scanner_app.js?v=20260619-scanner-rework"></script>
   <script type="module">
-      import CameraManager from './JS/camera.js?v=20260610-lunchcheck';
-      document.getElementById('custom-flip-btn')?.addEventListener('click', () => CameraManager.toggleCamera());
+    import CameraManager from './JS/camera.js?v=20260619-scanner-rework';
+    document.getElementById('custom-flip-btn')?.addEventListener('click', () => CameraManager.toggleCamera());
   </script>
 </body>
 </html>
