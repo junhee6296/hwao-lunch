@@ -11,7 +11,7 @@
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <link rel="stylesheet" href="CSS/style.css?v=20260610-transparentcorners">
+  <link rel="stylesheet" href="CSS/style.css?v=20260619-mobile-menu">
 
   <style>
     :root {
@@ -172,6 +172,64 @@
       #btn-back-to-form { height: 3rem !important; margin-top: 0.6rem !important; }
     }
 
+
+    #menu-modal {
+      align-items: flex-start;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      padding-top: max(0.75rem, env(safe-area-inset-top));
+      padding-right: max(0.75rem, env(safe-area-inset-right));
+      padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+      padding-left: max(0.75rem, env(safe-area-inset-left));
+    }
+    #menu-modal-panel {
+      width: min(100%, 42rem);
+      max-height: calc(100vh - 1.5rem);
+      max-height: calc(100dvh - max(1.5rem, env(safe-area-inset-top) + env(safe-area-inset-bottom)));
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      margin: auto 0;
+      overflow: hidden;
+    }
+    #menu-modal-header,
+    #menu-modal-controls {
+      flex: 0 0 auto;
+    }
+    #menu-list {
+      flex: 1 1 auto;
+      min-height: 0;
+      max-height: none !important;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+    }
+    @media (max-width: 640px) {
+      #menu-modal {
+        padding-top: max(0.5rem, env(safe-area-inset-top));
+        padding-right: max(0.5rem, env(safe-area-inset-right));
+        padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+        padding-left: max(0.5rem, env(safe-area-inset-left));
+      }
+      #menu-modal-panel {
+        width: 100%;
+        max-height: calc(100vh - 1rem);
+        max-height: calc(100dvh - max(1rem, env(safe-area-inset-top) + env(safe-area-inset-bottom)));
+        border-width: 2px;
+        border-radius: 1.4rem;
+      }
+      #menu-modal-header,
+      #menu-modal-controls,
+      #menu-list {
+        padding: 1rem;
+      }
+      #menu-modal-header h3 { font-size: 1.25rem; }
+      #menu-modal-header p { font-size: 0.76rem; }
+      #menu-modal-controls { gap: 0.55rem; }
+      #menu-modal-controls input,
+      #menu-modal-controls button { min-height: 44px; }
+    }
+
     @media (max-width: 480px) {
       .input-label { font-size: 1.1rem; }
       .form-input { height: 64px; font-size: 1.05rem; }
@@ -235,20 +293,20 @@
       </div>
     </main>
 
-    <div id="menu-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-      <div class="bg-white rounded-[2rem] max-w-2xl w-full max-h-[86vh] overflow-hidden shadow-2xl border-4 border-slate-200">
-        <div class="p-5 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+    <div id="menu-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex justify-center backdrop-blur-sm">
+      <div id="menu-modal-panel" class="bg-white rounded-[2rem] max-w-2xl w-full shadow-2xl border-4 border-slate-200">
+        <div id="menu-modal-header" class="p-5 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <h3 class="text-2xl font-black text-slate-900">🍱 식단표 보기</h3>
             <p class="text-sm text-slate-500 font-bold">날짜별 메뉴와 원산지를 확인할 수 있습니다.</p>
           </div>
           <button id="btn-close-menu" class="bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-xl px-4 py-2 font-black">닫기</button>
         </div>
-        <div class="p-5 border-b border-slate-200 flex flex-col sm:flex-row gap-3">
+        <div id="menu-modal-controls" class="p-5 border-b border-slate-200 flex flex-col sm:flex-row gap-3">
           <input type="month" id="menu-month" class="flex-1 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 font-black text-slate-700 outline-none">
           <button id="btn-load-menu" class="bg-slate-500 hover:bg-slate-800 text-white rounded-2xl px-5 py-3 font-black shadow">식단 조회</button>
         </div>
-        <div id="menu-list" class="p-5 space-y-3 overflow-y-auto max-h-[56vh] bg-slate-50/60">
+        <div id="menu-list" class="p-5 space-y-3 bg-slate-50/60">
           <div class="text-center text-slate-600 font-bold py-10">식단표를 불러오는 중입니다.</div>
         </div>
       </div>
@@ -302,6 +360,6 @@
     </footer>
   </div>
 
-  <script type="module" src="JS/qr_app.js?v=20260610-visualhotfix"></script>
+  <script type="module" src="JS/qr_app.js?v=20260619-mobile-menu"></script>
 </body>
 </html>

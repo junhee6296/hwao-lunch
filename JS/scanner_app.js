@@ -50,6 +50,111 @@ const PROCESSING_COOLDOWN_MS = 1300;
 
 const $ = (id) => document.getElementById(id);
 
+
+function formatScannerDate(dateStr) {
+  const [year, month, day] = String(dateStr || '').split('-').map(Number);
+  if (!year || !month || !day) return dateStr || '';
+  const weekday = ['일', '월', '화', '수', '목', '금', '토'][new Date(Date.UTC(year, month - 1, day)).getUTCDay()];
+  return `${month}/${day}(${weekday})`;
+}
+
+function formatScannerTime(value) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  return date.toLocaleTimeString('ko-KR', {
+    timeZone: 'Asia/Seoul',
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  });
+}
+
+function renderAttendeeList(attendees) {
+  const list = $('scanner-attendee-list');
+  const count = $('scanner-attendee-count');
+  if (count) count.textContent = `${attendees.length}명`;
+  if (!list) return;
+
+  list.replaceChildren();
+  if (!attendees.length) {
+    const empty = document.createElement('p');
+    empty.className = 'scanner-attendee-empty';
+    empty.textContent = '아직 식사자가 없습니다.';
+    list.appendChild(empty);
+    return;
+  }
+
+  attendees.forEach((attendee) => {
+    const row = document.createElement('div');
+    row.className = 'scanner-attendee-row';
+
+    const name = document.createElement('span');
+    name.className = 'scanner-attendee-name';
+    name.textContent = attendee?.name || '-';
+
+    const time = document.createElement('time');
+    time.className = 'scanner-attendee-time';
+    time.textContent = formatScannerTime(attendee?.scannedAt);
+
+    row.append(name, time);
+    list.appendChild(row);
+  });
+}
+
+function renderTodayMenu(day, date) {
+  const list = $('scanner-menu-list');
+  const empty = $('scanner-menu-empty');
+  const dateLabel = $('scanner-menu-date');
+  if (dateLabel) dateLabel.textContent = formatScannerDate(date);
+  if (!list || !empty) return;
+
+  list.replaceChildren();
+  empty.className = 'scanner-menu-empty';
+
+  const menus = Array.isArray(day?.menu) ? day.menu.filter(Boolean) : [];
+  const isHoliday = Boolean(day?.holidayName) || menus.includes('공휴일');
+
+  if (isHoliday) {
+    empty.className = 'scanner-menu-holiday';
+    empty.textContent = day?.holidayName && day.holidayName !== '공휴일'
+      ? `공휴일 · ${day.holidayName}`
+      : '공휴일';
+    empty.hidden = false;
+    return;
+  }
+
+  if (!menus.length) {
+    empty.textContent = '등록된 오늘 식단이 없습니다.';
+    empty.hidden = false;
+    return;
+  }
+
+  empty.hidden = true;
+  menus.forEach((menu) => {
+    const item = document.createElement('li');
+    item.textContent = String(menu);
+    list.appendChild(item);
+  });
+}
+
+async function loadTodayMenu(date = currentServiceDate) {
+  const requestedDate = date;
+  const yearMonth = String(requestedDate).slice(0, 7);
+  try {
+    const res = await fetch(`${API_BASE_URL}/menu/month/${encodeURIComponent(yearMonth)}`, { cache: 'no-store' });
+    if (!res.ok) throw new Error('식단표를 불러올 수 없습니다.');
+    const data = await res.json();
+    if (requestedDate !== currentServiceDate) return;
+    renderTodayMenu(data?.days?.[requestedDate] || null, requestedDate);
+  } catch (error) {
+    console.error('오늘 식단 로드 실패:', error);
+    if (requestedDate !== currentServiceDate) return;
+    renderTodayMenu(null, requestedDate);
+  }
+}
+
 function pickRandomAudio(type) {
   const items = Array.isArray(audioManifest[type]) ? audioManifest[type] : [];
   if (!items.length) return '';
@@ -193,6 +298,7 @@ async function unlockAudio() {
 function resetScannerStats() {
   if ($('stat-count')) $('stat-count').textContent = '0명';
   if ($('recent-diner')) $('recent-diner').textContent = '없음';
+  renderAttendeeList([]);
 }
 
 async function loadScannerStats(date = currentServiceDate) {
@@ -208,6 +314,7 @@ async function loadScannerStats(date = currentServiceDate) {
 
     if ($('stat-count')) $('stat-count').textContent = `${attendedOnly.length}명`;
     if ($('recent-diner')) $('recent-diner').textContent = attendedOnly[0]?.name || '없음';
+    renderAttendeeList(attendedOnly);
   } catch (error) {
     console.error('식수 현황 로드 실패:', error);
   }
@@ -223,6 +330,7 @@ function checkDateRollover() {
   window.isScanningAction = false;
   resetScannerStats();
   loadScannerStats(today);
+  loadTodayMenu(today);
   showScanResult('idle', 'QR 코드를 보여주세요', '새 날짜의 식수 집계를 시작합니다');
   return true;
 }
@@ -248,13 +356,18 @@ function showScanResult(state, message, subMessage) {
 }
 
 function calculateScanBox(viewWidth, viewHeight) {
-  const fallbackWidth = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 1);
-  const fallbackHeight = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 1);
-  const width = Number(viewWidth) > 0 ? Number(viewWidth) : fallbackWidth;
-  const height = Number(viewHeight) > 0 ? Number(viewHeight) : fallbackHeight;
-  const available = Math.max(96, Math.min(width, height) - 36);
-  const preferred = Math.floor(available * 0.72);
-  const size = Math.max(96, Math.min(440, preferred, available));
+  const visualWidth = window.visualViewport?.width || window.innerWidth || document.documentElement.clientWidth || 1;
+  const visualHeight = window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight || 1;
+  const width = Number(viewWidth) > 0 ? Math.min(Number(viewWidth), visualWidth) : visualWidth;
+  const height = Number(viewHeight) > 0 ? Math.min(Number(viewHeight), visualHeight) : visualHeight;
+
+  const isNarrow = width < 900;
+  const sidePanelReserve = isNarrow ? 0 : Math.min(330, Math.max(200, width * 0.235));
+  const usableWidth = isNarrow ? width * 0.58 : width - sidePanelReserve * 2 - 56;
+  const usableHeight = height - (height < 640 ? 128 : 176);
+  const available = Math.max(180, Math.min(usableWidth, usableHeight));
+  const size = Math.max(180, Math.min(460, Math.floor(available * 0.94)));
+
   document.documentElement.style.setProperty('--scanner-box-size', `${size}px`);
   return size;
 }
@@ -391,6 +504,7 @@ function initScannerPage() {
 
   loadAudioManifest();
   loadScannerStats(currentServiceDate);
+  loadTodayMenu(currentServiceDate);
   window.startScanner('user').catch(() => {});
 
   document.addEventListener('pointerdown', unlockAudio, { once: true, capture: true });
@@ -401,20 +515,24 @@ function initScannerPage() {
     loadScannerStats(currentServiceDate);
   }, 15000);
   window.setInterval(checkDateRollover, 5000);
+  window.setInterval(() => loadTodayMenu(currentServiceDate), 5 * 60 * 1000);
 
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) {
       checkDateRollover();
       loadScannerStats(currentServiceDate);
+      loadTodayMenu(currentServiceDate);
     }
   });
   window.addEventListener('focus', () => {
     checkDateRollover();
     loadScannerStats(currentServiceDate);
+    loadTodayMenu(currentServiceDate);
   });
   window.addEventListener('orientationchange', scheduleOrientationRestart);
   window.screen?.orientation?.addEventListener?.('change', scheduleOrientationRestart);
   window.addEventListener('resize', () => calculateScanBox(window.innerWidth, window.innerHeight));
+  window.visualViewport?.addEventListener?.('resize', () => calculateScanBox(window.visualViewport.width, window.visualViewport.height));
 }
 
 document.addEventListener('DOMContentLoaded', initScannerPage);

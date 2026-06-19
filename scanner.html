@@ -15,16 +15,18 @@
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
-  <link rel="icon" href="/img/icon.png?v=20260619-scanner" type="image/png">
-  <link rel="stylesheet" href="CSS/style.css?v=20260619-scanner">
+  <link rel="icon" href="/img/icon.png?v=20260619-scanner2" type="image/png">
+  <link rel="stylesheet" href="CSS/style.css?v=20260619-scanner2">
 
   <style>
     :root {
-      --scanner-box-size: min(62vmin, 420px);
+      --scanner-box-size: min(62vmin, 430px);
       --scanner-safe-top: max(0.75rem, env(safe-area-inset-top));
       --scanner-safe-right: max(0.75rem, env(safe-area-inset-right));
       --scanner-safe-bottom: max(0.75rem, env(safe-area-inset-bottom));
       --scanner-safe-left: max(0.75rem, env(safe-area-inset-left));
+      --scanner-panel-bg: rgba(15, 23, 42, 0.78);
+      --scanner-panel-border: rgba(255, 255, 255, 0.25);
     }
 
     html,
@@ -64,8 +66,8 @@
       z-index: 8;
       pointer-events: none;
       background:
-        linear-gradient(180deg, rgba(0,0,0,.24), transparent 24%, transparent 72%, rgba(0,0,0,.3)),
-        radial-gradient(circle at center, transparent 48%, rgba(0,0,0,.22) 100%);
+        linear-gradient(180deg, rgba(0,0,0,.28), transparent 22%, transparent 72%, rgba(0,0,0,.34)),
+        radial-gradient(circle at center, transparent 42%, rgba(0,0,0,.22) 100%);
     }
 
     #reader,
@@ -81,9 +83,7 @@
       overflow: hidden !important;
     }
 
-    #reader {
-      z-index: 1;
-    }
+    #reader { z-index: 1; }
 
     #reader video {
       position: absolute !important;
@@ -120,53 +120,64 @@
       top: var(--scanner-safe-top);
       left: var(--scanner-safe-left);
       right: var(--scanner-safe-right);
-      z-index: 80;
+      z-index: 90;
       display: flex;
       align-items: flex-start;
       justify-content: space-between;
-      gap: .55rem;
+      gap: .6rem;
       pointer-events: none;
     }
 
-    .scanner-control-bar > * {
-      pointer-events: auto;
-    }
+    .scanner-control-bar > * { pointer-events: auto; }
 
     .scanner-link-actions {
       display: flex;
       justify-content: flex-end;
       align-items: center;
-      gap: .45rem;
+      gap: .48rem;
       min-width: 0;
     }
 
     .scanner-top-btn {
-      min-height: 42px;
+      min-height: 44px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: .35rem;
-      padding: .62rem .82rem;
-      border-radius: .9rem;
-      border: 1px solid rgba(255,255,255,.25);
+      gap: .38rem;
+      padding: .68rem .88rem;
+      border-radius: .95rem;
+      border: 1px solid rgba(255,255,255,.34);
       white-space: nowrap;
       font-size: .82rem;
       line-height: 1;
-      font-weight: 800;
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
-      box-shadow: 0 8px 22px rgba(0,0,0,.25);
-      transition: transform .14s ease, opacity .14s ease, background .14s ease;
+      font-weight: 900;
+      backdrop-filter: blur(15px);
+      -webkit-backdrop-filter: blur(15px);
+      box-shadow: 0 9px 24px rgba(0,0,0,.28);
+      transition: transform .14s ease, opacity .14s ease, filter .14s ease;
     }
 
-    .scanner-top-btn:active {
-      transform: scale(.96);
-    }
-
+    .scanner-top-btn:hover { filter: brightness(1.06); }
+    .scanner-top-btn:active { transform: scale(.96); }
     .scanner-top-btn:disabled,
-    .scanner-top-btn.is-switching {
-      opacity: .55;
-      cursor: wait;
+    .scanner-top-btn.is-switching { opacity: .55; cursor: wait; }
+
+    .scanner-flip-btn {
+      color: #1e293b;
+      background: rgba(255,255,255,.93);
+      border-color: rgba(255,255,255,.75);
+    }
+
+    .scanner-qr-btn {
+      color: #fff;
+      background: rgba(37,99,235,.92);
+      border-color: rgba(147,197,253,.7);
+    }
+
+    .scanner-admin-btn {
+      color: #fff;
+      background: rgba(15,23,42,.94);
+      border-color: rgba(148,163,184,.54);
     }
 
     .scan-guide {
@@ -174,87 +185,241 @@
       z-index: 30;
       left: 50%;
       top: 50%;
-      width: var(--scanner-box-size);
-      height: var(--scanner-box-size);
+      width: var(--scanner-box-size) !important;
+      height: var(--scanner-box-size) !important;
+      min-width: var(--scanner-box-size) !important;
+      min-height: var(--scanner-box-size) !important;
+      max-width: var(--scanner-box-size) !important;
+      max-height: var(--scanner-box-size) !important;
       aspect-ratio: 1 / 1;
+      flex: 0 0 var(--scanner-box-size);
       transform: translate(-50%, -50%);
-      border: 2px solid rgba(255,255,255,.78);
+      border: 2px solid rgba(255,255,255,.86);
       border-radius: clamp(18px, 4vmin, 34px);
+      box-sizing: border-box;
       box-shadow:
-        0 0 0 9999px rgba(0,0,0,.08),
-        0 0 0 1px rgba(0,0,0,.25),
-        0 10px 42px rgba(0,0,0,.24),
-        inset 0 0 24px rgba(255,255,255,.1);
+        0 0 0 9999px rgba(0,0,0,.48),
+        0 0 0 1px rgba(0,0,0,.4),
+        0 12px 46px rgba(0,0,0,.35),
+        inset 0 0 28px rgba(255,255,255,.08);
       pointer-events: none;
+      contain: strict;
     }
 
     .scan-guide::before,
     .scan-guide::after {
       content: '';
       position: absolute;
-      width: 30%;
-      height: 30%;
+      inset: -4px;
+      border-radius: inherit;
       pointer-events: none;
     }
 
     .scan-guide::before {
-      left: -3px;
-      top: -3px;
-      border-left: 5px solid #fff;
-      border-top: 5px solid #fff;
-      border-radius: 18px 0 0 0;
+      background:
+        linear-gradient(#fff,#fff) left top / 29% 5px no-repeat,
+        linear-gradient(#fff,#fff) left top / 5px 29% no-repeat,
+        linear-gradient(#fff,#fff) right top / 29% 5px no-repeat,
+        linear-gradient(#fff,#fff) right top / 5px 29% no-repeat,
+        linear-gradient(#fff,#fff) left bottom / 29% 5px no-repeat,
+        linear-gradient(#fff,#fff) left bottom / 5px 29% no-repeat,
+        linear-gradient(#fff,#fff) right bottom / 29% 5px no-repeat,
+        linear-gradient(#fff,#fff) right bottom / 5px 29% no-repeat;
+      filter: drop-shadow(0 0 6px rgba(0,0,0,.38));
     }
 
     .scan-guide::after {
-      right: -3px;
-      bottom: -3px;
-      border-right: 5px solid #fff;
-      border-bottom: 5px solid #fff;
-      border-radius: 0 0 18px 0;
+      inset: 8px;
+      border: 1px solid rgba(255,255,255,.15);
+    }
+
+    .scanner-glass-panel {
+      z-index: 70;
+      overflow: hidden;
+      border: 1px solid var(--scanner-panel-border);
+      border-radius: 1rem;
+      background: var(--scanner-panel-bg);
+      color: #fff;
+      backdrop-filter: blur(17px);
+      -webkit-backdrop-filter: blur(17px);
+      box-shadow: 0 13px 32px rgba(0,0,0,.32);
+    }
+
+    .scanner-menu-panel {
+      position: fixed;
+      left: var(--scanner-safe-left);
+      top: 50%;
+      width: clamp(180px, 21vw, 290px);
+      max-height: min(42vh, 360px);
+      transform: translateY(-48%);
+    }
+
+    .scanner-attendee-panel {
+      position: fixed;
+      right: var(--scanner-safe-right);
+      top: calc(var(--scanner-safe-top) + 3.9rem);
+      bottom: var(--scanner-safe-bottom);
+      width: clamp(205px, 23vw, 320px);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .scanner-panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .55rem;
+      padding: .75rem .85rem;
+      border-bottom: 1px solid rgba(255,255,255,.14);
+      background: rgba(15,23,42,.34);
+    }
+
+    .scanner-panel-title {
+      margin: 0;
+      color: #fff;
+      font-size: .86rem;
+      line-height: 1.2;
+      font-weight: 900;
+    }
+
+    .scanner-panel-meta {
+      color: rgba(226,232,240,.72);
+      font-size: .65rem;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .scanner-menu-content {
+      max-height: calc(min(42vh, 360px) - 48px);
+      overflow-y: auto;
+      padding: .78rem .88rem .9rem;
+      overscroll-behavior: contain;
+    }
+
+    .scanner-menu-list {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      display: grid;
+      gap: .4rem;
+    }
+
+    .scanner-menu-list li {
+      position: relative;
+      padding-left: .72rem;
+      color: rgba(248,250,252,.96);
+      font-size: .78rem;
+      line-height: 1.35;
+      font-weight: 800;
+      word-break: keep-all;
+    }
+
+    .scanner-menu-list li::before {
+      content: '•';
+      position: absolute;
+      left: 0;
+      color: #93c5fd;
+    }
+
+    .scanner-menu-empty {
+      color: rgba(226,232,240,.68);
+      font-size: .76rem;
+      line-height: 1.45;
+      font-weight: 700;
+    }
+
+    .scanner-menu-holiday {
+      color: #fca5a5;
+      font-size: 1rem;
+      font-weight: 900;
+    }
+
+    .scanner-attendee-list {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
+
+    .scanner-attendee-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: .65rem;
+      padding: .63rem .78rem;
+      border-bottom: 1px solid rgba(255,255,255,.11);
+    }
+
+    .scanner-attendee-name {
+      overflow: hidden;
+      color: #fff;
+      font-size: .82rem;
+      font-weight: 900;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .scanner-attendee-time {
+      color: #86efac;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: .7rem;
+      font-weight: 800;
+    }
+
+    .scanner-attendee-empty {
+      padding: 1.2rem .8rem;
+      color: rgba(226,232,240,.64);
+      font-size: .75rem;
+      font-weight: 700;
+      text-align: center;
     }
 
     .scanner-mini-stats {
       position: fixed;
       left: var(--scanner-safe-left);
       bottom: var(--scanner-safe-bottom);
-      z-index: 70;
-      display: flex;
+      z-index: 76;
+      width: clamp(270px, 28vw, 370px);
+      min-height: 76px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
       align-items: stretch;
-      max-width: min(330px, 48vw);
       overflow: hidden;
-      border: 1px solid rgba(255,255,255,.28);
+      border: 1px solid rgba(255,255,255,.32);
       border-radius: 1rem;
-      background: rgba(15,23,42,.72);
+      background: rgba(15,23,42,.82);
       color: #fff;
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      box-shadow: 0 12px 30px rgba(0,0,0,.28);
+      backdrop-filter: blur(17px);
+      -webkit-backdrop-filter: blur(17px);
+      box-shadow: 0 13px 32px rgba(0,0,0,.34);
     }
 
     .scanner-stat-item {
       min-width: 0;
-      padding: .6rem .78rem;
+      padding: .78rem .9rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
     }
 
     .scanner-stat-item + .scanner-stat-item {
-      border-left: 1px solid rgba(255,255,255,.16);
+      border-left: 1px solid rgba(255,255,255,.17);
     }
 
     .scanner-stat-label {
       display: block;
-      color: rgba(226,232,240,.76);
-      font-size: .68rem;
+      color: rgba(226,232,240,.75);
+      font-size: .69rem;
       line-height: 1;
       font-weight: 800;
-      margin-bottom: .32rem;
+      margin-bottom: .4rem;
     }
 
     .scanner-stat-value {
       display: block;
-      max-width: 140px;
       overflow: hidden;
       color: #fff;
-      font-size: 1rem;
+      font-size: 1.15rem;
       line-height: 1.1;
       font-weight: 900;
       text-overflow: ellipsis;
@@ -265,43 +430,26 @@
       position: fixed;
       left: 50%;
       bottom: var(--scanner-safe-bottom);
-      z-index: 75;
+      z-index: 78;
       width: min(460px, calc(100vw - 2rem));
       padding: .82rem 1rem;
       transform: translateX(-50%);
       border: 1px solid rgba(255,255,255,.42);
       border-radius: 1.1rem;
-      background: rgba(255,255,255,.9);
+      background: rgba(255,255,255,.92);
       color: #1f2937;
       text-align: center;
       backdrop-filter: blur(16px);
       -webkit-backdrop-filter: blur(16px);
-      box-shadow: 0 14px 36px rgba(0,0,0,.26);
+      box-shadow: 0 14px 36px rgba(0,0,0,.28);
       transition: background .18s ease, border-color .18s ease, transform .18s ease;
     }
 
-    #scan-result-panel[data-state="working"] {
-      background: rgba(248,250,252,.94);
-      border-color: rgba(148,163,184,.75);
-    }
-
-    #scan-result-panel[data-state="success"] {
-      background: rgba(236,253,245,.94);
-      border-color: rgba(34,197,94,.78);
-    }
-
-    #scan-result-panel[data-state="success"] #scan-msg {
-      color: #15803d;
-    }
-
-    #scan-result-panel[data-state="fail"] {
-      background: rgba(254,242,242,.95);
-      border-color: rgba(239,68,68,.76);
-    }
-
-    #scan-result-panel[data-state="fail"] #scan-msg {
-      color: #dc2626;
-    }
+    #scan-result-panel[data-state="working"] { background: rgba(248,250,252,.95); border-color: rgba(148,163,184,.75); }
+    #scan-result-panel[data-state="success"] { background: rgba(236,253,245,.95); border-color: rgba(34,197,94,.78); }
+    #scan-result-panel[data-state="success"] #scan-msg { color: #15803d; }
+    #scan-result-panel[data-state="fail"] { background: rgba(254,242,242,.96); border-color: rgba(239,68,68,.76); }
+    #scan-result-panel[data-state="fail"] #scan-msg { color: #dc2626; }
 
     #scan-msg {
       margin: 0;
@@ -318,67 +466,52 @@
       font-weight: 700;
     }
 
-    @media (max-width: 700px) {
-      .scanner-top-btn {
-        min-height: 38px;
-        padding: .56rem .65rem;
-        border-radius: .78rem;
-        font-size: .72rem;
+    @media (max-width: 900px) {
+      .scanner-menu-panel {
+        top: calc(var(--scanner-safe-top) + 4rem);
+        width: min(40vw, 205px);
+        max-height: 31vh;
+        transform: none;
       }
 
-      .scanner-mini-stats {
-        max-width: calc(100vw - 1.5rem);
+      .scanner-attendee-panel {
+        top: calc(var(--scanner-safe-top) + 4rem);
+        bottom: auto;
+        width: min(40vw, 215px);
+        max-height: 31vh;
       }
 
-      .scanner-stat-item {
-        padding: .52rem .65rem;
-      }
-
-      .scanner-stat-value {
-        max-width: 110px;
-        font-size: .9rem;
-      }
-
-      #scan-result-panel {
-        bottom: calc(var(--scanner-safe-bottom) + 4.7rem);
-        width: calc(100vw - 1.5rem);
-        padding: .72rem .85rem;
-      }
+      .scanner-menu-content { max-height: calc(31vh - 46px); }
+      .scanner-attendee-list { max-height: calc(31vh - 46px); }
+      .scanner-mini-stats { width: min(360px, calc(100vw - 1.5rem)); }
+      #scan-result-panel { bottom: calc(var(--scanner-safe-bottom) + 5.5rem); width: calc(100vw - 1.5rem); }
     }
 
-    @media (max-width: 390px) {
-      .scanner-top-btn {
-        gap: .22rem;
-        padding-inline: .52rem;
-        font-size: .67rem;
-      }
-
-      .scanner-link-actions {
-        gap: .3rem;
-      }
-
-      .scanner-stat-label {
-        font-size: .62rem;
-      }
-
-      .scanner-stat-value {
-        max-width: 88px;
-        font-size: .84rem;
-      }
+    @media (max-width: 620px) {
+      .scanner-top-btn { min-height: 38px; padding: .56rem .62rem; border-radius: .78rem; font-size: .7rem; }
+      .scanner-link-actions { gap: .32rem; }
+      .scanner-menu-panel, .scanner-attendee-panel { width: calc(50vw - 1rem); max-height: 25vh; }
+      .scanner-menu-content, .scanner-attendee-list { max-height: calc(25vh - 44px); }
+      .scanner-panel-head { padding: .58rem .62rem; }
+      .scanner-panel-title { font-size: .72rem; }
+      .scanner-panel-meta { font-size: .58rem; }
+      .scanner-menu-content { padding: .55rem .65rem; }
+      .scanner-menu-list li { font-size: .68rem; }
+      .scanner-attendee-row { padding: .48rem .58rem; gap: .35rem; }
+      .scanner-attendee-name { font-size: .68rem; }
+      .scanner-attendee-time { font-size: .59rem; }
+      .scanner-mini-stats { min-height: 68px; }
+      .scanner-stat-item { padding: .6rem .72rem; }
+      .scanner-stat-value { font-size: 1rem; }
     }
 
     @media (orientation: landscape) and (max-height: 620px) {
-      .scanner-mini-stats {
-        max-width: 42vw;
-      }
-
-      #scan-result-panel {
-        left: auto;
-        right: var(--scanner-safe-right);
-        bottom: var(--scanner-safe-bottom);
-        width: min(360px, 45vw);
-        transform: none;
-      }
+      .scanner-menu-panel { top: 50%; transform: translateY(-48%); max-height: 43vh; }
+      .scanner-menu-content { max-height: calc(43vh - 46px); }
+      .scanner-attendee-panel { top: calc(var(--scanner-safe-top) + 3.6rem); bottom: var(--scanner-safe-bottom); max-height: none; }
+      .scanner-attendee-list { max-height: none; }
+      .scanner-mini-stats { width: min(360px, 31vw); }
+      #scan-result-panel { left: 50%; right: auto; bottom: var(--scanner-safe-bottom); width: min(390px, 38vw); transform: translateX(-50%); }
     }
   </style>
 </head>
@@ -389,22 +522,43 @@
       <div class="scan-guide" aria-hidden="true"></div>
 
       <div class="scanner-control-bar">
-        <button id="custom-flip-btn" type="button" class="scanner-top-btn bg-white/88 text-slate-800 hover:bg-white" aria-label="후면 카메라로 전환">
+        <button id="custom-flip-btn" type="button" class="scanner-top-btn scanner-flip-btn" aria-label="후면 카메라로 전환">
           <span aria-hidden="true">🔄</span>
           <span>전면/후면 전환</span>
         </button>
 
         <div class="scanner-link-actions">
-          <a href="/qr.html" class="scanner-top-btn bg-white/88 text-slate-700 hover:bg-white">
+          <a href="/qr.html" class="scanner-top-btn scanner-qr-btn">
             <span aria-hidden="true">📱</span>
             <span>QR 발급</span>
           </a>
-          <a href="/admin.html" class="scanner-top-btn bg-slate-950/82 text-white hover:bg-black">
+          <a href="/admin.html" class="scanner-top-btn scanner-admin-btn">
             <span aria-hidden="true">🔐</span>
             <span>관리자</span>
           </a>
         </div>
       </div>
+
+      <aside class="scanner-glass-panel scanner-menu-panel" aria-label="오늘의 식단표">
+        <div class="scanner-panel-head">
+          <h2 class="scanner-panel-title">🍱 오늘의 식단표</h2>
+          <span id="scanner-menu-date" class="scanner-panel-meta"></span>
+        </div>
+        <div class="scanner-menu-content">
+          <ul id="scanner-menu-list" class="scanner-menu-list"></ul>
+          <p id="scanner-menu-empty" class="scanner-menu-empty">식단을 불러오는 중입니다.</p>
+        </div>
+      </aside>
+
+      <aside class="scanner-glass-panel scanner-attendee-panel" aria-label="실시간 식사 명단">
+        <div class="scanner-panel-head">
+          <h2 class="scanner-panel-title">📋 실시간 식사 명단</h2>
+          <span id="scanner-attendee-count" class="scanner-panel-meta">0명</span>
+        </div>
+        <div id="scanner-attendee-list" class="scanner-attendee-list">
+          <p class="scanner-attendee-empty">아직 식사자가 없습니다.</p>
+        </div>
+      </aside>
 
       <section class="scanner-mini-stats" aria-label="오늘 식수 현황">
         <div class="scanner-stat-item">
@@ -424,9 +578,9 @@
     </main>
   </div>
 
-  <script type="module" src="JS/scanner_app.js?v=20260619-scanner-rework"></script>
+  <script type="module" src="JS/scanner_app.js?v=20260619-scanner-rework2"></script>
   <script type="module">
-    import CameraManager from './JS/camera.js?v=20260619-scanner-rework';
+    import CameraManager from './JS/camera.js?v=20260619-scanner-rework2';
     document.getElementById('custom-flip-btn')?.addEventListener('click', () => CameraManager.toggleCamera());
   </script>
 </body>
