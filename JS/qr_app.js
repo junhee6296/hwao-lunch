@@ -11,6 +11,24 @@ const $ = (id) => document.getElementById(id);
 const nameInput = () => $('userName');
 const phoneInput = () => $('phoneLast4');
 
+if ('scrollRestoration' in window.history) {
+  window.history.scrollRestoration = 'manual';
+}
+
+function resetPageTop() {
+  window.requestAnimationFrame(() => {
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  });
+}
+
+function schedulePageTopReset() {
+  [0, 80, 240].forEach(delay => window.setTimeout(resetPageTop, delay));
+}
+
+window.addEventListener('pageshow', schedulePageTopReset);
+
 const formatKoreanDate = (dateStr) => {
   const [year, month, day] = String(dateStr || '').split('-').map(Number);
   if (!year || !month || !day) return dateStr;
@@ -34,6 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   if ($('menu-month')) $('menu-month').value = getCurrentMonth();
+  schedulePageTopReset();
 });
 
 
@@ -259,6 +278,7 @@ async function generateLunchQR(isReissue = false) {
 }
 
 function renderQR(token, name, phoneLast4, expiresAt) {
+  if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
   currentQRToken = token;
   currentQRName = name;
   currentQRPhoneLast4 = phoneLast4;
@@ -270,6 +290,7 @@ function renderQR(token, name, phoneLast4, expiresAt) {
   $('qr-result-name').textContent = `${name}님 (${phoneLast4})`;
   renderQRToContainer(token);
   startTimer(expiresAt);
+  schedulePageTopReset();
 }
 
 function startTimer(expiresAt) {
@@ -299,6 +320,7 @@ function resetToForm() {
   $('qrcode-container')?.classList.add('hidden');
   $('qr-form-container')?.classList.remove('hidden');
   if ($('qrcode')) $('qrcode').innerHTML = '';
+  schedulePageTopReset();
 }
 
 $('btn-generate-qr')?.addEventListener('click', () => generateLunchQR(false));

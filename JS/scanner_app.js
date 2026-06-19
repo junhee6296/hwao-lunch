@@ -44,6 +44,8 @@ let resultResetTimer = null;
 let scannerRestartPromise = null;
 let orientationRestartTimer = null;
 let lastRandomIndex = { success: -1, fail: -1 };
+let cameraListCache = null;
+let activeCameraId = '';
 
 const SAME_CODE_COOLDOWN_MS = 5000;
 const PROCESSING_COOLDOWN_MS = 1300;
@@ -56,6 +58,18 @@ function formatScannerDate(dateStr) {
   if (!year || !month || !day) return dateStr || '';
   const weekday = ['일', '월', '화', '수', '목', '금', '토'][new Date(Date.UTC(year, month - 1, day)).getUTCDay()];
   return `${month}/${day}(${weekday})`;
+}
+
+function addDaysToDateStr(dateStr, amount) {
+  const [year, month, day] = String(dateStr || '').split('-').map(Number);
+  if (!year || !month || !day) return dateStr || '';
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCDate(date.getUTCDate() + Number(amount || 0));
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
+}
+
+function getRelativeMenuLabel(index) {
+  return ['오늘', '내일', '모레'][index] || '';
 }
 
 function formatScannerTime(value) {
@@ -103,56 +117,88 @@ function renderAttendeeList(attendees) {
   });
 }
 
-function renderTodayMenu(day, date) {
-  const list = $('scanner-menu-list');
-  const empty = $('scanner-menu-empty');
+function renderUpcomingMenus(daysByDate, dates) {
+  const wrap = $('scanner-menu-days');
   const dateLabel = $('scanner-menu-date');
-  if (dateLabel) dateLabel.textContent = formatScannerDate(date);
-  if (!list || !empty) return;
+  if (!wrap) return;
 
-  list.replaceChildren();
-  empty.className = 'scanner-menu-empty';
-
-  const menus = Array.isArray(day?.menu) ? day.menu.filter(Boolean) : [];
-  const isHoliday = Boolean(day?.holidayName) || menus.includes('공휴일');
-
-  if (isHoliday) {
-    empty.className = 'scanner-menu-holiday';
-    empty.textContent = day?.holidayName && day.holidayName !== '공휴일'
-      ? `공휴일 · ${day.holidayName}`
-      : '공휴일';
-    empty.hidden = false;
-    return;
+  const safeDates = Array.isArray(dates) ? dates : [];
+  if (dateLabel) {
+    dateLabel.textContent = safeDates.length
+      ? `${formatScannerDate(safeDates[0])}–${formatScannerDate(safeDates[safeDates.length - 1])}`
+      : '';
   }
 
-  if (!menus.length) {
-    empty.textContent = '등록된 오늘 식단이 없습니다.';
-    empty.hidden = false;
-    return;
-  }
+  wrap.replaceChildren();
+  safeDates.forEach((date, index) => {
+    const day = daysByDate?.[date] || null;
+    const menus = Array.isArray(day?.menu) ? day.menu.filter(Boolean) : [];
+    const isHoliday = Boolean(day?.holidayName) || menus.includes('공휴일');
 
-  empty.hidden = true;
-  menus.forEach((menu) => {
-    const item = document.createElement('li');
-    item.textContent = String(menu);
-    list.appendChild(item);
+    const article = document.createElement('article');
+    article.className = `scanner-menu-day${index === 0 ? ' is-today' : ''}`;
+
+    const header = document.createElement('div');
+    header.className = 'scanner-menu-day-head';
+
+    const title = document.createElement('strong');
+    title.className = 'scanner-menu-day-title';
+    title.textContent = formatScannerDate(date);
+
+    const badge = document.createElement('span');
+    badge.className = 'scanner-menu-day-badge';
+    badge.textContent = getRelativeMenuLabel(index);
+
+    header.append(title, badge);
+    article.appendChild(header);
+
+    if (isHoliday) {
+      const holiday = document.createElement('p');
+      holiday.className = 'scanner-menu-holiday';
+      holiday.textContent = day?.holidayName && day.holidayName !== '공휴일'
+        ? `공휴일 · ${day.holidayName}`
+        : '공휴일';
+      article.appendChild(holiday);
+    } else if (menus.length) {
+      const list = document.createElement('ul');
+      list.className = 'scanner-menu-day-list';
+      menus.forEach((menu) => {
+        const item = document.createElement('li');
+        item.textContent = String(menu);
+        list.appendChild(item);
+      });
+      article.appendChild(list);
+    } else {
+      const empty = document.createElement('p');
+      empty.className = 'scanner-menu-empty';
+      empty.textContent = '등록된 식단이 없습니다.';
+      article.appendChild(empty);
+    }
+
+    wrap.appendChild(article);
   });
 }
 
-async function loadTodayMenu(date = currentServiceDate) {
+async function loadUpcomingMenus(date = currentServiceDate) {
   const requestedDate = date;
-  const yearMonth = String(requestedDate).slice(0, 7);
-  try {
-    const res = await fetch(`${API_BASE_URL}/menu/month/${encodeURIComponent(yearMonth)}`, { cache: 'no-store' });
-    if (!res.ok) throw new Error('식단표를 불러올 수 없습니다.');
-    const data = await res.json();
-    if (requestedDate !== currentServiceDate) return;
-    renderTodayMenu(data?.days?.[requestedDate] || null, requestedDate);
-  } catch (error) {
-    console.error('오늘 식단 로드 실패:', error);
-    if (requestedDate !== currentServiceDate) return;
-    renderTodayMenu(null, requestedDate);
-  }
+  const dates = [0, 1, 2].map(offset => addDaysToDateStr(requestedDate, offset));
+  const yearMonths = [...new Set(dates.map(item => item.slice(0, 7)))];
+
+  const responses = await Promise.all(yearMonths.map(async (yearMonth) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/menu/month/${encodeURIComponent(yearMonth)}`, { cache: 'no-store' });
+      if (!res.ok) throw new Error(`식단표 조회 실패: ${res.status}`);
+      return await res.json();
+    } catch (error) {
+      console.error(`${yearMonth} 식단표 로드 실패:`, error);
+      return { days: {} };
+    }
+  }));
+
+  if (requestedDate !== currentServiceDate) return;
+  const mergedDays = {};
+  responses.forEach(data => Object.assign(mergedDays, data?.days || {}));
+  renderUpcomingMenus(mergedDays, dates);
 }
 
 function pickRandomAudio(type) {
@@ -330,7 +376,7 @@ function checkDateRollover() {
   window.isScanningAction = false;
   resetScannerStats();
   loadScannerStats(today);
-  loadTodayMenu(today);
+  loadUpcomingMenus(today);
   showScanResult('idle', 'QR 코드를 보여주세요', '새 날짜의 식수 집계를 시작합니다');
   return true;
 }
@@ -360,13 +406,24 @@ function calculateScanBox(viewWidth, viewHeight) {
   const visualHeight = window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight || 1;
   const width = Number(viewWidth) > 0 ? Math.min(Number(viewWidth), visualWidth) : visualWidth;
   const height = Number(viewHeight) > 0 ? Math.min(Number(viewHeight), visualHeight) : visualHeight;
+  const isMobile = width <= 680;
 
-  const isNarrow = width < 900;
-  const sidePanelReserve = isNarrow ? 0 : Math.min(330, Math.max(200, width * 0.235));
-  const usableWidth = isNarrow ? width * 0.58 : width - sidePanelReserve * 2 - 56;
-  const usableHeight = height - (height < 640 ? 128 : 176);
-  const available = Math.max(180, Math.min(usableWidth, usableHeight));
-  const size = Math.max(180, Math.min(460, Math.floor(available * 0.94)));
+  let usableWidth;
+  if (isMobile) {
+    usableWidth = width * 0.74;
+  } else {
+    const menuWidth = document.querySelector('.scanner-menu-panel')?.getBoundingClientRect().width || 0;
+    const attendeeWidth = document.querySelector('.scanner-attendee-panel')?.getBoundingClientRect().width || 0;
+    const statsWidth = document.querySelector('.scanner-mini-stats')?.getBoundingClientRect().width || 0;
+    const sideReserve = Math.max(menuWidth, attendeeWidth, statsWidth, 210) + 28;
+    usableWidth = width - sideReserve * 2;
+  }
+
+  const usableHeight = isMobile
+    ? height * 0.48
+    : height - (height < 640 ? 138 : 178);
+  const available = Math.max(170, Math.min(usableWidth, usableHeight));
+  const size = Math.max(170, Math.min(460, Math.floor(available * 0.95)));
 
   document.documentElement.style.setProperty('--scanner-box-size', `${size}px`);
   return size;
@@ -426,9 +483,82 @@ async function handleDecodedText(decodedText) {
   }
 }
 
+const FRONT_CAMERA_LABEL = /(front|user|selfie|facetime|전면|앞쪽|앞 카메라)/i;
+const REAR_CAMERA_LABEL = /(back|rear|environment|world|후면|뒤쪽|뒤 카메라)/i;
+
+function detectCameraModeFromLabel(label) {
+  const value = String(label || '');
+  if (FRONT_CAMERA_LABEL.test(value)) return 'user';
+  if (REAR_CAMERA_LABEL.test(value)) return 'environment';
+  return '';
+}
+
+async function getAvailableCameras(force = false) {
+  if (!force && Array.isArray(cameraListCache) && cameraListCache.length) return cameraListCache;
+  try {
+    const cameras = await window.Html5Qrcode.getCameras();
+    cameraListCache = Array.isArray(cameras) ? cameras : [];
+  } catch (error) {
+    console.warn('카메라 목록 조회 실패:', error);
+    cameraListCache = [];
+  }
+  return cameraListCache;
+}
+
+async function detectStartedCameraMode() {
+  await new Promise(resolve => window.setTimeout(resolve, 160));
+  const video = document.querySelector('#reader video');
+  const track = video?.srcObject?.getVideoTracks?.()[0];
+  if (!track) return '';
+  const settings = track.getSettings?.() || {};
+  if (settings.facingMode === 'user' || settings.facingMode === 'environment') return settings.facingMode;
+  return detectCameraModeFromLabel(track.label || '');
+}
+
+async function buildCameraCandidates(requestedMode, allowFallback) {
+  const cameras = await getAvailableCameras();
+  const candidates = [];
+  const usedIds = new Set();
+
+  const addId = (camera, mode) => {
+    if (!camera?.id || usedIds.has(camera.id)) return;
+    usedIds.add(camera.id);
+    candidates.push({ source: camera.id, mode, cameraId: camera.id });
+  };
+
+  const front = cameras.filter(camera => detectCameraModeFromLabel(camera.label) === 'user');
+  const rear = cameras.filter(camera => detectCameraModeFromLabel(camera.label) === 'environment');
+  const unknown = cameras.filter(camera => !detectCameraModeFromLabel(camera.label));
+
+  if (requestedMode === 'user') {
+    front.forEach(camera => addId(camera, 'user'));
+    if (!front.length && cameras.length > 1) addId(cameras[cameras.length - 1], 'user');
+    unknown.slice().reverse().forEach(camera => addId(camera, 'user'));
+    candidates.push({ source: { facingMode: { exact: 'user' } }, mode: 'user' });
+    candidates.push({ source: { facingMode: { ideal: 'user' } }, mode: 'user' });
+    if (allowFallback) {
+      rear.forEach(camera => addId(camera, 'environment'));
+      candidates.push({ source: { facingMode: { ideal: 'environment' } }, mode: 'environment' });
+    }
+  } else {
+    rear.forEach(camera => addId(camera, 'environment'));
+    if (!rear.length && cameras.length > 1) addId(cameras[0], 'environment');
+    unknown.forEach(camera => addId(camera, 'environment'));
+    candidates.push({ source: { facingMode: { exact: 'environment' } }, mode: 'environment' });
+    candidates.push({ source: { facingMode: { ideal: 'environment' } }, mode: 'environment' });
+    if (allowFallback) {
+      front.forEach(camera => addId(camera, 'user'));
+      candidates.push({ source: { facingMode: { ideal: 'user' } }, mode: 'user' });
+    }
+  }
+
+  return candidates;
+}
+
 window.startScanner = async function startScanner(facingMode = 'user', allowFallback = true) {
   const scanner = createScannerInstance();
   const requestedMode = facingMode === 'environment' ? 'environment' : 'user';
+  window.currentScannerFacingMode = requestedMode;
 
   const qrBoxFunction = (viewWidth, viewHeight) => {
     const size = calculateScanBox(viewWidth, viewHeight);
@@ -442,26 +572,38 @@ window.startScanner = async function startScanner(facingMode = 'user', allowFall
     experimentalFeatures: { useBarCodeDetectorIfSupported: true }
   };
 
-  try {
-    await scanner.start(
-      { facingMode: requestedMode },
-      config,
-      handleDecodedText,
-      () => {}
-    );
-    window.currentScannerFacingMode = requestedMode;
-    calculateScanBox(window.innerWidth, window.innerHeight);
-    window.dispatchEvent(new CustomEvent('scanner-camera-started', { detail: { facingMode: requestedMode } }));
-    return true;
-  } catch (error) {
-    console.error(`카메라 시작 실패 (${requestedMode}):`, error);
-    if (allowFallback) {
-      const fallbackMode = requestedMode === 'user' ? 'environment' : 'user';
-      return window.startScanner(fallbackMode, false);
+  const candidates = await buildCameraCandidates(requestedMode, allowFallback);
+  let lastError = null;
+
+  for (const candidate of candidates) {
+    try {
+      await scanner.start(candidate.source, config, handleDecodedText, () => {});
+      const detectedMode = await detectStartedCameraMode();
+      if (detectedMode && detectedMode !== requestedMode && candidate.mode === requestedMode) {
+        console.warn(`요청한 ${requestedMode} 카메라 대신 ${detectedMode} 카메라가 열려 다음 후보를 시도합니다.`);
+        try { await scanner.stop(); } catch (_) {}
+        continue;
+      }
+
+      const finalMode = detectedMode || candidate.mode;
+      window.currentScannerFacingMode = finalMode;
+      activeCameraId = candidate.cameraId || '';
+      calculateScanBox(window.innerWidth, window.innerHeight);
+      window.dispatchEvent(new CustomEvent('scanner-camera-started', {
+        detail: { facingMode: finalMode, cameraId: activeCameraId }
+      }));
+      return true;
+    } catch (error) {
+      lastError = error;
+      console.warn(`카메라 시작 후보 실패 (${candidate.mode}):`, error);
+      if (scanner.isScanning) {
+        try { await scanner.stop(); } catch (_) {}
+      }
     }
-    showScanResult('fail', '카메라를 열 수 없습니다', '브라우저 카메라 권한을 확인해 주세요');
-    throw error;
   }
+
+  showScanResult('fail', '카메라를 열 수 없습니다', '브라우저 카메라 권한을 확인해 주세요');
+  throw lastError || new Error('사용 가능한 카메라가 없습니다.');
 };
 
 window.restartScanner = async function restartScanner(facingMode = window.currentScannerFacingMode || 'user') {
@@ -504,7 +646,7 @@ function initScannerPage() {
 
   loadAudioManifest();
   loadScannerStats(currentServiceDate);
-  loadTodayMenu(currentServiceDate);
+  loadUpcomingMenus(currentServiceDate);
   window.startScanner('user').catch(() => {});
 
   document.addEventListener('pointerdown', unlockAudio, { once: true, capture: true });
@@ -515,19 +657,19 @@ function initScannerPage() {
     loadScannerStats(currentServiceDate);
   }, 15000);
   window.setInterval(checkDateRollover, 5000);
-  window.setInterval(() => loadTodayMenu(currentServiceDate), 5 * 60 * 1000);
+  window.setInterval(() => loadUpcomingMenus(currentServiceDate), 5 * 60 * 1000);
 
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) {
       checkDateRollover();
       loadScannerStats(currentServiceDate);
-      loadTodayMenu(currentServiceDate);
+      loadUpcomingMenus(currentServiceDate);
     }
   });
   window.addEventListener('focus', () => {
     checkDateRollover();
     loadScannerStats(currentServiceDate);
-    loadTodayMenu(currentServiceDate);
+    loadUpcomingMenus(currentServiceDate);
   });
   window.addEventListener('orientationchange', scheduleOrientationRestart);
   window.screen?.orientation?.addEventListener?.('change', scheduleOrientationRestart);
