@@ -8,7 +8,7 @@
 
   <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
   <link rel="icon" href="/img/icon.png?v=20260619-scanner4" type="image/png">
-  <link rel="stylesheet" href="CSS/style.css?v=20260623-light-solid-ui">
+  <link rel="stylesheet" href="CSS/style.css?v=20260623-balanced-spacing">
 
   <style>
     :root {
@@ -1009,6 +1009,32 @@
       .scanner-attendee-panel { min-height: 320px; }
     }
 
+
+
+    /* QR 중심 기준 좌우 패널 간격 대칭 핫픽스 */
+    @media (min-width: 681px) {
+      :root {
+        --scanner-balanced-side-width: clamp(330px, 25vw, 460px);
+      }
+
+      .scanner-menu-panel,
+      .scanner-attendee-panel {
+        width: var(--scanner-balanced-side-width) !important;
+      }
+    }
+
+    @media (max-width: 1180px) and (min-width: 681px) {
+      :root {
+        --scanner-balanced-side-width: min(22vw, 300px);
+      }
+    }
+
+    @media (orientation: landscape) and (max-height: 620px) and (min-width: 681px) {
+      :root {
+        --scanner-balanced-side-width: min(24vw, 245px);
+      }
+    }
+
   </style>
 </head>
 <body>
@@ -1065,9 +1091,9 @@
     </section>
   </div>
 
-  <script type="module" src="JS/scanner_app.js?v=20260623-light-solid-ui"></script>
+  <script type="module" src="JS/scanner_app.js?v=20260623-balanced-spacing"></script>
   <script type="module">
-    import CameraManager from './JS/camera.js?v=20260623-light-solid-ui';
+    import CameraManager from './JS/camera.js?v=20260623-balanced-spacing';
     document.getElementById('custom-flip-btn')?.addEventListener('click', () => CameraManager.toggleCamera());
   </script>
 </body>
