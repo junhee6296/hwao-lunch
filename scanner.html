@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="color-scheme" content="dark">
+  <meta name="color-scheme" content="light">
   <title>Lunch Check 스캐너 : 화성오산교육청</title>
 
   <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
   <link rel="icon" href="/img/icon.png?v=20260619-scanner4" type="image/png">
-  <link rel="stylesheet" href="CSS/style.css?v=20260619-final3">
+  <link rel="stylesheet" href="CSS/style.css?v=20260623-light-solid-ui">
 
   <style>
     :root {
@@ -730,6 +730,285 @@
       .scanner-attendee-panel { bottom: calc(var(--scanner-safe-bottom) + 8.65rem); }
       #scan-result-panel { width: min(370px, 36vw); }
     }
+
+
+    /* 밝은 단색 UI + 고령 사용자 가독성 핫픽스 */
+    :root {
+      --scanner-menu-width: clamp(360px, 28vw, 520px);
+      --scanner-right-width: clamp(330px, 25vw, 460px);
+      --scanner-panel-bg: #ffffff;
+      --scanner-panel-border: rgba(148, 163, 184, .48);
+      --scanner-cream: #ffffff;
+      --scanner-apricot: #d97706;
+      --scanner-coral: #c2410c;
+      --scanner-sage: #0f766e;
+      --scanner-olive: #334155;
+      --scanner-ink: #111827;
+    }
+
+    .scanner-top-btn {
+      min-height: 50px;
+      padding: .78rem 1.05rem;
+      border: 1px solid #d7dde5;
+      border-radius: 1rem;
+      background: #ffffff !important;
+      color: #1f2937 !important;
+      font-size: .98rem;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, .18);
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+
+    .scanner-flip-btn { color: #334155 !important; }
+    .scanner-qr-btn { color: #b45309 !important; }
+    .scanner-admin-btn { color: #1d4ed8 !important; }
+
+    .scanner-glass-panel {
+      border-color: var(--scanner-panel-border);
+      background: #ffffff !important;
+      color: #111827;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+      box-shadow: 0 16px 38px rgba(15, 23, 42, .19);
+    }
+
+    .scanner-menu-panel {
+      width: var(--scanner-menu-width);
+    }
+
+    .scanner-attendee-panel {
+      width: var(--scanner-right-width);
+      bottom: var(--scanner-safe-bottom);
+    }
+
+    .scanner-mini-stats { display: none !important; }
+
+    .scanner-panel-head {
+      padding: 1rem 1.1rem;
+      border-bottom: 1px solid #dfe4ea;
+      background: #f8fafc !important;
+    }
+
+    .scanner-panel-title {
+      color: #111827;
+      font-size: clamp(1.08rem, 1.35vw, 1.28rem);
+      line-height: 1.25;
+      letter-spacing: -.015em;
+    }
+
+    .scanner-panel-meta {
+      color: #475569;
+      font-size: clamp(.92rem, 1.15vw, 1.08rem);
+      line-height: 1;
+      font-weight: 900;
+    }
+
+    #scanner-attendee-count {
+      min-width: 3.5rem;
+      padding: .42rem .65rem;
+      border-radius: 999px;
+      background: #eef2f7;
+      color: #111827;
+      font-size: clamp(1.15rem, 1.45vw, 1.42rem);
+      text-align: center;
+    }
+
+    .scanner-menu-content {
+      padding: 1.05rem;
+    }
+
+    .scanner-menu-days {
+      gap: .9rem;
+    }
+
+    .scanner-menu-day,
+    .scanner-menu-day.is-today {
+      border: 1px solid #dfe4ea;
+      background: #ffffff !important;
+      box-shadow: 0 5px 14px rgba(15, 23, 42, .055);
+    }
+
+    .scanner-menu-day.is-today {
+      border-color: #f0b36c;
+      box-shadow: inset 4px 0 0 #f59e0b, 0 5px 14px rgba(15, 23, 42, .055);
+    }
+
+    .scanner-menu-day-title {
+      color: #111827;
+      font-size: clamp(1rem, 1.22vw, 1.18rem);
+    }
+
+    .scanner-menu-day-badge {
+      padding: .34rem .62rem;
+      background: #fff2df !important;
+      color: #92400e;
+      font-size: clamp(.76rem, .9vw, .9rem);
+      border: 1px solid #fed7aa;
+    }
+
+    .scanner-menu-day-list {
+      gap: .48rem;
+    }
+
+    .scanner-menu-day-list li {
+      color: #1f2937;
+      font-size: clamp(1.02rem, 1.22vw, 1.22rem);
+      line-height: 1.5;
+      font-weight: 800;
+      padding-left: .9rem;
+    }
+
+    .scanner-menu-day-list li::before {
+      color: #d97706;
+    }
+
+    .scanner-menu-empty {
+      color: #64748b;
+      font-size: clamp(.94rem, 1.08vw, 1.06rem);
+      line-height: 1.5;
+    }
+
+    .scanner-menu-holiday {
+      color: #dc2626;
+      font-size: clamp(1rem, 1.18vw, 1.16rem);
+    }
+
+    .scanner-attendee-row {
+      gap: .9rem;
+      padding: .9rem 1.05rem;
+      border-bottom: 1px solid #e5e7eb;
+      background: #ffffff;
+    }
+
+    .scanner-attendee-row:nth-child(even) {
+      background: #fafafa;
+    }
+
+    .scanner-attendee-name {
+      color: #111827;
+      font-size: clamp(1.05rem, 1.3vw, 1.28rem);
+      line-height: 1.2;
+    }
+
+    .scanner-attendee-time {
+      color: #0f766e;
+      font-size: clamp(.88rem, 1.05vw, 1.04rem);
+      line-height: 1.2;
+    }
+
+    .scanner-attendee-empty {
+      color: #64748b;
+      font-size: 1rem;
+      line-height: 1.5;
+    }
+
+    #scan-result-panel {
+      border-color: #d7dde5;
+      background: #ffffff !important;
+      color: #111827;
+      box-shadow: 0 14px 34px rgba(15, 23, 42, .20);
+    }
+
+    #scan-result-panel[data-state="working"] {
+      background: #ffffff !important;
+      border-color: #f59e0b;
+    }
+
+    #scan-result-panel[data-state="success"] {
+      background: #ffffff !important;
+      border-color: #0f766e;
+    }
+
+    #scan-result-panel[data-state="success"] #scan-msg { color: #0f766e; }
+
+    #scan-result-panel[data-state="fail"] {
+      background: #ffffff !important;
+      border-color: #dc2626;
+    }
+
+    #scan-result-panel[data-state="fail"] #scan-msg { color: #dc2626; }
+
+    #scan-msg {
+      font-size: clamp(1.25rem, 2.1vw, 1.62rem);
+    }
+
+    #scan-sub-msg {
+      color: #64748b;
+      font-size: clamp(.9rem, 1.35vw, 1.05rem);
+    }
+
+    @media (max-width: 1180px) and (min-width: 681px) {
+      :root {
+        --scanner-menu-width: min(29vw, 310px);
+        --scanner-right-width: min(28vw, 300px);
+        --scanner-box-size: min(50vmin, 390px);
+      }
+
+      .scanner-panel-title { font-size: 1rem; }
+      .scanner-panel-meta { font-size: .9rem; }
+      #scanner-attendee-count { font-size: 1.12rem; min-width: 3.25rem; }
+      .scanner-menu-day-list li { font-size: .96rem; }
+      .scanner-attendee-name { font-size: 1rem; }
+      .scanner-attendee-time { font-size: .82rem; }
+      .scanner-top-btn { font-size: .86rem; padding-inline: .78rem; }
+    }
+
+    @media (max-width: 680px) {
+      html,
+      body {
+        background: #f1f5f9;
+      }
+
+      #scanner-dashboard {
+        background: #f1f5f9;
+      }
+
+      .scanner-info-zone {
+        background: #f1f5f9 !important;
+      }
+
+      .scanner-top-btn {
+        min-height: 40px;
+        padding: .58rem .64rem;
+        font-size: .76rem;
+        border-color: #d7dde5;
+        background: #ffffff !important;
+        box-shadow: 0 7px 18px rgba(15, 23, 42, .18);
+      }
+
+      .scanner-glass-panel {
+        background: #ffffff !important;
+        color: #111827;
+        border-color: #d7dde5;
+        box-shadow: 0 12px 26px rgba(15, 23, 42, .10);
+      }
+
+      .scanner-panel-head {
+        padding: 1rem 1.05rem;
+        background: #f8fafc !important;
+      }
+
+      .scanner-panel-title { font-size: 1.12rem; }
+      .scanner-panel-meta { font-size: .92rem; }
+      #scanner-attendee-count { font-size: 1.18rem; }
+
+      .scanner-menu-day,
+      .scanner-menu-day.is-today {
+        background: #ffffff !important;
+      }
+
+      .scanner-menu-day-title { font-size: 1rem; }
+      .scanner-menu-day-list li { font-size: 1.04rem; line-height: 1.55; }
+      .scanner-menu-empty { font-size: .96rem; }
+
+      .scanner-attendee-row { padding: .95rem 1.05rem; }
+      .scanner-attendee-name { font-size: 1.06rem; }
+      .scanner-attendee-time { font-size: .9rem; }
+      .scanner-attendee-empty { font-size: .98rem; }
+
+      .scanner-attendee-panel { min-height: 320px; }
+    }
+
   </style>
 </head>
 <body>
@@ -783,22 +1062,12 @@
         </div>
       </aside>
 
-      <section class="scanner-mini-stats" aria-label="오늘 식수 현황">
-        <div class="scanner-stat-item">
-          <span class="scanner-stat-label">오늘 식수</span>
-          <strong id="stat-count" class="scanner-stat-value">0명</strong>
-        </div>
-        <div class="scanner-stat-item">
-          <span class="scanner-stat-label">최근 식사자</span>
-          <strong id="recent-diner" class="scanner-stat-value">없음</strong>
-        </div>
-      </section>
     </section>
   </div>
 
-  <script type="module" src="JS/scanner_app.js?v=20260619-final3"></script>
+  <script type="module" src="JS/scanner_app.js?v=20260623-light-solid-ui"></script>
   <script type="module">
-    import CameraManager from './JS/camera.js?v=20260619-final3';
+    import CameraManager from './JS/camera.js?v=20260623-light-solid-ui';
     document.getElementById('custom-flip-btn')?.addEventListener('click', () => CameraManager.toggleCamera());
   </script>
 </body>
