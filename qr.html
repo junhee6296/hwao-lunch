@@ -3,6 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#334155">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Lunch Check">
   <meta name="color-scheme" content="light">
   <title>Lunch Check : 점심 QR</title>
   <link rel="manifest" href="/manifest.json">
@@ -371,7 +375,10 @@
           <img src="/img/shareicon.png" alt="iOS 공유 버튼" class="w-12 h-12 rounded-2xl shadow-sm bg-white p-1">
           <h3 class="text-xl sm:text-2xl font-extrabold text-gray-900">아이폰 홈 화면 추가</h3>
         </div>
-        <p class="text-gray-500 text-sm mb-5">Safari에서 공유 메뉴를 연 뒤<br>Lunch Check 바로가기를 홈 화면에 추가하세요.</p>
+        <p class="text-gray-500 text-sm mb-3">아래 버튼으로 공유창을 연 뒤<br><b>홈 화면에 추가</b>를 선택하세요.</p>
+        <button id="btn-open-ios-share" type="button" class="w-full mb-5 h-14 rounded-2xl bg-slate-800 hover:bg-slate-900 text-white font-black text-lg shadow-lg">
+          <img src="/img/shareicon.png" alt="" class="inline-block w-6 h-6 mr-2 align-[-5px] bg-white rounded-md p-0.5">공유창 바로 열기
+        </button>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4 text-left">
           <div class="rounded-2xl overflow-hidden border-2 border-slate-200 bg-slate-50 shadow-sm">
@@ -413,6 +420,6 @@
     </footer>
   </div>
 
-  <script type="module" src="JS/qr_app.js?v=20260619-scanner4"></script>
+  <script type="module" src="JS/qr_app.js?v=20260624-a2hs"></script>
 </body>
 </html>

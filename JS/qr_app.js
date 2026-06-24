@@ -125,26 +125,95 @@ window.addEventListener('orientationchange', () => window.setTimeout(rerenderCur
 // ==========================================
 // 스마트폰 홈 화면 바로가기(PWA) 설치 로직
 // ==========================================
-window.addEventListener('beforeinstallprompt', (e) => {
-  e.preventDefault();
-  deferredPrompt = e;
+const isIOSDevice = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isStandaloneMode = () => window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+
+function updateInstallButtonState() {
+  const button = $('btn-add-shortcut');
+  if (!button) return;
+
+  if (isStandaloneMode()) {
+    button.innerHTML = '✅ 홈 화면에<br>추가됨';
+    button.setAttribute('aria-label', '이미 홈 화면에 추가됨');
+    button.dataset.installed = 'true';
+  } else {
+    button.innerHTML = '📲 홈 화면<br>바로가기 추가';
+    button.setAttribute('aria-label', '홈 화면 바로가기 추가');
+    delete button.dataset.installed;
+  }
+}
+
+function openIOSInstallGuide() {
+  $('ios-install-modal')?.classList.remove('hidden');
+}
+
+async function openNativeShareSheet() {
+  if (typeof navigator.share !== 'function') return false;
+
+  try {
+    await navigator.share({
+      title: 'Lunch Check',
+      text: 'Lunch Check를 홈 화면에 추가하세요.',
+      url: window.location.href
+    });
+    return true;
+  } catch (error) {
+    if (error?.name !== 'AbortError') console.warn('공유창 열기 실패:', error);
+    return false;
+  }
+}
+
+window.addEventListener('beforeinstallprompt', (event) => {
+  event.preventDefault();
+  deferredPrompt = event;
 });
 
+window.addEventListener('appinstalled', () => {
+  deferredPrompt = null;
+  updateInstallButtonState();
+});
+
+window.matchMedia('(display-mode: standalone)').addEventListener?.('change', updateInstallButtonState);
+
 $('btn-add-shortcut')?.addEventListener('click', async () => {
-  if (deferredPrompt) {
-    deferredPrompt.prompt();
-    await deferredPrompt.userChoice;
-    deferredPrompt = null;
-  } else {
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-    if (isIOS) $('ios-install-modal')?.classList.remove('hidden');
-    else alert('브라우저 우측 상단 메뉴에서 [홈 화면에 추가] 또는 [앱 설치]를 선택해주세요.');
+  if (isStandaloneMode()) {
+    alert('이미 홈 화면에서 앱으로 실행 중입니다.');
+    return;
   }
+
+  // Android Chrome·Edge·Samsung Internet 등 지원 브라우저에서는
+  // 버튼을 누르는 즉시 브라우저의 설치 확인창을 엽니다.
+  if (deferredPrompt) {
+    const promptEvent = deferredPrompt;
+    deferredPrompt = null;
+    await promptEvent.prompt();
+    const choice = await promptEvent.userChoice.catch(() => null);
+    if (choice?.outcome === 'accepted') updateInstallButtonState();
+    return;
+  }
+
+  if (isIOSDevice()) {
+    // iOS는 웹페이지가 '홈 화면에 추가' 동작을 직접 실행할 수 없습니다.
+    // 가능한 경우 네이티브 공유창부터 열고, 실패하거나 닫으면 안내창을 표시합니다.
+    const opened = await openNativeShareSheet();
+    if (!opened && !isStandaloneMode()) openIOSInstallGuide();
+    return;
+  }
+
+  alert('현재 브라우저에서는 자동 설치창을 열 수 없습니다. 브라우저 메뉴의 [앱 설치] 또는 [홈 화면에 추가]를 선택해 주세요.');
+});
+
+$('btn-open-ios-share')?.addEventListener('click', async () => {
+  const opened = await openNativeShareSheet();
+  if (!opened) alert('공유창을 열 수 없습니다. Safari의 공유 버튼을 직접 눌러 주세요.');
 });
 
 $('btn-close-ios-modal')?.addEventListener('click', () => {
   $('ios-install-modal')?.classList.add('hidden');
 });
+
+document.addEventListener('DOMContentLoaded', updateInstallButtonState);
+window.addEventListener('pageshow', updateInstallButtonState);
 
 // ==========================================
 // 식단표 보기
