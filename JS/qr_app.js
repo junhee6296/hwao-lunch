@@ -128,6 +128,18 @@ window.addEventListener('orientationchange', () => window.setTimeout(rerenderCur
 const isIOSDevice = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const isStandaloneMode = () => window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
 
+function getCurrentBrowserGuide() {
+  const ua = navigator.userAgent || '';
+  if (/CriOS/i.test(ua)) return { name: 'Chrome', hint: '화면의 <b>••• 메뉴</b>나 <b>공유</b>를 누르세요.' };
+  if (/EdgiOS/i.test(ua)) return { name: 'Edge', hint: '화면의 <b>••• 메뉴</b>나 <b>공유</b>를 누르세요.' };
+  if (/FxiOS/i.test(ua)) return { name: 'Firefox', hint: '화면의 <b>≡ 또는 ••• 메뉴</b>에서 <b>공유</b>를 찾으세요.' };
+  if (/OPiOS/i.test(ua)) return { name: 'Opera', hint: '화면의 <b>메뉴</b>나 <b>공유</b>를 누르세요.' };
+  if (/DuckDuckGo/i.test(ua)) return { name: 'DuckDuckGo', hint: '화면의 <b>••• 메뉴</b>나 <b>공유</b>를 누르세요.' };
+  if (/(KAKAOTALK|NAVER|Instagram|FBAN|FBAV)/i.test(ua)) return { name: '앱 내부 브라우저', hint: '<b>••• 메뉴</b>에서 <b>공유</b> 또는 <b>외부 브라우저로 열기</b>를 찾으세요.' };
+  if (/Safari/i.test(ua)) return { name: 'Safari', hint: '주소창 주변이나 화면 아래쪽의 <b>네모 위로 화살표 모양 공유 버튼</b>을 누르세요.' };
+  return { name: '현재 브라우저', hint: '주소창 주변의 <b>공유 아이콘</b> 또는 <b>••• / ≡ 메뉴</b>를 누르세요.' };
+}
+
 function updateInstallButtonState() {
   const button = $('btn-add-shortcut');
   if (!button) return;
@@ -144,23 +156,10 @@ function updateInstallButtonState() {
 }
 
 function openIOSInstallGuide() {
+  const guide = getCurrentBrowserGuide();
+  if ($('ios-browser-name')) $('ios-browser-name').textContent = guide.name;
+  if ($('ios-browser-action-hint')) $('ios-browser-action-hint').innerHTML = guide.hint;
   $('ios-install-modal')?.classList.remove('hidden');
-}
-
-async function openNativeShareSheet() {
-  if (typeof navigator.share !== 'function') return false;
-
-  try {
-    await navigator.share({
-      title: 'Lunch Check',
-      text: 'Lunch Check를 홈 화면에 추가하세요.',
-      url: window.location.href
-    });
-    return true;
-  } catch (error) {
-    if (error?.name !== 'AbortError') console.warn('공유창 열기 실패:', error);
-    return false;
-  }
 }
 
 window.addEventListener('beforeinstallprompt', (event) => {
@@ -193,20 +192,14 @@ $('btn-add-shortcut')?.addEventListener('click', async () => {
   }
 
   if (isIOSDevice()) {
-    // iOS는 웹페이지가 '홈 화면에 추가' 동작을 직접 실행할 수 없습니다.
-    // 가능한 경우 네이티브 공유창부터 열고, 실패하거나 닫으면 안내창을 표시합니다.
-    const opened = await openNativeShareSheet();
-    if (!opened && !isStandaloneMode()) openIOSInstallGuide();
+    // iOS 브라우저마다 메뉴 위치와 명칭이 다르므로 현재 브라우저에 맞춘 안내를 표시합니다.
+    openIOSInstallGuide();
     return;
   }
 
   alert('현재 브라우저에서는 자동 설치창을 열 수 없습니다. 브라우저 메뉴의 [앱 설치] 또는 [홈 화면에 추가]를 선택해 주세요.');
 });
 
-$('btn-open-ios-share')?.addEventListener('click', async () => {
-  const opened = await openNativeShareSheet();
-  if (!opened) alert('공유창을 열 수 없습니다. Safari의 공유 버튼을 직접 눌러 주세요.');
-});
 
 $('btn-close-ios-modal')?.addEventListener('click', () => {
   $('ios-install-modal')?.classList.add('hidden');

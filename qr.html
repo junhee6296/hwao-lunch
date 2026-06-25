@@ -370,47 +370,70 @@
     </div>
 
     <div id="ios-install-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm transition-opacity">
-      <div class="bg-white rounded-3xl p-5 sm:p-6 max-w-2xl w-full text-center shadow-2xl border-4 border-slate-200 max-h-[92vh] overflow-y-auto">
+      <div class="bg-white rounded-3xl p-5 sm:p-6 max-w-lg w-full text-center shadow-2xl border-2 border-slate-200 max-h-[92vh] overflow-y-auto">
         <div class="flex items-center justify-center gap-3 mb-3">
-          <img src="/img/shareicon.png" alt="iOS 공유 버튼" class="w-12 h-12 rounded-2xl shadow-sm bg-white p-1">
+          <img src="/img/shareicon.png" alt="공유 버튼" class="w-12 h-12 rounded-2xl shadow-sm bg-white p-1">
           <h3 class="text-xl sm:text-2xl font-extrabold text-gray-900">아이폰 홈 화면 추가</h3>
         </div>
-        <p class="text-gray-500 text-sm mb-3">아래 버튼으로 공유창을 연 뒤<br><b>홈 화면에 추가</b>를 선택하세요.</p>
-        <button id="btn-open-ios-share" type="button" class="w-full mb-5 h-14 rounded-2xl bg-slate-800 hover:bg-slate-900 text-white font-black text-lg shadow-lg">
-          <img src="/img/shareicon.png" alt="" class="inline-block w-6 h-6 mr-2 align-[-5px] bg-white rounded-md p-0.5">공유창 바로 열기
-        </button>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4 text-left">
-          <div class="rounded-2xl overflow-hidden border-2 border-slate-200 bg-slate-50 shadow-sm">
-            <img src="/img/step1.png" alt="공유 버튼을 탭하는 안내 이미지" class="w-full bg-black object-contain">
-            <div class="p-4">
-              <div class="flex items-center gap-2 font-black text-slate-700 mb-1">
-                <span class="w-7 h-7 rounded-full bg-slate-500 text-white flex items-center justify-center">1</span>
-                공유 버튼 탭
+        <p class="text-slate-700 font-black text-base sm:text-lg leading-relaxed mb-2">
+          브라우저 종류와 관계없이 핵심은 같습니다.<br>
+          <span class="text-blue-600">공유 또는 메뉴</span>를 열고 <span class="text-blue-600">홈 화면에 추가</span>를 찾으세요.
+        </p>
+        <p class="text-sm text-slate-500 mb-4">
+          지금 사용 중인 브라우저: <b id="ios-browser-name" class="text-slate-700">브라우저</b>
+        </p>
+
+        <div class="space-y-3 text-left mb-5">
+          <section class="rounded-2xl border-2 border-blue-100 bg-blue-50 p-4 sm:p-5">
+            <div class="flex items-center gap-3">
+              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-600 text-lg font-black text-white">1</span>
+              <img src="/img/shareicon.png" alt="공유" class="h-9 w-9 shrink-0 rounded-lg bg-white p-1 shadow-sm">
+              <div>
+                <h4 class="text-lg font-black text-slate-900">공유 또는 메뉴 열기</h4>
+                <p id="ios-browser-action-hint" class="mt-1 text-sm font-bold leading-relaxed text-slate-700">주소창 주변의 공유 아이콘이나 <b>••• / ≡ 메뉴</b>를 누르세요.</p>
               </div>
-              <p class="text-sm text-gray-700 leading-relaxed">Safari 화면 상단 주소창 옆 또는 하단 도구막대의 <img src="/img/shareicon.png" alt="공유" class="inline-block w-5 h-5 mx-1 align-[-3px]"> <b class="text-slate-600">공유 버튼</b>을 탭합니다.</p>
             </div>
-          </div>
-          <div class="rounded-2xl overflow-hidden border-2 border-slate-200 bg-slate-50 shadow-sm">
-            <img src="/img/step2.jpeg" alt="홈 화면에 추가 메뉴 선택 안내 이미지" class="w-full bg-black object-contain">
-            <div class="p-4">
-              <div class="flex items-center gap-2 font-black text-slate-700 mb-1">
-                <span class="w-7 h-7 rounded-full bg-slate-500 text-white flex items-center justify-center">2</span>
-                홈 화면에 추가
+            <p class="mt-3 rounded-xl bg-white/80 px-3 py-2 text-sm font-bold text-slate-600">
+              버튼 위치가 다르면 주소창 주변이나 화면 아래쪽에서 <b>공유</b>, <b>메뉴</b>, <b>더 보기</b>를 찾으세요.
+            </p>
+          </section>
+
+          <section class="rounded-2xl border-2 border-slate-200 bg-slate-50 p-4 sm:p-5">
+            <div class="flex items-start gap-3">
+              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-700 text-lg font-black text-white">2</span>
+              <div>
+                <h4 class="text-lg font-black text-slate-900">홈 화면 추가 메뉴 찾기</h4>
+                <p class="mt-1 text-sm font-bold leading-relaxed text-slate-700">
+                  열린 목록에서 <b class="text-blue-700">홈 화면에 추가</b>, <b class="text-blue-700">앱 설치</b>, 또는 <b class="text-blue-700">바로가기 추가</b>를 누르세요.
+                </p>
               </div>
-              <p class="text-sm text-gray-700 leading-relaxed">공유 메뉴가 열리면 목록을 아래로 내려 <b class="text-slate-600">홈 화면에 추가</b>를 선택하고, 오른쪽 위의 <b class="text-slate-600">추가</b>를 누릅니다.</p>
             </div>
-          </div>
+          </section>
+
+          <section class="rounded-2xl border-2 border-amber-100 bg-amber-50 p-4 sm:p-5">
+            <div class="flex items-start gap-3">
+              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-500 text-lg font-black text-white">!</span>
+              <div>
+                <h4 class="text-base font-black text-slate-900">메뉴가 바로 안 보일 때</h4>
+                <p class="mt-1 text-sm font-bold leading-relaxed text-slate-700">
+                  목록을 아래로 더 내리거나 <b>동작 편집</b>, <b>더 보기</b>, <b>페이지 공유</b>를 눌러 다시 찾아보세요.
+                  앱 안에서 열린 페이지라면 <b>외부 브라우저로 열기</b>를 선택해도 됩니다.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <section class="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-center">
+            <p class="font-black text-emerald-900">마지막 확인창에서 <b>추가</b> 또는 <b>설치</b>를 누르면 끝입니다.</p>
+          </section>
         </div>
 
-        <div class="bg-blue-50 border border-blue-100 rounded-2xl p-4 text-left text-sm text-blue-900 mb-4 leading-relaxed">
-          Apple 공식 안내도 Safari에서 웹사이트를 연 뒤 <b>공유 버튼</b>을 누르고, <b>홈 화면에 추가</b>를 선택한 다음 <b>추가</b>를 누르는 순서로 설명합니다.
-        </div>
-        <a href="https://support.apple.com/ko-kr/guide/iphone/iph42ab2f3a7/ios" target="_blank" rel="noopener noreferrer" class="inline-flex items-center justify-center text-xs font-black text-blue-600 hover:text-blue-800 mb-5 underline underline-offset-4">
+        <a href="https://support.apple.com/ko-kr/guide/iphone/iph42ab2f3a7/ios" target="_blank" rel="noopener noreferrer" class="inline-flex items-center justify-center text-xs font-black text-blue-600 hover:text-blue-800 mb-4 underline underline-offset-4">
           Apple 공식 안내 보기
         </a>
         <button id="btn-close-ios-modal" class="btn btn-primary w-full h-14 rounded-2xl font-bold text-lg shadow-md shadow-slate-100">
-          확인했습니다
+          안내 닫고 공유·메뉴 찾기
         </button>
       </div>
     </div>
@@ -420,6 +443,6 @@
     </footer>
   </div>
 
-  <script type="module" src="JS/qr_app.js?v=20260624-a2hs"></script>
+  <script type="module" src="JS/qr_app.js?v=20260624-browserguide3"></script>
 </body>
 </html>
