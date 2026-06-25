@@ -129,6 +129,7 @@ const isIOSDevice = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navig
 const isAndroidDevice = () => /Android/i.test(navigator.userAgent || '');
 const isStandaloneMode = () => window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
 let currentInstallContext = null;
+let installOverlayScrollY = 0;
 
 function detectInstallContext() {
   const ua = navigator.userAgent || '';
@@ -151,146 +152,145 @@ function detectInstallContext() {
       name: inApp[2],
       mode: 'external',
       position: 'top-right',
-      symbol: '•••',
+      useShareIcon: false,
       stepTitle: '외부 브라우저로 열기',
-      locatorTitle: '이 근처의 메뉴를 누르세요',
-      locatorText: '메뉴에서 “외부 브라우저로 열기” 또는 “기본 브라우저로 열기”를 찾으세요.',
+      locatorTitle: '브라우저 메뉴를 찾으세요',
+      locatorText: '메뉴에서 “외부 브라우저로 열기” 또는 “기본 브라우저로 열기”를 선택하세요.',
       actionHint: '<b>••• / 메뉴</b>를 누르고 <b>외부 브라우저로 열기</b>를 선택하세요.',
-      menuHint: 'Chrome, Safari, Samsung Internet, Edge 등에서 다시 연 뒤 <b>홈 화면에 추가</b> 또는 <b>앱 설치</b>를 선택하세요.',
-      supportTitle: '이 브라우저에서는 홈 화면 추가가 제한될 수 있습니다.',
-      supportDescription: '주소를 복사하거나 외부 브라우저로 연 뒤 다시 시도하는 것이 가장 확실합니다.',
-      externalHint: '네이버·카카오톡 같은 앱 내부 브라우저는 홈 화면 추가 메뉴가 없거나 제한될 수 있습니다. 아래 “주소 복사”를 누른 뒤 Chrome, Safari, Samsung Internet 또는 Edge에서 열어주세요.'
+      menuHint: 'Chrome, Safari, Samsung Internet, Edge 등에서 다시 연 뒤 <b>공유 버튼</b>을 누르고 목록을 아래로 내려 <b>홈 화면에 추가</b>를 선택하세요.',
+      supportTitle: '이 브라우저는 홈 화면 추가를 지원하지 않을 수 있습니다.',
+      supportDescription: '네이버·카카오톡 같은 앱 내부 브라우저에서는 다른 브라우저로 열어 시도하는 것이 가장 확실합니다.',
+      externalHint: '현재 주소를 복사해 Chrome, Safari, Samsung Internet 또는 Edge에서 열어주세요.'
     };
   }
 
-  if (/SamsungBrowser/i.test(ua)) {
+  const shareBase = {
+    mode: 'share',
+    useShareIcon: true,
+    stepTitle: '공유 버튼 누르기',
+    menuHint: '공유 목록을 아래로 내려 <b>홈 화면에 추가</b>, <b>앱 설치</b>, 또는 <b>바로가기 추가</b>를 선택하세요.',
+    supportTitle: '공유 버튼을 먼저 찾으세요.',
+    supportDescription: '공유 버튼 위치는 브라우저 버전과 주소창 위치에 따라 위쪽 또는 아래쪽에 있을 수 있습니다.'
+  };
+
+  if (/CriOS/i.test(ua)) {
     return {
-      key: 'samsung', name: 'Samsung Internet', mode: 'menu', position: 'bottom-right', symbol: '☰',
-      stepTitle: '오른쪽 아래 메뉴 열기',
-      locatorTitle: '오른쪽 아래 메뉴를 누르세요',
-      locatorText: '☰ 메뉴에서 “페이지 추가” 또는 “앱 설치”를 찾으세요.',
-      actionHint: '화면 <b>오른쪽 아래의 ☰ 메뉴</b>를 누르세요.',
-      menuHint: '<b>페이지 추가</b>, <b>홈 화면</b>, 또는 <b>앱 설치</b>를 선택하세요.',
-      supportTitle: 'Samsung Internet 메뉴 위치를 표시합니다.',
-      supportDescription: '화면 오른쪽 아래 메뉴에서 홈 화면 추가 관련 항목을 찾을 수 있습니다.'
+      ...shareBase,
+      key: 'chrome-ios',
+      name: 'Chrome',
+      position: 'top-right',
+      locatorTitle: '주소창 오른쪽의 공유 버튼을 찾으세요',
+      locatorText: '주소창 오른쪽의 공유 버튼을 먼저 확인하세요. 없으면 화면 아래 도구막대도 확인한 뒤 공유 목록을 아래로 내리세요.',
+      actionHint: '주소창 <b>오른쪽의 공유 버튼</b>을 먼저 찾으세요. 보이지 않으면 화면 아래 도구막대의 공유 버튼도 확인하세요.'
     };
   }
 
   if (/EdgiOS/i.test(ua)) {
     return {
-      key: 'edge-ios', name: 'Microsoft Edge', mode: 'menu', position: 'bottom-right', symbol: '•••',
-      stepTitle: '오른쪽 아래 메뉴 열기',
-      locatorTitle: '오른쪽 아래 ••• 메뉴를 누르세요',
-      locatorText: '메뉴에서 “홈 화면에 추가” 또는 “공유”를 찾으세요.',
-      actionHint: '화면 <b>오른쪽 아래의 ••• 메뉴</b>를 누르세요.',
-      menuHint: '<b>홈 화면에 추가</b>가 보이면 선택하세요. 없으면 <b>공유</b> 항목도 확인하세요.',
-      supportTitle: 'Edge의 메뉴 위치를 표시합니다.',
-      supportDescription: '브라우저 버전에 따라 메뉴 이름이나 위치가 조금 다를 수 있습니다.'
-    };
-  }
-
-  if (/CriOS/i.test(ua)) {
-    return {
-      key: 'chrome-ios', name: 'Chrome', mode: 'menu', position: 'bottom-right', symbol: '•••',
-      stepTitle: '오른쪽 아래 메뉴 열기',
-      locatorTitle: '오른쪽 아래 ••• 메뉴를 누르세요',
-      locatorText: '메뉴 또는 공유 목록에서 “홈 화면에 추가”를 찾으세요.',
-      actionHint: '화면 <b>오른쪽 아래의 ••• 메뉴</b>를 누르세요.',
-      menuHint: '<b>홈 화면에 추가</b> 또는 <b>공유</b>를 선택한 뒤 홈 화면 추가 항목을 찾으세요.',
-      supportTitle: 'Chrome의 메뉴 위치를 표시합니다.',
-      supportDescription: 'iPhone의 Chrome 버전에 따라 공유 목록을 한 번 더 열어야 할 수 있습니다.'
+      ...shareBase,
+      key: 'edge-ios',
+      name: 'Microsoft Edge',
+      position: 'bottom-right',
+      locatorTitle: '주소창 주변의 공유 버튼을 찾으세요',
+      locatorText: '주소창 오른쪽이나 화면 아래쪽의 공유 버튼을 누르고 공유 목록을 아래로 내리세요.',
+      actionHint: '주소창 오른쪽 또는 화면 아래쪽의 <b>공유 버튼</b>을 누르세요.'
     };
   }
 
   if (/FxiOS/i.test(ua)) {
     return {
-      key: 'firefox-ios', name: 'Firefox', mode: 'menu', position: 'bottom-right', symbol: '☰',
-      stepTitle: '오른쪽 아래 메뉴 열기',
-      locatorTitle: '오른쪽 아래 메뉴를 누르세요',
-      locatorText: '메뉴에서 “공유” 또는 “홈 화면에 추가”를 찾으세요.',
-      actionHint: '화면 <b>오른쪽 아래의 메뉴</b>를 누르세요.',
-      menuHint: '<b>공유</b> 또는 <b>홈 화면에 추가</b> 항목을 선택하세요.',
-      supportTitle: 'Firefox의 메뉴 위치를 표시합니다.',
-      supportDescription: '버전에 따라 메뉴 아이콘 모양이 ☰ 또는 •••로 보일 수 있습니다.'
+      ...shareBase,
+      key: 'firefox-ios',
+      name: 'Firefox',
+      position: 'bottom-right',
+      locatorTitle: '화면 아래쪽의 공유 버튼을 찾으세요',
+      locatorText: '화면 아래쪽 도구막대의 공유 버튼을 누르고 목록을 아래로 내리세요.',
+      actionHint: '화면 아래쪽 도구막대의 <b>공유 버튼</b>을 누르세요.'
     };
   }
 
   if (ios && /Safari/i.test(ua)) {
     return {
-      key: 'safari-ios', name: ipad ? 'Safari (iPad)' : 'Safari', mode: 'menu', position: ipad ? 'top-right' : 'bottom-center', symbol: '공유',
-      stepTitle: '공유 버튼 열기',
-      locatorTitle: ipad ? '오른쪽 위 공유 버튼을 누르세요' : '화면 아래쪽 공유 버튼을 누르세요',
-      locatorText: '공유 목록을 아래로 내려 “홈 화면에 추가”를 선택하세요.',
-      actionHint: ipad ? '화면 <b>오른쪽 위의 공유 버튼</b>을 누르세요.' : '주소창 주변 또는 화면 <b>아래쪽의 공유 버튼</b>을 누르세요.',
-      menuHint: '공유 목록을 아래로 내려 <b>홈 화면에 추가</b>를 누르세요. 보이지 않으면 목록 아래의 <b>동작 편집</b>을 확인하세요.',
-      supportTitle: 'Safari의 공유 버튼 위치를 표시합니다.',
-      supportDescription: '공유 목록 안에서 홈 화면에 추가를 선택하면 됩니다.',
+      ...shareBase,
+      key: 'safari-ios',
+      name: ipad ? 'Safari (iPad)' : 'Safari',
+      position: ipad ? 'top-right' : 'bottom-center',
+      locatorTitle: ipad ? '오른쪽 위 공유 버튼을 찾으세요' : '화면 아래쪽 공유 버튼을 찾으세요',
+      locatorText: '공유 버튼을 누르고 공유 목록을 아래로 내려 “홈 화면에 추가”를 선택하세요.',
+      actionHint: ipad ? '주소창 <b>오른쪽 위의 공유 버튼</b>을 누르세요.' : '주소창 주변 또는 화면 <b>아래쪽의 공유 버튼</b>을 누르세요.',
       officialUrl: 'https://support.apple.com/ko-kr/guide/iphone/iph42ab2f3a7/ios',
       officialLabel: 'Apple 공식 안내 보기'
     };
   }
 
+  if (/SamsungBrowser/i.test(ua)) {
+    return {
+      ...shareBase,
+      key: 'samsung',
+      name: 'Samsung Internet',
+      position: 'bottom-right',
+      locatorTitle: '화면 아래쪽의 공유 버튼을 찾으세요',
+      locatorText: '아래 도구막대나 메뉴 안의 공유 버튼을 누른 뒤 목록을 아래로 내리세요.',
+      actionHint: '화면 아래쪽 도구막대의 <b>공유 버튼</b>을 찾으세요. 보이지 않으면 메뉴 안의 공유 항목을 확인하세요.'
+    };
+  }
+
   if (/EdgA/i.test(ua)) {
     return {
-      key: 'edge-android', name: 'Microsoft Edge', mode: 'menu', position: 'bottom-center', symbol: '☰',
-      stepTitle: '아래쪽 메뉴 열기',
-      locatorTitle: '화면 아래쪽 메뉴를 누르세요',
-      locatorText: '메뉴에서 “앱 설치” 또는 “휴대폰에 추가”를 찾으세요.',
-      actionHint: '화면 <b>아래쪽의 메뉴 버튼</b>을 누르세요.',
-      menuHint: '<b>앱 설치</b>, <b>홈 화면에 추가</b>, 또는 <b>휴대폰에 추가</b>를 선택하세요.',
-      supportTitle: 'Edge 메뉴 위치를 표시합니다.',
-      supportDescription: '설치 가능 상태에서는 앱 설치 항목이 표시됩니다.'
+      ...shareBase,
+      key: 'edge-android',
+      name: 'Microsoft Edge',
+      position: 'bottom-center',
+      locatorTitle: '주소창 주변의 공유 버튼을 찾으세요',
+      locatorText: '주소창 오른쪽이나 아래 도구막대의 공유 버튼을 누르고 목록을 아래로 내리세요.',
+      actionHint: '주소창 오른쪽 또는 화면 아래쪽의 <b>공유 버튼</b>을 누르세요.'
     };
   }
 
   if (/Whale/i.test(ua)) {
     return {
-      key: 'whale', name: '네이버 웨일', mode: 'menu', position: 'bottom-right', symbol: '☰',
-      stepTitle: '오른쪽 아래 메뉴 열기',
-      locatorTitle: '오른쪽 아래 메뉴를 누르세요',
-      locatorText: '홈 화면 추가 또는 바로가기 추가 항목을 찾으세요.',
-      actionHint: '화면 <b>오른쪽 아래의 메뉴</b>를 누르세요.',
-      menuHint: '<b>홈 화면에 추가</b> 또는 <b>바로가기 추가</b>를 선택하세요.',
-      supportTitle: '웨일 메뉴 위치를 표시합니다.',
-      supportDescription: '해당 항목이 보이지 않으면 주소를 복사해 Chrome 또는 Samsung Internet에서 다시 열어주세요.'
+      ...shareBase,
+      key: 'whale',
+      name: '네이버 웨일',
+      position: 'bottom-right',
+      locatorTitle: '화면 아래쪽의 공유 버튼을 찾으세요',
+      locatorText: '아래 도구막대나 메뉴 안의 공유 버튼을 누른 뒤 목록을 아래로 내리세요.',
+      actionHint: '화면 아래쪽 도구막대 또는 메뉴 안의 <b>공유 버튼</b>을 누르세요.'
     };
   }
 
   if (/Firefox/i.test(ua) && android) {
     return {
-      key: 'firefox-android', name: 'Firefox', mode: 'menu', position: 'top-right', symbol: '•••',
-      stepTitle: '오른쪽 위 메뉴 열기',
-      locatorTitle: '오른쪽 위 ••• 메뉴를 누르세요',
-      locatorText: '메뉴에서 “설치” 또는 “홈 화면에 추가”를 찾으세요.',
-      actionHint: '화면 <b>오른쪽 위의 ••• 메뉴</b>를 누르세요.',
-      menuHint: '<b>설치</b> 또는 <b>홈 화면에 추가</b>를 선택하세요.',
-      supportTitle: 'Firefox 메뉴 위치를 표시합니다.',
-      supportDescription: '설치 항목이 없다면 주소 복사 후 Chrome이나 Samsung Internet에서 다시 시도하세요.'
+      ...shareBase,
+      key: 'firefox-android',
+      name: 'Firefox',
+      position: 'top-right',
+      locatorTitle: '주소창 오른쪽의 공유 버튼을 찾으세요',
+      locatorText: '주소창 오른쪽이나 메뉴 안의 공유 버튼을 누른 뒤 목록을 아래로 내리세요.',
+      actionHint: '주소창 오른쪽의 <b>공유 버튼</b>을 찾으세요. 없으면 메뉴 안의 공유 항목을 확인하세요.'
     };
   }
 
   if (/Chrome/i.test(ua) && android) {
     return {
-      key: 'chrome-android', name: 'Chrome', mode: 'menu', position: 'top-right', symbol: '⋮',
-      stepTitle: '오른쪽 위 메뉴 열기',
-      locatorTitle: '오른쪽 위 ⋮ 메뉴를 누르세요',
-      locatorText: '메뉴에서 “앱 설치” 또는 “홈 화면에 추가”를 선택하세요.',
-      actionHint: '화면 <b>오른쪽 위의 ⋮ 메뉴</b>를 누르세요.',
-      menuHint: '<b>앱 설치</b> 또는 <b>홈 화면에 추가</b>를 선택하세요.',
-      supportTitle: 'Chrome 메뉴 위치를 표시합니다.',
-      supportDescription: '설치 조건을 충족하면 메뉴에 앱 설치 항목이 나타납니다.'
+      ...shareBase,
+      key: 'chrome-android',
+      name: 'Chrome',
+      position: 'top-right',
+      locatorTitle: '주소창 오른쪽의 공유 버튼을 찾으세요',
+      locatorText: '사이트에 따라 공유 버튼이 주소창 오른쪽에 바로 보입니다. 없으면 오른쪽 위 ⋮ 안의 공유를 누르고 목록을 아래로 내리세요.',
+      actionHint: '주소창 <b>오른쪽의 공유 버튼</b>을 먼저 찾으세요. 보이지 않으면 오른쪽 위 <b>⋮ → 공유</b>를 누르세요.'
     };
   }
 
   return {
-    key: 'generic', name: '현재 브라우저', mode: 'menu', position: 'top-right', symbol: '•••',
-    stepTitle: '브라우저 메뉴 열기',
-    locatorTitle: '화면 가장자리의 메뉴를 찾으세요',
-    locatorText: '•••, ⋮, ☰, 공유 아이콘 중 하나를 누른 뒤 홈 화면 추가를 찾으세요.',
-    actionHint: '주소창 주변이나 화면 가장자리의 <b>••• / ⋮ / ☰ / 공유 메뉴</b>를 누르세요.',
-    menuHint: '<b>홈 화면에 추가</b>, <b>앱 설치</b>, 또는 <b>바로가기 추가</b>를 선택하세요.',
-    supportTitle: '브라우저 메뉴 위치를 안내합니다.',
-    supportDescription: '메뉴가 보이지 않으면 주소를 복사해 Chrome, Safari, Samsung Internet 또는 Edge에서 다시 열어주세요.'
+    ...shareBase,
+    key: 'generic',
+    name: '현재 브라우저',
+    position: 'top-right',
+    locatorTitle: '주소창 주변의 공유 버튼을 찾으세요',
+    locatorText: '공유 버튼은 주소창 오른쪽이나 화면 아래 도구막대에 있을 수 있습니다. 누른 뒤 목록을 아래로 내리세요.',
+    actionHint: '주소창 오른쪽 또는 화면 아래 도구막대의 <b>공유 버튼</b>을 누르세요.'
   };
 }
 
@@ -309,16 +309,47 @@ function updateInstallButtonState() {
   }
 }
 
+function setGuideIconMode(context) {
+  const useShareIcon = context?.mode !== 'external' && context?.useShareIcon !== false;
+  $('browser-step-share-icon')?.classList.toggle('hidden', !useShareIcon);
+  $('browser-step-external-symbol')?.classList.toggle('hidden', useShareIcon);
+  $('browser-locator-share-icon')?.classList.toggle('hidden', !useShareIcon);
+  $('browser-locator-external-symbol')?.classList.toggle('hidden', useShareIcon);
+}
+
+function lockInstallOverlay() {
+  const html = document.documentElement;
+  if (html.classList.contains('install-guide-open')) return;
+  installOverlayScrollY = window.scrollY || html.scrollTop || 0;
+  html.classList.add('install-guide-open');
+  document.body.classList.add('install-guide-open');
+  document.body.style.top = `-${installOverlayScrollY}px`;
+}
+
+function installOverlayIsVisible() {
+  const modalVisible = !$('ios-install-modal')?.classList.contains('hidden');
+  const locatorVisible = !$('browser-menu-locator')?.classList.contains('hidden');
+  return modalVisible || locatorVisible;
+}
+
+function unlockInstallOverlayIfClosed() {
+  if (installOverlayIsVisible()) return;
+  document.documentElement.classList.remove('install-guide-open');
+  document.body.classList.remove('install-guide-open');
+  document.body.style.top = '';
+  window.scrollTo(0, installOverlayScrollY);
+}
+
 function applyInstallGuideContext(context) {
   currentInstallContext = context || detectInstallContext();
   const ctx = currentInstallContext;
   if ($('ios-browser-name')) $('ios-browser-name').textContent = ctx.name;
-  if ($('browser-menu-symbol')) $('browser-menu-symbol').textContent = ctx.symbol;
   if ($('browser-menu-step-title')) $('browser-menu-step-title').textContent = ctx.stepTitle;
   if ($('ios-browser-action-hint')) $('ios-browser-action-hint').innerHTML = ctx.actionHint;
   if ($('install-menu-item-hint')) $('install-menu-item-hint').innerHTML = ctx.menuHint;
   if ($('install-support-title')) $('install-support-title').textContent = ctx.supportTitle;
   if ($('install-support-description')) $('install-support-description').textContent = ctx.supportDescription;
+  setGuideIconMode(ctx);
 
   const banner = $('install-support-banner');
   if (banner) {
@@ -345,26 +376,34 @@ function applyInstallGuideContext(context) {
   }
 
   const locatorButton = $('btn-show-browser-menu-guide');
-  if (locatorButton) locatorButton.textContent = ctx.mode === 'external' ? '외부 브라우저 메뉴 위치 표시' : `${ctx.symbol} 메뉴 위치 표시`;
+  if (locatorButton) locatorButton.textContent = ctx.mode === 'external' ? '외부 브라우저 안내 보기' : '공유 버튼 위치 보기';
 }
 
 function openInstallGuide(context = detectInstallContext()) {
+  lockInstallOverlay();
   applyInstallGuideContext(context);
   $('ios-install-modal')?.classList.remove('hidden');
 }
 
-function hideBrowserMenuLocator() {
+function closeInstallGuide() {
+  $('ios-install-modal')?.classList.add('hidden');
+  unlockInstallOverlayIfClosed();
+}
+
+function hideBrowserMenuLocator({ preserveLock = false } = {}) {
   $('browser-menu-locator')?.classList.add('hidden');
+  if (!preserveLock) unlockInstallOverlayIfClosed();
 }
 
 function showBrowserMenuLocator(context = detectInstallContext()) {
   currentInstallContext = context;
   const locator = $('browser-menu-locator');
   if (!locator) return openInstallGuide(context);
+  lockInstallOverlay();
+  setGuideIconMode(context);
   locator.dataset.position = context.position || 'top-right';
-  if ($('browser-locator-symbol')) $('browser-locator-symbol').textContent = context.symbol || '•••';
-  if ($('browser-menu-locator-title')) $('browser-menu-locator-title').textContent = context.locatorTitle || '이 근처의 메뉴를 찾으세요';
-  if ($('browser-menu-locator-text')) $('browser-menu-locator-text').textContent = context.locatorText || '메뉴에서 홈 화면 추가를 선택하세요.';
+  if ($('browser-menu-locator-title')) $('browser-menu-locator-title').textContent = context.locatorTitle || '공유 버튼을 찾으세요';
+  if ($('browser-menu-locator-text')) $('browser-menu-locator-text').textContent = context.locatorText || '공유 버튼을 누르고 목록을 아래로 내려 홈 화면에 추가를 선택하세요.';
   locator.classList.remove('hidden');
 }
 
@@ -401,8 +440,8 @@ window.addEventListener('beforeinstallprompt', (event) => {
 
 window.addEventListener('appinstalled', () => {
   deferredPrompt = null;
-  hideBrowserMenuLocator();
   $('ios-install-modal')?.classList.add('hidden');
+  hideBrowserMenuLocator();
   updateInstallButtonState();
 });
 
@@ -434,20 +473,32 @@ $('btn-add-shortcut')?.addEventListener('click', async () => {
 $('btn-show-browser-menu-guide')?.addEventListener('click', () => {
   const context = currentInstallContext || detectInstallContext();
   $('ios-install-modal')?.classList.add('hidden');
-  window.setTimeout(() => showBrowserMenuLocator(context), 80);
+  window.setTimeout(() => showBrowserMenuLocator(context), 60);
 });
 $('btn-copy-page-link')?.addEventListener('click', copyCurrentPageUrl);
-$('btn-close-ios-modal')?.addEventListener('click', () => $('ios-install-modal')?.classList.add('hidden'));
-$('btn-close-browser-locator')?.addEventListener('click', hideBrowserMenuLocator);
+$('btn-close-ios-modal')?.addEventListener('click', closeInstallGuide);
+$('btn-close-browser-locator')?.addEventListener('click', () => hideBrowserMenuLocator());
 $('btn-open-install-guide')?.addEventListener('click', () => {
-  hideBrowserMenuLocator();
+  hideBrowserMenuLocator({ preserveLock: true });
   openInstallGuide(currentInstallContext || detectInstallContext());
 });
 
+$('ios-install-modal')?.addEventListener('click', event => {
+  if (event.target === $('ios-install-modal')) closeInstallGuide();
+});
+
+const browserLocator = $('browser-menu-locator');
+browserLocator?.addEventListener('click', event => {
+  if (event.target === browserLocator) hideBrowserMenuLocator();
+});
+browserLocator?.addEventListener('touchmove', event => {
+  if (!event.target.closest('.browser-locator-card')) event.preventDefault();
+}, { passive: false });
+
 document.addEventListener('keydown', event => {
   if (event.key === 'Escape') {
-    hideBrowserMenuLocator();
     $('ios-install-modal')?.classList.add('hidden');
+    hideBrowserMenuLocator();
   }
 });
 
