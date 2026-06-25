@@ -194,40 +194,64 @@
 
 
     html.menu-modal-open,
-    body.menu-modal-open {
+    body.menu-modal-open,
+    html.install-guide-open,
+    body.install-guide-open {
       overflow: hidden !important;
-      overscroll-behavior: none;
-    }
-    body.menu-modal-open {
-      position: fixed !important;
-      left: 0;
-      right: 0;
-      width: 100%;
+      overscroll-behavior: none !important;
     }
 
-    #menu-modal {
-      align-items: flex-start;
-      overflow-y: auto;
-      overscroll-behavior: contain;
+    body.menu-modal-open,
+    body.install-guide-open {
+      touch-action: none;
+    }
+
+    #menu-modal,
+    #ios-install-modal {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: var(--modal-viewport-height, 100vh);
+      height: var(--modal-viewport-height, 100dvh);
+      box-sizing: border-box;
+      overflow: hidden;
+      overscroll-behavior: none;
+      align-items: center;
+      justify-content: center;
       padding-top: max(0.75rem, env(safe-area-inset-top));
       padding-right: max(0.75rem, env(safe-area-inset-right));
       padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
       padding-left: max(0.75rem, env(safe-area-inset-left));
     }
-    #menu-modal-panel {
+
+    #menu-modal-panel,
+    #ios-install-panel {
       width: min(100%, 42rem);
-      max-height: calc(100vh - 1.5rem);
-      max-height: calc(100dvh - max(1.5rem, env(safe-area-inset-top) + env(safe-area-inset-bottom)));
+      max-height: calc(var(--modal-viewport-height, 100vh) - 1.5rem);
+      max-height: calc(var(--modal-viewport-height, 100dvh) - 1.5rem);
+      min-height: 0;
+      margin: 0;
+      transform: translateZ(0);
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    #menu-modal-panel {
       display: flex;
       flex-direction: column;
-      min-height: 0;
-      margin: auto 0;
       overflow: hidden;
     }
+
+    #ios-install-panel {
+      overflow-y: auto;
+      touch-action: pan-y;
+    }
+
     #menu-modal-header,
     #menu-modal-controls {
       flex: 0 0 auto;
     }
+
     #menu-list {
       flex: 1 1 auto;
       min-height: 0;
@@ -235,26 +259,33 @@
       overflow-y: auto;
       overscroll-behavior: contain;
       -webkit-overflow-scrolling: touch;
+      touch-action: pan-y;
     }
+
     @media (max-width: 640px) {
-      #menu-modal {
+      #menu-modal,
+      #ios-install-modal {
         padding-top: max(0.5rem, env(safe-area-inset-top));
         padding-right: max(0.5rem, env(safe-area-inset-right));
         padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
         padding-left: max(0.5rem, env(safe-area-inset-left));
       }
-      #menu-modal-panel {
+
+      #menu-modal-panel,
+      #ios-install-panel {
         width: 100%;
-        max-height: calc(100vh - 1rem);
-        max-height: calc(100dvh - max(1rem, env(safe-area-inset-top) + env(safe-area-inset-bottom)));
+        max-height: calc(var(--modal-viewport-height, 100vh) - 1rem);
+        max-height: calc(var(--modal-viewport-height, 100dvh) - 1rem);
         border-width: 2px;
         border-radius: 1.4rem;
       }
+
       #menu-modal-header,
       #menu-modal-controls,
       #menu-list {
         padding: 1rem;
       }
+
       #menu-modal-header h3 { font-size: 1.25rem; }
       #menu-modal-header p { font-size: 0.76rem; }
       #menu-modal-controls { gap: 0.55rem; }
@@ -293,151 +324,6 @@
       .form-input { height: 64px; font-size: 1.05rem; }
       .btn { height: 72px; font-size: 1.15rem; }
       .quick-action { min-height: 58px; font-size: 0.92rem; border-radius: 18px; }
-    }
-
-
-    /* 브라우저별 공유 버튼 안내: 문서 레이아웃과 완전히 분리 */
-    html.install-guide-open,
-    body.install-guide-open {
-      overflow: hidden !important;
-      overscroll-behavior: none !important;
-      background-color: #e5e7eb !important;
-    }
-    body.install-guide-open {
-      position: fixed !important;
-      left: 0;
-      right: 0;
-      width: 100%;
-      touch-action: none;
-    }
-    #ios-install-modal {
-      overflow: hidden;
-      overscroll-behavior: none;
-    }
-    #ios-install-modal > div {
-      overscroll-behavior: contain;
-      -webkit-overflow-scrolling: touch;
-      touch-action: pan-y;
-    }
-    #browser-menu-locator {
-      position: fixed;
-      inset: 0;
-      inline-size: 100%;
-      block-size: 100%;
-      block-size: 100dvh;
-      max-inline-size: 100%;
-      max-block-size: 100dvh;
-      z-index: 80;
-      overflow: hidden;
-      overflow: clip;
-      contain: strict;
-      overscroll-behavior: none;
-      touch-action: none;
-      pointer-events: auto;
-      background: rgba(15, 23, 42, 0.2);
-    }
-    .browser-locator-target {
-      position: absolute;
-      z-index: 2;
-      width: 62px;
-      height: 62px;
-      padding: 9px;
-      border-radius: 999px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #0f172a;
-      background: rgba(255, 255, 255, 0.98);
-      border: 3px solid #2563eb;
-      box-shadow: 0 0 0 9px rgba(37, 99, 235, 0.2), 0 16px 36px rgba(15, 23, 42, 0.24);
-      font-weight: 1000;
-      animation: browser-locator-pulse 1.35s ease-in-out infinite;
-      pointer-events: none;
-    }
-    .browser-locator-target img {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-    }
-    .browser-locator-target .external-symbol {
-      font-size: 16px;
-      line-height: 1;
-      white-space: nowrap;
-    }
-    .browser-locator-card {
-      position: absolute;
-      z-index: 3;
-      width: min(330px, calc(100% - 24px));
-      max-height: calc(100dvh - 104px);
-      overflow-y: auto;
-      overscroll-behavior: contain;
-      touch-action: pan-y;
-      border: 2px solid rgba(226, 232, 240, 0.98);
-      border-radius: 20px;
-      background: rgba(255, 255, 255, 0.99);
-      padding: 16px 44px 15px 16px;
-      box-shadow: 0 22px 55px rgba(15, 23, 42, 0.25);
-      pointer-events: auto;
-      backdrop-filter: blur(12px);
-    }
-    .browser-locator-close {
-      position: absolute;
-      top: 8px;
-      right: 10px;
-      width: 30px;
-      height: 30px;
-      border-radius: 999px;
-      background: #f1f5f9;
-      color: #475569;
-      font-size: 20px;
-      font-weight: 900;
-      line-height: 1;
-    }
-    #browser-menu-locator[data-position="top-right"] .browser-locator-target {
-      top: max(10px, env(safe-area-inset-top));
-      right: max(10px, env(safe-area-inset-right));
-    }
-    #browser-menu-locator[data-position="top-right"] .browser-locator-card {
-      top: max(84px, calc(env(safe-area-inset-top) + 76px));
-      right: max(10px, env(safe-area-inset-right));
-    }
-    #browser-menu-locator[data-position="top-left"] .browser-locator-target {
-      top: max(10px, env(safe-area-inset-top));
-      left: max(10px, env(safe-area-inset-left));
-    }
-    #browser-menu-locator[data-position="top-left"] .browser-locator-card {
-      top: max(84px, calc(env(safe-area-inset-top) + 76px));
-      left: max(10px, env(safe-area-inset-left));
-    }
-    #browser-menu-locator[data-position="bottom-right"] .browser-locator-target {
-      right: max(10px, env(safe-area-inset-right));
-      bottom: max(10px, env(safe-area-inset-bottom));
-    }
-    #browser-menu-locator[data-position="bottom-right"] .browser-locator-card {
-      right: max(10px, env(safe-area-inset-right));
-      bottom: max(84px, calc(env(safe-area-inset-bottom) + 76px));
-    }
-    #browser-menu-locator[data-position="bottom-left"] .browser-locator-target {
-      left: max(10px, env(safe-area-inset-left));
-      bottom: max(10px, env(safe-area-inset-bottom));
-    }
-    #browser-menu-locator[data-position="bottom-left"] .browser-locator-card {
-      left: max(10px, env(safe-area-inset-left));
-      bottom: max(84px, calc(env(safe-area-inset-bottom) + 76px));
-    }
-    #browser-menu-locator[data-position="bottom-center"] .browser-locator-target {
-      left: 50%;
-      bottom: max(10px, env(safe-area-inset-bottom));
-      transform: translateX(-50%);
-    }
-    #browser-menu-locator[data-position="bottom-center"] .browser-locator-card {
-      left: 50%;
-      bottom: max(84px, calc(env(safe-area-inset-bottom) + 76px));
-      transform: translateX(-50%);
-    }
-    @keyframes browser-locator-pulse {
-      0%, 100% { box-shadow: 0 0 0 7px rgba(37, 99, 235, 0.18), 0 16px 36px rgba(15, 23, 42, 0.24); }
-      50% { box-shadow: 0 0 0 15px rgba(37, 99, 235, 0.06), 0 16px 36px rgba(15, 23, 42, 0.24); }
     }
   </style>
 </head>
@@ -515,92 +401,72 @@
       </div>
     </div>
 
-    <div id="ios-install-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm transition-opacity" role="dialog" aria-modal="true" aria-labelledby="install-guide-title">
-      <div class="bg-white rounded-3xl p-5 sm:p-6 max-w-lg w-full text-center shadow-2xl border-2 border-slate-200 max-h-[92vh] overflow-y-auto">
-        <div class="flex items-center justify-center gap-3 mb-3">
-          <img src="/img/shareicon.png" alt="공유 또는 메뉴" class="w-12 h-12 rounded-2xl shadow-sm bg-white p-1">
-          <h3 id="install-guide-title" class="text-xl sm:text-2xl font-extrabold text-gray-900">홈 화면에 추가</h3>
+    <div id="ios-install-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="install-guide-title">
+      <div id="ios-install-panel" class="bg-white rounded-3xl p-5 sm:p-6 max-w-lg w-full text-left shadow-2xl border-2 border-slate-200">
+        <div class="flex items-center gap-3 mb-4">
+          <img src="/img/shareicon.png" alt="공유 버튼" class="w-12 h-12 rounded-2xl shadow-sm bg-white p-1">
+          <div>
+            <h3 id="install-guide-title" class="text-xl sm:text-2xl font-extrabold text-gray-900">홈 화면에 추가</h3>
+            <p class="text-sm font-bold text-slate-500 mt-0.5">공유 버튼을 찾는 것이 첫 단계입니다.</p>
+          </div>
         </div>
 
-        <p id="install-guide-summary" class="text-slate-700 font-black text-base sm:text-lg leading-relaxed mb-2">
-          <span class="text-blue-600">공유 버튼</span>을 누른 뒤 목록을 아래로 내려 홈 화면 추가를 찾으세요.
-        </p>
-        <p class="text-sm text-slate-500 mb-4">
-          감지된 브라우저: <b id="ios-browser-name" class="text-slate-700">브라우저</b>
-        </p>
-
-        <div id="install-support-banner" class="rounded-2xl border-2 border-blue-100 bg-blue-50 p-4 text-left mb-4">
-          <p id="install-support-title" class="font-black text-slate-900">먼저 공유 버튼을 찾으세요.</p>
-          <p id="install-support-description" class="mt-1 text-sm font-bold leading-relaxed text-slate-700"></p>
-        </div>
-
-        <div class="space-y-3 text-left mb-5">
-          <section class="rounded-2xl border-2 border-slate-200 bg-slate-50 p-4 sm:p-5">
+        <ol class="space-y-3 mb-4">
+          <li class="rounded-2xl border-2 border-slate-200 bg-slate-50 p-4">
             <div class="flex items-start gap-3">
-              <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white border-2 border-blue-100 p-2 shadow-sm">
-                <img id="browser-step-share-icon" src="/img/shareicon.png" alt="공유" class="h-full w-full object-contain">
-                <span id="browser-step-external-symbol" class="hidden text-xs font-black text-slate-800">•••</span>
-              </span>
+              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-800 text-lg font-black text-white">1</span>
               <div>
-                <h4 id="browser-menu-step-title" class="text-lg font-black text-slate-900">공유 버튼 누르기</h4>
-                <p id="ios-browser-action-hint" class="mt-1 text-sm font-bold leading-relaxed text-slate-700">주소창 오른쪽이나 아래 도구막대의 공유 버튼을 누르세요.</p>
-              </div>
-            </div>
-          </section>
-
-          <section class="rounded-2xl border-2 border-emerald-100 bg-emerald-50 p-4 sm:p-5">
-            <div class="flex items-start gap-3">
-              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-lg font-black text-white">2</span>
-              <div>
-                <h4 class="text-lg font-black text-slate-900">공유 목록을 아래로 내리기</h4>
-                <p id="install-menu-item-hint" class="mt-1 text-sm font-bold leading-relaxed text-slate-700">
-                  공유 목록을 아래로 내려 <b>홈 화면에 추가</b>, <b>앱 설치</b>, 또는 <b>바로가기 추가</b>를 선택하세요.
+                <h4 class="text-base sm:text-lg font-black text-slate-900">공유 버튼을 누르세요</h4>
+                <p class="mt-1 text-sm font-bold leading-relaxed text-slate-700">
+                  공유 버튼은 기종과 브라우저 설정에 따라 <b>화면 위쪽</b> 또는 <b>아래쪽</b>에 있을 수 있습니다.
                 </p>
               </div>
             </div>
-          </section>
+          </li>
 
-          <section id="external-browser-section" class="hidden rounded-2xl border-2 border-amber-200 bg-amber-50 p-4 sm:p-5">
+          <li class="rounded-2xl border-2 border-slate-200 bg-slate-50 p-4">
             <div class="flex items-start gap-3">
-              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-500 text-lg font-black text-white">!</span>
+              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-800 text-lg font-black text-white">2</span>
               <div>
-                <h4 class="text-base font-black text-slate-900">다른 브라우저에서 다시 열어주세요</h4>
-                <p id="external-browser-hint" class="mt-1 text-sm font-bold leading-relaxed text-slate-700">
-                  이 브라우저에서는 홈 화면 추가가 제한될 수 있습니다. 주소를 복사한 뒤 다른 브라우저에서 열어주세요.
+                <h4 class="text-base sm:text-lg font-black text-slate-900">목록을 아래로 내리세요</h4>
+                <p class="mt-1 text-sm font-bold leading-relaxed text-slate-700">
+                  열린 옵션 목록을 아래로 스크롤한 다음 <b>홈 화면에 추가</b>를 누르세요.
                 </p>
               </div>
             </div>
-          </section>
+          </li>
+
+          <li class="rounded-2xl border-2 border-slate-200 bg-slate-50 p-4">
+            <div class="flex items-start gap-3">
+              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-800 text-lg font-black text-white">3</span>
+              <div>
+                <h4 class="text-base sm:text-lg font-black text-slate-900">추가를 누르세요</h4>
+                <p class="mt-1 text-sm font-bold leading-relaxed text-slate-700">화면 오른쪽 위의 <b>추가</b>를 누르면 완료됩니다.</p>
+              </div>
+            </div>
+          </li>
+        </ol>
+
+        <div class="rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm font-bold leading-relaxed text-blue-950 mb-4">
+          <b>홈 화면에 추가</b>가 보이지 않으면 목록 맨 아래의 <b>동작 편집</b>에서 항목을 추가해 보세요.
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-          <button id="btn-show-browser-menu-guide" type="button" class="h-14 rounded-2xl bg-slate-800 hover:bg-slate-900 text-white font-black text-base shadow-md">
-            공유 버튼 위치 보기
-          </button>
-          <button id="btn-copy-page-link" type="button" class="h-14 rounded-2xl bg-white hover:bg-slate-50 text-slate-700 border-2 border-slate-200 font-black text-base">
-            주소 복사
+        <section id="external-browser-section" class="hidden rounded-2xl border-2 border-amber-200 bg-amber-50 p-4 mb-4">
+          <h4 class="font-black text-slate-900">현재 브라우저에서 항목이 보이지 않나요?</h4>
+          <p id="external-browser-hint" class="mt-1 text-sm font-bold leading-relaxed text-slate-700">
+            네이버·카카오톡 같은 앱 내부 브라우저에서는 제한될 수 있습니다. 주소를 복사해 다른 브라우저에서 다시 열어주세요.
+          </p>
+          <button id="btn-copy-page-link" type="button" class="mt-3 h-11 w-full rounded-xl bg-white border-2 border-amber-200 text-slate-700 font-black">주소 복사</button>
+        </section>
+
+        <div class="flex flex-col sm:flex-row gap-3">
+          <a id="browser-official-guide" href="https://support.apple.com/ko-kr/guide/iphone/iph42ab2f3a7/ios" target="_blank" rel="noopener noreferrer" class="flex-1 h-12 rounded-2xl bg-white border-2 border-slate-200 text-slate-700 font-black inline-flex items-center justify-center">
+            Apple 공식 안내
+          </a>
+          <button id="btn-close-ios-modal" class="flex-1 h-12 rounded-2xl font-black text-white bg-slate-800 hover:bg-slate-900">
+            확인
           </button>
         </div>
-
-        <a id="browser-official-guide" href="https://support.apple.com/ko-kr/guide/iphone/iph42ab2f3a7/ios" target="_blank" rel="noopener noreferrer" class="hidden items-center justify-center text-xs font-black text-blue-600 hover:text-blue-800 mb-4 underline underline-offset-4">
-          공식 안내 보기
-        </a>
-        <button id="btn-close-ios-modal" class="w-full h-12 rounded-2xl font-black text-slate-600 bg-slate-100 hover:bg-slate-200">
-          닫기
-        </button>
-      </div>
-    </div>
-
-    <div id="browser-menu-locator" class="hidden" data-position="top-right" aria-live="polite">
-      <div class="browser-locator-target" aria-hidden="true">
-        <img id="browser-locator-share-icon" src="/img/shareicon.png" alt="">
-        <span id="browser-locator-external-symbol" class="external-symbol hidden">•••</span>
-      </div>
-      <div class="browser-locator-card">
-        <button id="btn-close-browser-locator" type="button" class="browser-locator-close" aria-label="위치 안내 닫기">×</button>
-        <div id="browser-menu-locator-title" class="font-black text-slate-900">공유 버튼을 찾으세요</div>
-        <div id="browser-menu-locator-text" class="mt-1 text-sm font-bold leading-relaxed text-slate-600">주소창 오른쪽 또는 화면 아래의 공유 버튼을 누르고, 목록을 아래로 내려 홈 화면에 추가를 선택하세요.</div>
-        <button id="btn-open-install-guide" type="button" class="mt-3 rounded-xl bg-slate-800 px-4 py-2 text-sm font-black text-white">자세히 보기</button>
       </div>
     </div>
 
@@ -609,6 +475,6 @@
     </footer>
   </div>
 
-  <script type="module" src="JS/qr_app.js?v=20260625-shareguide5"></script>
+  <script type="module" src="JS/qr_app.js?v=20260625-directinstall6"></script>
 </body>
 </html>
