@@ -44,6 +44,13 @@ function syncModalViewportHeight() {
   if (height > 0) document.documentElement.style.setProperty('--modal-viewport-height', `${height}px`);
 }
 
+function ensureModalPortals() {
+  ['menu-modal', 'ios-install-modal'].forEach(id => {
+    const modal = $(id);
+    if (modal && modal.parentElement !== document.body) document.body.appendChild(modal);
+  });
+}
+
 syncModalViewportHeight();
 window.visualViewport?.addEventListener('resize', syncModalViewportHeight);
 window.addEventListener('orientationchange', () => window.setTimeout(syncModalViewportHeight, 120));
@@ -62,6 +69,10 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   if ($('menu-month')) $('menu-month').value = getCurrentMonth();
+  ensureModalPortals();
+  if ('serviceWorker' in navigator && window.isSecureContext) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }
   schedulePageTopReset();
 });
 
@@ -177,6 +188,7 @@ function unlockInstallOverlay() {
 }
 
 function openInstallGuide() {
+  ensureModalPortals();
   syncModalViewportHeight();
   const context = detectInstallContext();
   const external = $('external-browser-section');
@@ -345,6 +357,7 @@ async function loadMenuMonth(monthValue = $('menu-month')?.value || getCurrentMo
 }
 
 function openMenuModal() {
+  ensureModalPortals();
   syncModalViewportHeight();
   if ($('menu-month')) $('menu-month').value = getCurrentMonth();
   document.documentElement.classList.add('menu-modal-open');

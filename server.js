@@ -278,6 +278,7 @@ app.use((req, res, next) => {
     "img-src 'self' data: https:",
     "media-src 'self' data:",
     "connect-src 'self'",
+    "worker-src 'self'",
     "object-src 'none'",
     "base-uri 'self'",
     "frame-ancestors 'none'"
@@ -290,6 +291,12 @@ app.use('/JS', express.static(path.join(ROOT_DIR, 'JS'), { fallthrough: false, m
 app.use('/audio', express.static(path.join(ROOT_DIR, 'audio'), { fallthrough: true, maxAge: '1h' }));
 app.use('/img', express.static(path.join(ROOT_DIR, 'img'), { fallthrough: false, maxAge: '1d' }));
 app.get('/manifest.json', (req, res) => res.sendFile(path.join(ROOT_DIR, 'manifest.json')));
+app.get('/sw.js', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Service-Worker-Allowed', '/');
+  res.type('application/javascript');
+  res.sendFile(path.join(ROOT_DIR, 'sw.js'));
+});
 
 const sendHtml = (res, fileName) => {
   res.setHeader('Cache-Control', 'no-store');

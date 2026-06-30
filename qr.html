@@ -15,7 +15,7 @@
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <link rel="stylesheet" href="CSS/style.css?v=20260619-scanner4">
+  <link rel="stylesheet" href="CSS/style.css?v=20260630-modal-rebuild">
 
   <style>
     :root {
@@ -199,41 +199,44 @@
     body.install-guide-open {
       overflow: hidden !important;
       overscroll-behavior: none !important;
-    }
-
-    body.menu-modal-open,
-    body.install-guide-open {
       touch-action: none;
     }
 
     #menu-modal,
     #ios-install-modal {
-      position: fixed;
-      inset: 0;
-      width: 100%;
-      height: var(--modal-viewport-height, 100vh);
-      height: var(--modal-viewport-height, 100dvh);
+      position: fixed !important;
+      top: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      left: 0 !important;
+      width: 100vw !important;
+      min-width: 100vw !important;
+      height: 100vh !important;
+      min-height: 100dvh !important;
+      max-height: none !important;
       box-sizing: border-box;
-      overflow: hidden;
+      overflow: hidden !important;
       overscroll-behavior: none;
-      align-items: center;
-      justify-content: center;
+      align-items: center !important;
+      justify-content: center !important;
       padding-top: max(0.75rem, env(safe-area-inset-top));
       padding-right: max(0.75rem, env(safe-area-inset-right));
       padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
       padding-left: max(0.75rem, env(safe-area-inset-left));
+      transform: none !important;
+      contain: layout paint;
     }
 
     #menu-modal-panel,
     #ios-install-panel {
       width: min(100%, 42rem);
-      max-height: calc(var(--modal-viewport-height, 100vh) - 1.5rem);
-      max-height: calc(var(--modal-viewport-height, 100dvh) - 1.5rem);
+      max-height: calc(var(--modal-viewport-height, 100dvh) - max(1.5rem, env(safe-area-inset-top) + env(safe-area-inset-bottom)));
       min-height: 0;
-      margin: 0;
-      transform: translateZ(0);
+      margin: 0 !important;
+      transform: none !important;
       overscroll-behavior: contain;
       -webkit-overflow-scrolling: touch;
+      box-sizing: border-box;
     }
 
     #menu-modal-panel {
@@ -265,19 +268,23 @@
     @media (max-width: 640px) {
       #menu-modal,
       #ios-install-modal {
-        padding-top: max(0.5rem, env(safe-area-inset-top));
-        padding-right: max(0.5rem, env(safe-area-inset-right));
-        padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
-        padding-left: max(0.5rem, env(safe-area-inset-left));
+        padding-top: max(0.55rem, env(safe-area-inset-top));
+        padding-right: max(0.55rem, env(safe-area-inset-right));
+        padding-bottom: max(0.55rem, env(safe-area-inset-bottom));
+        padding-left: max(0.55rem, env(safe-area-inset-left));
+        align-items: center !important;
       }
 
       #menu-modal-panel,
       #ios-install-panel {
         width: 100%;
-        max-height: calc(var(--modal-viewport-height, 100vh) - 1rem);
-        max-height: calc(var(--modal-viewport-height, 100dvh) - 1rem);
+        max-height: calc(var(--modal-viewport-height, 100dvh) - max(1.1rem, env(safe-area-inset-top) + env(safe-area-inset-bottom) + 0.6rem));
         border-width: 2px;
-        border-radius: 1.4rem;
+        border-radius: 1.35rem;
+      }
+
+      #ios-install-panel {
+        padding: 1.05rem !important;
       }
 
       #menu-modal-header,
@@ -403,52 +410,44 @@
 
     <div id="ios-install-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="install-guide-title">
       <div id="ios-install-panel" class="bg-white rounded-3xl p-5 sm:p-6 max-w-lg w-full text-left shadow-2xl border-2 border-slate-200">
-        <div class="flex items-center gap-3 mb-4">
-          <img src="/img/shareicon.png" alt="공유 버튼" class="w-12 h-12 rounded-2xl shadow-sm bg-white p-1">
+        <div class="flex items-center gap-3 mb-5">
+          <img src="/img/shareicon.png" alt="공유 버튼" class="w-12 h-12 rounded-2xl shadow-sm bg-white p-1 border border-slate-100">
           <div>
-            <h3 id="install-guide-title" class="text-xl sm:text-2xl font-extrabold text-gray-900">홈 화면에 추가</h3>
-            <p class="text-sm font-bold text-slate-500 mt-0.5">공유 버튼을 찾는 것이 첫 단계입니다.</p>
+            <h3 id="install-guide-title" class="text-2xl sm:text-3xl font-black text-gray-900">홈 화면에 추가</h3>
+            <p class="text-sm font-bold text-slate-500 mt-1">공유 버튼과 홈 화면에 추가만 찾으면 됩니다.</p>
           </div>
         </div>
 
-        <ol class="space-y-3 mb-4">
-          <li class="rounded-2xl border-2 border-slate-200 bg-slate-50 p-4">
+        <ol class="space-y-4 mb-5">
+          <li class="rounded-2xl border-2 border-slate-200 bg-slate-50 p-4 shadow-sm">
             <div class="flex items-start gap-3">
-              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-800 text-lg font-black text-white">1</span>
-              <div>
-                <h4 class="text-base sm:text-lg font-black text-slate-900">공유 버튼을 누르세요</h4>
-                <p class="mt-1 text-sm font-bold leading-relaxed text-slate-700">
-                  공유 버튼은 기종과 브라우저 설정에 따라 <b>화면 위쪽</b> 또는 <b>아래쪽</b>에 있을 수 있습니다.
+              <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-900 text-lg font-black text-white">1</span>
+              <div class="min-w-0">
+                <h4 class="text-lg sm:text-xl font-black text-slate-900">공유 버튼 누르기</h4>
+                <p class="mt-2 text-base font-bold leading-relaxed text-slate-700">
+                  레이아웃의 <b>하단 또는 상단</b>에서
+                  <img src="/img/shareicon.png" alt="공유 버튼" class="inline-block w-7 h-7 mx-1 align-[-7px] rounded-lg bg-white p-0.5 border border-slate-200">
+                  을 탭하십시오.
                 </p>
               </div>
             </div>
           </li>
 
-          <li class="rounded-2xl border-2 border-slate-200 bg-slate-50 p-4">
+          <li class="rounded-2xl border-2 border-slate-200 bg-slate-50 p-4 shadow-sm">
             <div class="flex items-start gap-3">
-              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-800 text-lg font-black text-white">2</span>
-              <div>
-                <h4 class="text-base sm:text-lg font-black text-slate-900">목록을 아래로 내리세요</h4>
-                <p class="mt-1 text-sm font-bold leading-relaxed text-slate-700">
-                  열린 옵션 목록을 아래로 스크롤한 다음 <b>홈 화면에 추가</b>를 누르세요.
+              <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-900 text-lg font-black text-white">2</span>
+              <div class="min-w-0">
+                <h4 class="text-lg sm:text-xl font-black text-slate-900">홈 화면에 추가 누르기</h4>
+                <p class="mt-2 text-base font-bold leading-relaxed text-slate-700">
+                  옵션목록을 아래로 스크롤한 다음, <b>'홈 화면에 추가'</b>를 탭하십시오.
                 </p>
-              </div>
-            </div>
-          </li>
-
-          <li class="rounded-2xl border-2 border-slate-200 bg-slate-50 p-4">
-            <div class="flex items-start gap-3">
-              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-800 text-lg font-black text-white">3</span>
-              <div>
-                <h4 class="text-base sm:text-lg font-black text-slate-900">추가를 누르세요</h4>
-                <p class="mt-1 text-sm font-bold leading-relaxed text-slate-700">화면 오른쪽 위의 <b>추가</b>를 누르면 완료됩니다.</p>
               </div>
             </div>
           </li>
         </ol>
 
-        <div class="rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm font-bold leading-relaxed text-blue-950 mb-4">
-          <b>홈 화면에 추가</b>가 보이지 않으면 목록 맨 아래의 <b>동작 편집</b>에서 항목을 추가해 보세요.
+        <div class="rounded-2xl border border-slate-200 bg-white p-4 text-sm font-bold leading-relaxed text-slate-700 mb-4">
+          기종과 브라우저 설정에 따라 공유 버튼은 화면 <b>위쪽</b> 또는 <b>아래쪽</b>에 있을 수 있습니다. 항목이 보이지 않으면 옵션목록을 더 아래로 내려보세요.
         </div>
 
         <section id="external-browser-section" class="hidden rounded-2xl border-2 border-amber-200 bg-amber-50 p-4 mb-4">
@@ -475,6 +474,6 @@
     </footer>
   </div>
 
-  <script type="module" src="JS/qr_app.js?v=20260625-directinstall6"></script>
+  <script type="module" src="JS/qr_app.js?v=20260630-modal-rebuild"></script>
 </body>
 </html>
