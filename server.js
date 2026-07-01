@@ -322,10 +322,18 @@ app.get('/sw.js', (req, res) => {
 
 const sendHtml = (res, fileName) => {
   res.setHeader('Cache-Control', 'no-store');
-  res.sendFile(path.join(HTML_DIR, fileName));
+  const candidates = [
+    path.join(HTML_DIR, fileName),
+    path.join(ROOT_DIR, fileName),
+    path.join(ROOT_DIR, 'html', fileName)
+  ];
+  const target = candidates.find(file => fs.existsSync(file));
+  if (!target) return res.status(404).type('text/plain').send(`${fileName} not found`);
+  return res.sendFile(target);
 };
 
 app.get('/', (req, res) => sendHtml(res, 'qr.html'));
+app.get('/index.html', (req, res) => sendHtml(res, 'qr.html'));
 app.get('/qr.html', (req, res) => sendHtml(res, 'qr.html'));
 app.get('/scanner', (req, res) => sendHtml(res, 'scanner.html'));
 app.get('/scanner.html', (req, res) => sendHtml(res, 'scanner.html'));

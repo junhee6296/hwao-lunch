@@ -99,6 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if ($('menu-month')) $('menu-month').value = getCurrentMonth();
   ['lunchcheck_permanent_qr_enabled', 'lunchcheck_permanent_qr_warning_confirmed', 'lunchcheck_permanent_qr_cache_v1'].forEach(key => localStorage.removeItem(key));
   ensureModalPortals();
+  bindQRPageEvents();
   if ('serviceWorker' in navigator && window.isSecureContext) {
     navigator.serviceWorker.register('/sw.js').catch(() => {});
   }
@@ -294,7 +295,7 @@ window.addEventListener('appinstalled', () => {
 
 window.matchMedia('(display-mode: standalone)').addEventListener?.('change', updateInstallButtonState);
 
-$('btn-add-shortcut')?.addEventListener('click', async () => {
+async function handleAddShortcutClick() {
   if (isStandaloneMode()) {
     alert('이미 홈 화면에서 앱으로 실행 중입니다.');
     return;
@@ -310,21 +311,21 @@ $('btn-add-shortcut')?.addEventListener('click', async () => {
   }
 
   openInstallGuide();
-});
+}
 
-$('btn-copy-page-link')?.addEventListener('click', copyCurrentPageUrl);
-$('btn-close-ios-modal')?.addEventListener('click', closeInstallGuide);
-$('ios-install-modal')?.addEventListener('click', event => {
+function handleInstallModalBackdropClick(event) {
   if (event.target === $('ios-install-modal')) closeInstallGuide();
-});
-$('ios-install-modal')?.addEventListener('touchmove', event => {
+}
+
+function handleInstallModalTouchMove(event) {
   if (!event.target.closest('#ios-install-panel')) event.preventDefault();
-}, { passive: false });
+}
 
-document.addEventListener('keydown', event => {
+function handleDocumentKeydown(event) {
   if (event.key === 'Escape' && !$('ios-install-modal')?.classList.contains('hidden')) closeInstallGuide();
-});
+}
 
+document.addEventListener('keydown', handleDocumentKeydown);
 document.addEventListener('DOMContentLoaded', updateInstallButtonState);
 window.addEventListener('pageshow', updateInstallButtonState);
 
@@ -422,15 +423,13 @@ function closeMenuModal() {
   document.body.classList.remove('menu-modal-open');
 }
 
-$('btn-open-menu')?.addEventListener('click', openMenuModal);
-$('btn-load-menu')?.addEventListener('click', () => loadMenuMonth());
-$('btn-close-menu')?.addEventListener('click', closeMenuModal);
-$('menu-modal')?.addEventListener('click', (e) => {
-  if (e.target === $('menu-modal')) closeMenuModal();
-});
-$('menu-modal')?.addEventListener('touchmove', event => {
+function handleMenuModalBackdropClick(event) {
+  if (event.target === $('menu-modal')) closeMenuModal();
+}
+
+function handleMenuModalTouchMove(event) {
   if (!event.target.closest('#menu-modal-panel')) event.preventDefault();
-}, { passive: false });
+}
 
 // ==========================================
 // QR 발급
@@ -528,6 +527,31 @@ function resetToForm() {
   schedulePageTopReset();
 }
 
-$('btn-generate-qr')?.addEventListener('click', () => generateLunchQR(false));
-$('btn-reissue-qr')?.addEventListener('click', () => generateLunchQR(true));
-$('btn-back-to-form')?.addEventListener('click', resetToForm);
+function bindOnce(element, eventName, handler, options) {
+  if (!element) return;
+  const key = `lunchcheckBound_${eventName}_${handler.name || 'anonymous'}`;
+  if (element.dataset && element.dataset[key]) return;
+  element.addEventListener(eventName, handler, options);
+  if (element.dataset) element.dataset[key] = 'true';
+}
+
+function bindQRPageEvents() {
+  bindOnce($('btn-add-shortcut'), 'click', handleAddShortcutClick);
+  bindOnce($('btn-copy-page-link'), 'click', copyCurrentPageUrl);
+  bindOnce($('btn-close-ios-modal'), 'click', closeInstallGuide);
+  bindOnce($('ios-install-modal'), 'click', handleInstallModalBackdropClick);
+  bindOnce($('ios-install-modal'), 'touchmove', handleInstallModalTouchMove, { passive: false });
+
+  bindOnce($('btn-open-menu'), 'click', openMenuModal);
+  bindOnce($('btn-load-menu'), 'click', () => loadMenuMonth());
+  bindOnce($('btn-close-menu'), 'click', closeMenuModal);
+  bindOnce($('menu-modal'), 'click', handleMenuModalBackdropClick);
+  bindOnce($('menu-modal'), 'touchmove', handleMenuModalTouchMove, { passive: false });
+
+  bindOnce($('btn-generate-qr'), 'click', () => generateLunchQR(false));
+  bindOnce($('btn-reissue-qr'), 'click', () => generateLunchQR(true));
+  bindOnce($('btn-back-to-form'), 'click', resetToForm);
+}
+
+document.addEventListener('DOMContentLoaded', bindQRPageEvents);
+if (document.readyState !== 'loading') bindQRPageEvents();
