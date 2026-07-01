@@ -6,11 +6,67 @@ let currentQRToken = '';
 let currentQRName = '';
 let currentQRPhoneLast4 = '';
 let currentQRExpiresAt = 0;
+let currentQRPermanent = false;
 let menuModalScrollY = 0;
+
+const PERMANENT_QR_ENABLED_KEY = 'lunchcheck_permanent_qr_enabled';
+const PERMANENT_QR_WARNING_KEY = 'lunchcheck_permanent_qr_warning_confirmed';
+const PERMANENT_QR_CACHE_KEY = 'lunchcheck_permanent_qr_cache_v1';
 
 const $ = (id) => document.getElementById(id);
 const nameInput = () => $('userName');
 const phoneInput = () => $('phoneLast4');
+
+const isPermanentQREnabled = () => localStorage.getItem(PERMANENT_QR_ENABLED_KEY) === 'true';
+
+function getPermanentQRCache() {
+  try {
+    return JSON.parse(localStorage.getItem(PERMANENT_QR_CACHE_KEY) || '{}') || {};
+  } catch (_) {
+    return {};
+  }
+}
+
+function getPermanentQRCacheKey(name, phoneLast4) {
+  return `${String(name || '').trim()}|${String(phoneLast4 || '').trim()}`;
+}
+
+function savePermanentQRCache(name, phoneLast4, token) {
+  if (!name || !phoneLast4 || !token) return;
+  const cache = getPermanentQRCache();
+  cache[getPermanentQRCacheKey(name, phoneLast4)] = {
+    token,
+    savedAt: new Date().toISOString()
+  };
+  localStorage.setItem(PERMANENT_QR_CACHE_KEY, JSON.stringify(cache));
+}
+
+function updatePermanentQRUI() {
+  const checked = isPermanentQREnabled();
+  const toggle = $('permanent-qr-toggle');
+  const note = $('permanent-qr-note');
+  if (toggle) toggle.checked = checked;
+  note?.classList.toggle('is-on', checked);
+}
+
+function setPermanentQREnabled(nextValue) {
+  localStorage.setItem(PERMANENT_QR_ENABLED_KEY, nextValue ? 'true' : 'false');
+  updatePermanentQRUI();
+}
+
+function handlePermanentToggleChange(event) {
+  const nextValue = Boolean(event.target.checked);
+  if (nextValue && localStorage.getItem(PERMANENT_QR_WARNING_KEY) !== 'true') {
+    const ok = confirm('영구 QR은 같은 사람 데이터에 고정된 QR을 사용합니다.\n\nQR 화면이 다른 사람에게 노출되면 부정 사용에 취약할 수 있습니다. 본인 기기에서만 안전하게 사용해 주세요.\n\n영구 QR을 켜시겠습니까?');
+    if (!ok) {
+      event.target.checked = false;
+      updatePermanentQRUI();
+      return;
+    }
+    localStorage.setItem(PERMANENT_QR_WARNING_KEY, 'true');
+  }
+  setPermanentQREnabled(nextValue);
+}
 
 if ('scrollRestoration' in window.history) {
   window.history.scrollRestoration = 'manual';
@@ -69,6 +125,8 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   if ($('menu-month')) $('menu-month').value = getCurrentMonth();
+  updatePermanentQRUI();
+  $('permanent-qr-toggle')?.addEventListener('change', handlePermanentToggleChange);
   ensureModalPortals();
   if ('serviceWorker' in navigator && window.isSecureContext) {
     navigator.serviceWorker.register('/sw.js').catch(() => {});
@@ -413,34 +471,51 @@ async function generateLunchQR(isReissue = false) {
     return alert('이름과 전화번호 뒷자리를 다시 입력해 주세요.');
   }
 
+  const permanent = isPermanentQREnabled();
+
   try {
     const res = await fetch(`${API_BASE_URL}/qr/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, phoneLast4 })
+      body: JSON.stringify({ name, phoneLast4, permanent })
     });
     const data = await res.json();
 
-    if (res.ok) renderQR(data.qrData, name, phoneLast4, data.expiresAt);
-    else alert(data.message);
+    if (res.ok) {
+      if (data.permanent) savePermanentQRCache(name, phoneLast4, data.qrData);
+      renderQR(data.qrData, name, phoneLast4, data.expiresAt, { permanent: Boolean(data.permanent) });
+    } else alert(data.message);
   } catch (e) {
     alert('서버 연결 실패');
   }
 }
 
-function renderQR(token, name, phoneLast4, expiresAt) {
+function renderQR(token, name, phoneLast4, expiresAt, options = {}) {
   if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
   currentQRToken = token;
   currentQRName = name;
   currentQRPhoneLast4 = phoneLast4;
   currentQRExpiresAt = Number(expiresAt || 0);
+  currentQRPermanent = Boolean(options.permanent);
 
   $('qr-form-container')?.classList.add('hidden');
   $('qrcode-container')?.classList.remove('hidden');
 
   $('qr-result-name').textContent = `${name}님 (${phoneLast4})`;
   renderQRToContainer(token);
-  startTimer(expiresAt);
+
+  const validityText = $('qr-validity-text');
+  if (currentQRPermanent) {
+    clearInterval(timerInterval);
+    if (validityText) {
+      validityText.innerHTML = '<span class="text-slate-900 font-black">영구 QR</span><br><span class="text-sm text-slate-500">명단 유효 여부는 스캔할 때 서버에서 다시 확인합니다.</span>';
+    }
+  } else {
+    if (validityText) {
+      validityText.innerHTML = '이 QR은 <span id="timer" class="text-red-500 font-black">15:00</span> 동안 유효합니다.';
+    }
+    startTimer(expiresAt);
+  }
   schedulePageTopReset();
 }
 
@@ -468,6 +543,7 @@ function resetToForm() {
   currentQRName = '';
   currentQRPhoneLast4 = '';
   currentQRExpiresAt = 0;
+  currentQRPermanent = false;
   $('qrcode-container')?.classList.add('hidden');
   $('qr-form-container')?.classList.remove('hidden');
   if ($('qrcode')) $('qrcode').innerHTML = '';

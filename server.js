@@ -30,6 +30,7 @@ const MAX_UPLOAD_SIZE = 8 * 1024 * 1024;
 const MAX_MENU_IMAGE_SIZE = 12 * 1024 * 1024;
 const MAX_UPLOAD_FILES = 10;
 const AUTH_SECRET = process.env.AUTH_SECRET || process.env.EMAIL_PASS || crypto.randomBytes(32).toString('hex');
+const PERMANENT_QR_SECRET = process.env.PERMANENT_QR_SECRET || AUTH_SECRET;
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
 fs.mkdirSync(menuImageDir, { recursive: true });
@@ -141,6 +142,35 @@ const sanitizeDinerForAdmin = (d) => ({
   attended: Boolean(d.attended),
   scannedAt: d.scannedAt || null
 });
+
+
+const buildPermanentQrToken = (user) => {
+  const name = normalizeName(user?.name || '');
+  const phoneLast4 = normalizePhoneLast4(user?.phoneLast4 || '');
+  const digest = crypto
+    .createHmac('sha256', PERMANENT_QR_SECRET)
+    .update(`${name}\0${phoneLast4}`)
+    .digest('base64url');
+  return `LC-PERM-v1.${digest}`;
+};
+
+const isPermanentQrToken = (token) => /^LC-PERM-v1\.[A-Za-z0-9_-]{32,}$/.test(String(token || ''));
+
+const timingSafeStringEqual = (a, b) => {
+  const left = Buffer.from(String(a || ''));
+  const right = Buffer.from(String(b || ''));
+  return left.length === right.length && crypto.timingSafeEqual(left, right);
+};
+
+const findPermanentQrUserForDate = (token, dateStr) => {
+  if (!isPermanentQrToken(token)) return null;
+  return allowedUsers.find(user =>
+    user.name &&
+    isValidPhoneLast4(user.phoneLast4) &&
+    isUserValidOnDate(user, dateStr) &&
+    timingSafeStringEqual(buildPermanentQrToken(user), token)
+  ) || null;
+};
 
 const normalizeAllowedUser = (u) => {
   const phoneLast4 = normalizePhoneLast4(u.phoneLast4 || u.phone || u.orgRole || '');
@@ -1841,6 +1871,7 @@ app.post('/api/qr/generate', (req, res) => {
   if (isWeekendDateStr(todayStr)) return res.status(403).json({ message: '오늘은 주말입니다. 점심 체크를 운영하지 않습니다.' });
 
   cleanupExpiredUsers();
+  const permanent = req.body.permanent === true || String(req.body.permanent || '').toLowerCase() === 'true';
   const candidates = allowedUsers.filter(u => u.name === cleaned.name && u.phoneLast4 === cleaned.phoneLast4);
   if (candidates.length === 0) return res.status(403).json({ message: '미등록 사용자입니다. 이름과 전화번호 뒷자리를 확인해 주세요.' });
 
@@ -1856,8 +1887,8 @@ app.post('/api/qr/generate', (req, res) => {
 
   if (!db.days[todayStr]) db.days[todayStr] = [];
   let diner = db.days[todayStr].find(d => d.name === cleaned.name && d.phoneLast4 === cleaned.phoneLast4);
-  const qrToken = crypto.randomBytes(24).toString('base64url');
-  const expiresAt = Date.now() + QR_EXPIRES_MS;
+  const qrToken = permanent ? buildPermanentQrToken(user) : crypto.randomBytes(24).toString('base64url');
+  const expiresAt = permanent ? null : Date.now() + QR_EXPIRES_MS;
 
   if (!diner) {
     db.days[todayStr].push({
@@ -1866,30 +1897,67 @@ app.post('/api/qr/generate', (req, res) => {
       mealType: user.mealType,
       qrToken,
       tokenExpiresAt: expiresAt,
+      qrMode: permanent ? 'permanent' : 'temporary',
       attended: false,
       scannedAt: null
     });
   } else {
-    if (diner.attended) return res.status(409).json({ message: '오늘 이미 식사를 완료했습니다.', code: 'ALREADY_ATTENDED' });
+    if (diner.attended && !permanent) return res.status(409).json({ message: '오늘 이미 식사를 완료했습니다.', code: 'ALREADY_ATTENDED' });
     diner.qrToken = qrToken;
     diner.tokenExpiresAt = expiresAt;
+    diner.qrMode = permanent ? 'permanent' : 'temporary';
     diner.mealType = user.mealType;
   }
 
   saveDB();
-  res.json({ qrData: qrToken, expiresAt, expiresInMinutes: QR_EXPIRES_MINUTES, eventId: todayStr });
+  res.json({
+    qrData: qrToken,
+    expiresAt,
+    permanent,
+    alreadyAttended: Boolean(diner && diner.attended),
+    expiresInMinutes: permanent ? null : QR_EXPIRES_MINUTES,
+    eventId: todayStr
+  });
 });
 
 app.post('/api/qr/scan', (req, res) => {
   const qrToken = String(req.body.qrToken || '').trim();
-  if (!qrToken || qrToken.length > 200) return res.status(400).json({ message: 'QR 데이터가 올바르지 않습니다.', code: 'BAD_QR' });
+  if (!qrToken || qrToken.length > 220) return res.status(400).json({ message: 'QR 데이터가 올바르지 않습니다.', code: 'BAD_QR' });
 
   const today = getKSTDateStr();
-  const diners = db.days[today] || [];
-  const diner = diners.find(d => d.qrToken === qrToken);
+  if (!db.days[today]) db.days[today] = [];
+  const diners = db.days[today];
+  let diner = diners.find(d => d.qrToken === qrToken);
+  const permanentToken = isPermanentQrToken(qrToken);
+
+  if (!diner && permanentToken) {
+    cleanupExpiredUsers();
+    const user = findPermanentQrUserForDate(qrToken, today);
+    if (user) {
+      diner = diners.find(d => d.name === user.name && d.phoneLast4 === user.phoneLast4);
+      if (!diner) {
+        diner = {
+          phoneLast4: user.phoneLast4,
+          name: user.name,
+          mealType: user.mealType,
+          qrToken,
+          tokenExpiresAt: null,
+          qrMode: 'permanent',
+          attended: false,
+          scannedAt: null
+        };
+        diners.push(diner);
+      } else {
+        diner.qrToken = qrToken;
+        diner.tokenExpiresAt = null;
+        diner.qrMode = 'permanent';
+        diner.mealType = user.mealType;
+      }
+    }
+  }
 
   if (!diner) return res.status(410).json({ message: '유효하지 않거나 만료된 QR입니다.', code: 'INVALID_OR_EXPIRED' });
-  if (diner.tokenExpiresAt < Date.now()) return res.status(410).json({ message: '유효하지 않거나 만료된 QR입니다.', code: 'INVALID_OR_EXPIRED' });
+  if (!permanentToken && diner.tokenExpiresAt < Date.now()) return res.status(410).json({ message: '유효하지 않거나 만료된 QR입니다.', code: 'INVALID_OR_EXPIRED' });
   if (diner.attended) return res.status(409).json({ message: '이미 처리된 QR입니다.', code: 'DUPLICATE', name: diner.name });
 
   diner.attended = true;
