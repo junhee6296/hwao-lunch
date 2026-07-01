@@ -127,6 +127,9 @@ body {
 }
 #qrcode {
   position: relative;
+  background: #ffffff !important;
+  color: #000000 !important;
+  isolation: isolate;
   box-shadow: 0 18px 34px rgba(15, 23, 42, 0.12) !important;
 }
 
@@ -142,15 +145,21 @@ body {
 
 /* QR reliability / dark-mode / landscape hotfix */
 html, body {
-  color-scheme: light;
+  color-scheme: only light;
 }
 
 #qrcode-container,
 #qrcode-container *,
+#qrcode,
+#qrcode *,
 .qr-frame,
 .qr-frame * {
-  color-scheme: light;
-  forced-color-adjust: none;
+  color-scheme: only light !important;
+  forced-color-adjust: none !important;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+  filter: none !important;
+  mix-blend-mode: normal !important;
 }
 
 .qr-frame {
@@ -161,6 +170,7 @@ html, body {
   box-sizing: border-box;
   overflow: visible !important;
   background: #ffffff !important;
+  color: #000000 !important;
   border-color: #94a3b8 !important;
   padding: clamp(14px, 3vw, 24px) !important;
 }
@@ -174,6 +184,8 @@ html, body {
   background: #ffffff !important;
   filter: none !important;
   mix-blend-mode: normal !important;
+  color-scheme: only light !important;
+  forced-color-adjust: none !important;
   image-rendering: pixelated;
 }
 
@@ -240,4 +252,26 @@ html, body {
     height: 2.75rem !important;
     font-size: 0.95rem !important;
   }
+}
+
+
+/* Permanent QR was removed for abuse-risk mitigation. Keep QR rendering in light mode even on forced dark browsers. */
+#qrcode[data-lunchcheck-qr="true"] {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  color-scheme: only light !important;
+  forced-color-adjust: none !important;
+  filter: none !important;
+  mix-blend-mode: normal !important;
+}
+#qrcode[data-lunchcheck-qr="true"] * {
+  color-scheme: only light !important;
+  forced-color-adjust: none !important;
+  filter: none !important;
+  mix-blend-mode: normal !important;
+}
+#qrcode[data-lunchcheck-qr="true"] canvas,
+#qrcode[data-lunchcheck-qr="true"] img,
+#qrcode[data-lunchcheck-qr="true"] table {
+  background-color: #ffffff !important;
 }
