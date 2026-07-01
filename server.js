@@ -321,6 +321,36 @@ app.get('/sw.js', (req, res) => {
   res.sendFile(path.join(ROOT_DIR, 'sw.js'));
 });
 
+app.get(['/config.js', '/qr_app.js', '/scanner_app.js', '/scanner_bootstrap.js', '/admin_bootstrap.js', '/admin_list_app.js', '/camera.js', '/auth.js', '/admin_app.js'], (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.type('application/javascript');
+  const fileName = path.basename(req.path);
+  const candidates = [
+    path.join(JS_DIR, fileName),
+    path.join(ROOT_DIR, 'js', fileName),
+    path.join(ROOT_DIR, 'JS', fileName),
+    path.join(ROOT_DIR, fileName)
+  ];
+  const target = candidates.find(file => fs.existsSync(file));
+  if (!target) return res.status(404).type('text/plain').send(`${fileName} not found`);
+  return res.sendFile(target);
+});
+
+app.get(['/common.css', '/qr.css', '/scanner.css', '/admin.css', '/admin_list.css'], (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.type('text/css');
+  const fileName = path.basename(req.path);
+  const candidates = [
+    path.join(CSS_DIR, fileName),
+    path.join(ROOT_DIR, 'css', fileName),
+    path.join(ROOT_DIR, 'CSS', fileName),
+    path.join(ROOT_DIR, fileName)
+  ];
+  const target = candidates.find(file => fs.existsSync(file));
+  if (!target) return res.status(404).type('text/plain').send(`${fileName} not found`);
+  return res.sendFile(target);
+});
+
 const sendHtml = (res, fileName) => {
   res.setHeader('Cache-Control', 'no-store');
   const candidates = [

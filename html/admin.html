@@ -6,9 +6,9 @@
   <title>Lunch Check 관리자 메뉴</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
-  <link rel="icon" href="/img/icon.png?v=20260701-path-repair2" type="image/png">
-  <link rel="stylesheet" href="/css/common.css?v=20260701-path-repair2">
-  <link rel="stylesheet" href="/css/admin.css?v=20260701-path-repair2">
+  <link rel="icon" href="/img/icon.png?v=20260701-emergency-fallback" type="image/png">
+  <link rel="stylesheet" href="/css/common.css?v=20260701-emergency-fallback">
+  <link rel="stylesheet" href="/css/admin.css?v=20260701-emergency-fallback">
 </head>
 <body class="bg-gray-100 p-4 lg:p-6">
   <div id="auth-overlay" class="fixed inset-0 bg-gray-900 z-[100] flex items-center justify-center p-4">
@@ -28,19 +28,19 @@
         <button id="btn-verify-auth" class="w-full py-3 bg-gray-800 hover:bg-black transition text-white rounded-xl font-bold">인증 확인</button>
         <button id="btn-reset-auth" class="w-full py-2 mt-2 text-gray-400 text-sm underline">이메일 다시 입력</button>
       </div>
-      <a href="/html/scanner.html" class="block mt-4 text-sm text-gray-400 underline">스캐너로 돌아가기</a>
+      <a href="/scanner.html" class="block mt-4 text-sm text-gray-400 underline">스캐너로 돌아가기</a>
     </div>
   </div>
 
   <div id="main-content" class="max-w-7xl mx-auto bg-white rounded-3xl shadow-xl overflow-hidden flex flex-col min-h-[90vh] hidden">
     <header class="p-5 lg:p-6 border-b bg-gray-50 flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4 shrink-0">
       <div class="flex items-center gap-3">
-        <h1 class="text-2xl lg:text-3xl font-black text-gray-800 flex items-center gap-2"><img src="/img/icon.png?v=20260701-path-repair2" alt="Lunch Check" class="w-10 h-10 rounded-2xl"> <span>👥 Lunch Check 관리자</span></h1>
+        <h1 class="text-2xl lg:text-3xl font-black text-gray-800 flex items-center gap-2"><img src="/img/icon.png?v=20260701-emergency-fallback" alt="Lunch Check" class="w-10 h-10 rounded-2xl"> <span>👥 Lunch Check 관리자</span></h1>
         <span id="admin-email-label" class="hidden lg:inline-flex text-xs font-bold text-gray-400 bg-white border px-2 py-1 rounded-lg"></span>
       </div>
       <div class="flex flex-wrap gap-2 items-center">
-        <a href="/html/scanner.html" class="bg-gray-900 hover:bg-black text-white font-bold py-3 px-5 rounded-xl transition-all shadow-md">⬅️ 스캐너 돌아가기</a>
-        <a href="/html/qr.html" class="bg-white hover:bg-gray-100 text-gray-600 font-bold py-3 px-4 rounded-xl border shadow-sm">📱 QR 발급</a>
+        <a href="/scanner.html" class="bg-gray-900 hover:bg-black text-white font-bold py-3 px-5 rounded-xl transition-all shadow-md">⬅️ 스캐너 돌아가기</a>
+        <a href="/qr.html" class="bg-white hover:bg-gray-100 text-gray-600 font-bold py-3 px-4 rounded-xl border shadow-sm">📱 QR 발급</a>
         <button id="btn-export-daily" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-5 rounded-xl transition-all shadow-md">📥 일별 시트</button>
         <button id="btn-export-monthly" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-5 rounded-xl transition-all shadow-md">📅 월별 시트</button>
         <button id="btn-logout" class="bg-white hover:bg-red-50 text-red-500 font-bold py-3 px-4 rounded-xl border border-red-100 shadow-sm">로그아웃</button>
@@ -205,6 +205,23 @@
       </div>
     </div>
   </div>
-  <script type="module" src="/js/admin_bootstrap.js?v=20260701-path-repair2"></script>
+  <script type="module">
+    const importWithFallback = async (files) => {
+      let lastError;
+      for (const file of files) {
+        try { return await import(file); } catch (error) { lastError = error; }
+      }
+      console.error('Lunch Check admin script load failed', lastError);
+      const msg = document.createElement('div');
+      msg.style.cssText = 'position:fixed;left:12px;right:12px;bottom:12px;z-index:99999;padding:14px;border-radius:14px;background:#fee2e2;color:#991b1b;font-weight:900;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.18)';
+      msg.textContent = '관리자 스크립트를 불러오지 못했습니다. 서버의 js/JS 폴더 배포 상태를 확인해 주세요.';
+      document.body.appendChild(msg);
+    };
+    importWithFallback([
+      '/js/admin_bootstrap.js?v=20260701-emergency-fallback',
+      '/JS/admin_bootstrap.js?v=20260701-emergency-fallback',
+      '/admin_bootstrap.js?v=20260701-emergency-fallback'
+    ]);
+  </script>
 </body>
 </html>
