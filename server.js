@@ -10,6 +10,14 @@ const nodemailer = require('nodemailer');
 const app = express();
 const port = Number(process.env.PORT || 5000);
 
+const trustProxySetting = process.env.TRUST_PROXY;
+if (trustProxySetting) {
+  app.set('trust proxy', trustProxySetting === 'true' ? true : trustProxySetting === 'false' ? false : trustProxySetting);
+} else {
+  // Oracle/Nginx 같은 로컬 reverse proxy 뒤에서도 실제 접속 IP를 기준으로 관리자 세션을 잡기 위함
+  app.set('trust proxy', 'loopback');
+}
+
 const ROOT_DIR = __dirname;
 const DATA_DIR = path.resolve(process.env.DATA_DIR || ROOT_DIR);
 const dbPath = path.join(DATA_DIR, 'data.json');
@@ -19,7 +27,8 @@ const menuImageDir = path.join(DATA_DIR, 'menu_images');
 const holidayCachePath = path.join(DATA_DIR, 'holidays_kr_cache.json');
 
 const COOKIE_NAME = 'hwao_lunch_admin_session';
-const SESSION_MINUTES = Number(process.env.ADMIN_SESSION_MINUTES || 240);
+const ADMIN_IP_SESSION_MINUTES = Math.max(1, Number(process.env.ADMIN_IP_SESSION_MINUTES || process.env.ADMIN_SESSION_MINUTES || 180));
+const ADMIN_IP_SESSION_MS = ADMIN_IP_SESSION_MINUTES * 60 * 1000;
 const CODE_EXPIRES_MS = 3 * 60 * 1000;
 const CODE_COOLDOWN_MS = 30 * 1000;
 const MAX_AUTH_ATTEMPTS = 3;
@@ -40,7 +49,7 @@ let allowedUsers = [];
 let menus = { months: {} };
 let holidayCache = { years: {} };
 let authCodes = new Map();
-let sessions = new Map();
+let adminIpSessions = new Map();
 
 const adminEmails = (process.env.ADMIN_EMAILS || '')
   .split(',')
@@ -382,7 +391,7 @@ const isProduction = process.env.NODE_ENV === 'production';
 const cookieSecure = process.env.COOKIE_SECURE === 'true' || (isProduction && /^https:/i.test(process.env.PUBLIC_ORIGIN || ''));
 
 const setSessionCookie = (res, sessionId) => {
-  const maxAge = SESSION_MINUTES * 60;
+  const maxAge = ADMIN_IP_SESSION_MINUTES * 60;
   const parts = [
     `${COOKIE_NAME}=${encodeURIComponent(sessionId)}`,
     'HttpOnly',
@@ -406,19 +415,47 @@ const clearSessionCookie = (res) => {
   res.setHeader('Set-Cookie', parts.join('; '));
 };
 
-const requireAdmin = (req, res, next) => {
-  const cookies = parseCookies(req.headers.cookie || '');
-  const sessionId = cookies[COOKIE_NAME];
-  const session = sessionId ? sessions.get(sessionId) : null;
+const normalizeClientIp = (value = '') => String(value || '')
+  .split(',')[0]
+  .trim()
+  .replace(/^::ffff:/, '')
+  .replace(/^::1$/, '127.0.0.1');
 
-  if (!session || session.expiresAt < Date.now()) {
-    if (sessionId) sessions.delete(sessionId);
+const getClientIpKey = (req) => normalizeClientIp(req.ip || req.socket?.remoteAddress || 'unknown') || 'unknown';
+
+const setAdminIpSession = (req, email) => {
+  const ipKey = getClientIpKey(req);
+  const now = Date.now();
+  adminIpSessions.set(ipKey, {
+    email,
+    createdAt: now,
+    expiresAt: now + ADMIN_IP_SESSION_MS
+  });
+  return ipKey;
+};
+
+const getAdminIpSession = (req) => {
+  const ipKey = getClientIpKey(req);
+  const session = adminIpSessions.get(ipKey);
+  if (!session) return null;
+  if (session.expiresAt < Date.now()) {
+    adminIpSessions.delete(ipKey);
+    return null;
+  }
+  return { ...session, ipKey };
+};
+
+const requireAdmin = (req, res, next) => {
+  const session = getAdminIpSession(req);
+
+  if (!session) {
     clearSessionCookie(res);
     return res.status(401).json({ message: '관리자 인증이 필요합니다.' });
   }
 
-  session.expiresAt = Date.now() + SESSION_MINUTES * 60 * 1000;
   req.adminEmail = session.email;
+  req.adminIp = session.ipKey;
+  req.adminSessionExpiresAt = session.expiresAt;
   next();
 };
 
@@ -445,8 +482,8 @@ setInterval(() => {
   for (const [email, auth] of authCodes.entries()) {
     if (auth.expiresAt < now - CODE_EXPIRES_MS) authCodes.delete(email);
   }
-  for (const [sessionId, session] of sessions.entries()) {
-    if (session.expiresAt < now) sessions.delete(sessionId);
+  for (const [ipKey, session] of adminIpSessions.entries()) {
+    if (session.expiresAt < now) adminIpSessions.delete(ipKey);
   }
 }, 60 * 1000).unref();
 
@@ -502,10 +539,16 @@ app.post('/api/admin/verify-code', (req, res) => {
 
   if (hashCode(code, email) === auth.codeHash) {
     authCodes.delete(email);
-    const sessionId = crypto.randomBytes(32).toString('hex');
-    sessions.set(sessionId, { email, expiresAt: Date.now() + SESSION_MINUTES * 60 * 1000 });
-    setSessionCookie(res, sessionId);
-    return res.json({ message: '인증 성공', email });
+    const ipKey = setAdminIpSession(req, email);
+    // 브라우저 호환을 위해 쿠키도 3시간짜리 표시용으로 남기지만, 실제 관리자 권한은 IP 세션으로 판단합니다.
+    const sessionMarker = crypto.createHash('sha256').update(`${ipKey}:${email}:${AUTH_SECRET}`).digest('hex');
+    setSessionCookie(res, sessionMarker);
+    return res.json({
+      message: '인증 성공',
+      email,
+      sessionType: 'ip',
+      expiresInSeconds: ADMIN_IP_SESSION_MINUTES * 60
+    });
   }
 
   auth.attempts += 1;
@@ -517,10 +560,14 @@ app.post('/api/admin/verify-code', (req, res) => {
   res.status(401).json({ message: `번호가 틀렸습니다. (${auth.attempts}/${MAX_AUTH_ATTEMPTS})` });
 });
 
-app.get('/api/admin/me', requireAdmin, (req, res) => res.json({ authenticated: true, email: req.adminEmail }));
+app.get('/api/admin/me', requireAdmin, (req, res) => res.json({
+  authenticated: true,
+  email: req.adminEmail,
+  sessionType: 'ip',
+  expiresAt: req.adminSessionExpiresAt
+}));
 app.post('/api/admin/logout', requireAdmin, (req, res) => {
-  const cookies = parseCookies(req.headers.cookie || '');
-  if (cookies[COOKIE_NAME]) sessions.delete(cookies[COOKIE_NAME]);
+  if (req.adminIp) adminIpSessions.delete(req.adminIp);
   clearSessionCookie(res);
   res.json({ message: '로그아웃되었습니다.' });
 });
