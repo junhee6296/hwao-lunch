@@ -19,9 +19,10 @@ if (trustProxySetting) {
 }
 
 const ROOT_DIR = __dirname;
-const HTML_DIR = path.join(ROOT_DIR, 'html');
-const JS_DIR = path.join(ROOT_DIR, 'js');
-const CSS_DIR = path.join(ROOT_DIR, 'css');
+const pickExistingDir = (...dirs) => dirs.find(dir => fs.existsSync(dir)) || dirs[0];
+const HTML_DIR = pickExistingDir(path.join(ROOT_DIR, 'html'), ROOT_DIR);
+const JS_DIR = pickExistingDir(path.join(ROOT_DIR, 'js'), path.join(ROOT_DIR, 'JS'));
+const CSS_DIR = pickExistingDir(path.join(ROOT_DIR, 'css'), path.join(ROOT_DIR, 'CSS'));
 const DATA_DIR = path.resolve(process.env.DATA_DIR || ROOT_DIR);
 const dbPath = path.join(DATA_DIR, 'data.json');
 const userListPath = path.join(DATA_DIR, 'allowed_users.json');
@@ -273,8 +274,13 @@ app.disable('x-powered-by');
 app.use(express.json({ limit: MAX_JSON_SIZE }));
 
 app.use((err, req, res, next) => {
-  if (err && (err.type === 'entity.parse.failed' || err instanceof SyntaxError) && req.path.startsWith('/api/')) {
-    return res.status(400).json({ message: '요청 데이터 형식이 올바르지 않습니다. 새로고침 후 다시 시도해 주세요.' });
+  const isJsonParseError = err && (err.type === 'entity.parse.failed' || err instanceof SyntaxError);
+  if (isJsonParseError) {
+    // 잘못된 JSON 또는 봇/스캐너 요청이 서버 로그에 stack trace로 쌓이지 않도록 400으로 흡수합니다.
+    if (req.path.startsWith('/api/')) {
+      return res.status(400).json({ message: '요청 데이터 형식이 올바르지 않습니다. 새로고침 후 다시 시도해 주세요.' });
+    }
+    return res.status(400).type('text/plain').send('Bad Request');
   }
   next(err);
 });
@@ -299,13 +305,13 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use('/css', express.static(CSS_DIR, { fallthrough: false, maxAge: '1h' }));
-app.use('/js', express.static(JS_DIR, { fallthrough: false, maxAge: '0', setHeaders: res => res.setHeader('Cache-Control', 'no-store') }));
+app.use('/css', express.static(CSS_DIR, { fallthrough: true, maxAge: '1h' }));
+app.use('/js', express.static(JS_DIR, { fallthrough: true, maxAge: '0', setHeaders: res => res.setHeader('Cache-Control', 'no-store') }));
 // 구버전 캐시 호환용 별칭입니다. 실제 소스는 css/js 폴더 한 곳에서만 관리합니다.
-app.use('/CSS', express.static(CSS_DIR, { fallthrough: false, maxAge: '1h' }));
-app.use('/JS', express.static(JS_DIR, { fallthrough: false, maxAge: '0', setHeaders: res => res.setHeader('Cache-Control', 'no-store') }));
+app.use('/CSS', express.static(CSS_DIR, { fallthrough: true, maxAge: '1h' }));
+app.use('/JS', express.static(JS_DIR, { fallthrough: true, maxAge: '0', setHeaders: res => res.setHeader('Cache-Control', 'no-store') }));
 app.use('/audio', express.static(path.join(ROOT_DIR, 'audio'), { fallthrough: true, maxAge: '1h' }));
-app.use('/img', express.static(path.join(ROOT_DIR, 'img'), { fallthrough: false, maxAge: '1d' }));
+app.use('/img', express.static(path.join(ROOT_DIR, 'img'), { fallthrough: true, maxAge: '1d' }));
 app.get('/manifest.json', (req, res) => res.sendFile(path.join(ROOT_DIR, 'manifest.json')));
 app.get('/sw.js', (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
