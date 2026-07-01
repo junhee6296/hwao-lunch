@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lunch Check 관리자 메뉴</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+  <link rel="icon" href="/img/icon.png?v=20260701-path-repair2" type="image/png">
+  <link rel="stylesheet" href="/css/common.css?v=20260701-path-repair2">
+  <link rel="stylesheet" href="/css/admin.css?v=20260701-path-repair2">
+</head>
+<body class="bg-gray-100 p-4 lg:p-6">
+  <div id="auth-overlay" class="fixed inset-0 bg-gray-900 z-[100] flex items-center justify-center p-4">
+    <div class="bg-white p-8 rounded-3xl shadow-2xl max-w-sm w-full text-center">
+      <div class="text-4xl mb-4">🔐</div>
+      <h2 class="text-xl font-black mb-2">관리자 인증</h2>
+      <p class="text-gray-500 text-sm mb-6">Lunch Check 명단 관리와 식단표 업로드를 위해<br>관리자 이메일 인증이 필요합니다.</p>
+
+      <div id="step-email" class="text-left">
+        <label class="block text-xs font-bold text-gray-500 mb-1">관리자 이메일</label>
+        <input type="email" id="admin-email" class="w-full border p-3 rounded-xl outline-none focus:border-blue-500" placeholder="admin@email.com" autocomplete="email">
+        <button id="btn-request-auth" class="w-full py-3 mt-4 bg-blue-600 hover:bg-blue-700 transition text-white rounded-xl font-bold">인증번호 발송</button>
+      </div>
+
+      <div id="step-code" class="hidden text-left">
+        <input type="text" id="2fa-code" class="w-full border-2 border-gray-100 p-3 rounded-xl text-center text-2xl tracking-widest mb-3 focus:border-blue-500 outline-none" placeholder="000000" maxlength="6" inputmode="numeric">
+        <button id="btn-verify-auth" class="w-full py-3 bg-gray-800 hover:bg-black transition text-white rounded-xl font-bold">인증 확인</button>
+        <button id="btn-reset-auth" class="w-full py-2 mt-2 text-gray-400 text-sm underline">이메일 다시 입력</button>
+      </div>
+      <a href="/html/scanner.html" class="block mt-4 text-sm text-gray-400 underline">스캐너로 돌아가기</a>
+    </div>
+  </div>
+
+  <div id="main-content" class="max-w-7xl mx-auto bg-white rounded-3xl shadow-xl overflow-hidden flex flex-col min-h-[90vh] hidden">
+    <header class="p-5 lg:p-6 border-b bg-gray-50 flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4 shrink-0">
+      <div class="flex items-center gap-3">
+        <h1 class="text-2xl lg:text-3xl font-black text-gray-800 flex items-center gap-2"><img src="/img/icon.png?v=20260701-path-repair2" alt="Lunch Check" class="w-10 h-10 rounded-2xl"> <span>👥 Lunch Check 관리자</span></h1>
+        <span id="admin-email-label" class="hidden lg:inline-flex text-xs font-bold text-gray-400 bg-white border px-2 py-1 rounded-lg"></span>
+      </div>
+      <div class="flex flex-wrap gap-2 items-center">
+        <a href="/html/scanner.html" class="bg-gray-900 hover:bg-black text-white font-bold py-3 px-5 rounded-xl transition-all shadow-md">⬅️ 스캐너 돌아가기</a>
+        <a href="/html/qr.html" class="bg-white hover:bg-gray-100 text-gray-600 font-bold py-3 px-4 rounded-xl border shadow-sm">📱 QR 발급</a>
+        <button id="btn-export-daily" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-5 rounded-xl transition-all shadow-md">📥 일별 시트</button>
+        <button id="btn-export-monthly" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-5 rounded-xl transition-all shadow-md">📅 월별 시트</button>
+        <button id="btn-logout" class="bg-white hover:bg-red-50 text-red-500 font-bold py-3 px-4 rounded-xl border border-red-100 shadow-sm">로그아웃</button>
+      </div>
+    </header>
+
+    <div class="flex border-b bg-white shrink-0">
+      <button onclick="switchTab('daily')" id="tab-daily" class="flex-1 py-4 font-black text-blue-600 border-b-4 border-blue-600">🌞 일식 다중 날짜 관리</button>
+      <button onclick="switchTab('monthly')" id="tab-monthly" class="flex-1 py-4 font-bold text-gray-400 bg-gray-50 hover:bg-gray-100">🌙 월식 명단 관리</button>
+      <button onclick="switchTab('menu')" id="tab-menu" class="flex-1 py-4 font-bold text-gray-400 bg-gray-50 hover:bg-gray-100">🍱 식단표 관리</button>
+    </div>
+
+    <section id="menu-management-section" class="hidden p-5 border-b bg-amber-50/70 shrink-0">
+      <div class="bg-white border border-amber-100 rounded-3xl p-5 shadow-sm">
+        <div class="flex flex-col xl:flex-row xl:items-center gap-3">
+          <div class="font-black text-amber-950 text-lg shrink-0">🍱 식단표 이미지 업로드</div>
+          <select id="menu-year" class="border border-amber-200 rounded-xl px-3 py-2 font-bold bg-white"></select>
+          <select id="menu-month-select" class="border border-amber-200 rounded-xl px-3 py-2 font-bold bg-white"></select>
+          <input type="file" id="menu-image-file" class="flex-1 bg-white border border-amber-200 rounded-xl px-3 py-2 text-sm" accept="image/png,image/jpeg,image/webp">
+          <button id="btn-upload-menu-image" class="bg-amber-600 hover:bg-amber-700 text-white font-bold px-5 py-2 rounded-xl shadow-sm">이미지 분석·업로드</button>
+        </div>
+        <p class="mt-2 text-xs text-amber-800">식단표 사진에서 날짜별 메뉴와 원산지를 OCR로 추출합니다. 이미지 상단의 연도/월이 선택값과 다르면 계속 진행 여부를 묻습니다.</p>
+        <p id="menu-upload-status" class="mt-3 text-sm font-bold text-gray-600"></p>
+      </div>
+
+      <div class="mt-4 bg-white border border-slate-200 rounded-3xl p-5 shadow-sm">
+        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+          <div>
+            <div class="font-black text-slate-900 text-lg">🛠 날짜별 식단 직접 수정</div>
+            <p class="text-xs text-slate-500 mt-1">OCR이 놓친 메뉴나 원산지를 날짜별로 직접 추가·수정할 수 있습니다. 공휴일은 빨간 글씨로 표시됩니다.</p>
+          </div>
+          <button id="btn-menu-editor-reset" class="bg-white hover:bg-gray-50 text-slate-600 border border-slate-200 rounded-xl px-4 py-2 font-bold">새로 입력</button>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+          <div class="space-y-3">
+            <div>
+              <label class="block text-xs font-black text-slate-600 mb-1">날짜</label>
+              <input type="date" id="menu-edit-date" class="w-full border border-slate-200 rounded-xl px-3 py-2 font-bold bg-white">
+            </div>
+            <div>
+              <label class="block text-xs font-black text-slate-600 mb-1">메뉴 (한 줄에 1개)</label>
+              <textarea id="menu-edit-items" rows="8" class="w-full border border-slate-200 rounded-xl px-3 py-3 bg-white text-sm leading-6" placeholder="예) 백미밥
+된장찌개
+닭강정"></textarea>
+            </div>
+          </div>
+          <div class="space-y-3">
+            <div class="flex items-center gap-3 pt-1">
+              <label class="inline-flex items-center gap-2 font-bold text-slate-700">
+                <input type="checkbox" id="menu-edit-holiday" class="w-4 h-4">
+                공휴일로 표시
+              </label>
+              <input type="text" id="menu-edit-holiday-name" class="flex-1 border border-slate-200 rounded-xl px-3 py-2 bg-white text-sm" placeholder="공휴일명 (선택)">
+            </div>
+            <div>
+              <label class="block text-xs font-black text-slate-600 mb-1">원산지 (한 줄에 1개)</label>
+              <textarea id="menu-edit-origins" rows="8" class="w-full border border-slate-200 rounded-xl px-3 py-3 bg-white text-sm leading-6" placeholder="예) 돈육: 국내산
+계육: 국내산
+쌀: 국내산"></textarea>
+            </div>
+            <div class="flex flex-wrap gap-2 pt-1">
+              <button id="btn-save-menu-day" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2 rounded-xl shadow-sm">저장 / 수정</button>
+              <button id="btn-delete-menu-day" class="bg-white hover:bg-red-50 text-red-500 border border-red-100 font-bold px-5 py-2 rounded-xl">해당 날짜 삭제</button>
+            </div>
+            <p id="menu-edit-status" class="text-sm font-bold text-slate-500"></p>
+          </div>
+        </div>
+      </div>
+
+      <div id="menu-admin-preview" class="mt-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3"></div>
+    </section>
+
+    <section id="user-toolbar-section" class="p-4 border-b flex flex-col gap-4 bg-white shrink-0">
+      <div class="flex flex-col md:flex-row gap-4 items-center">
+        <div class="relative w-full md:w-72 shrink-0">
+          <input type="text" id="search-input" class="w-full border-2 border-gray-200 p-2.5 pl-10 rounded-xl focus:border-blue-400 outline-none text-sm" placeholder="이름 또는 전화번호 뒷자리 검색">
+          <span class="absolute left-3 top-2.5 opacity-50">🔍</span>
+        </div>
+
+        <div class="flex-1 w-full bg-blue-50/50 p-2 rounded-xl border border-blue-100 flex flex-wrap md:flex-nowrap gap-2 items-center">
+          <div class="text-xs font-bold text-blue-800 px-2 shrink-0" id="form-title">일식 등록</div>
+          <input type="text" id="new-phone" class="w-full md:w-40 border p-2.5 rounded-lg text-sm" placeholder="전화 뒷자리 4자리" inputmode="numeric" maxlength="4">
+          <input type="text" id="new-name" class="flex-1 border p-2.5 rounded-lg text-sm" placeholder="이름">
+          <div id="daily-date-wrapper" class="relative flex-1 flex items-center bg-white border rounded-lg overflow-hidden min-w-[220px]">
+            <input type="text" id="daily-date-text" class="w-full p-2.5 text-sm outline-none font-mono" placeholder="날짜 선택 또는 YYYY-MM-DD 입력">
+            <input type="date" id="daily-date-picker" class="absolute right-2 opacity-0 w-8 h-full cursor-pointer">
+            <span class="pointer-events-none mr-3 text-gray-400">📅</span>
+          </div>
+          <button id="btn-add-user" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg font-bold text-sm shrink-0 shadow-sm transition">명단 추가</button>
+        </div>
+      </div>
+
+      <div id="monthly-import-panel" class="hidden bg-amber-50/70 border border-amber-100 rounded-2xl p-4">
+        <div class="flex flex-col xl:flex-row xl:items-center gap-3">
+          <div class="font-black text-amber-900 shrink-0">📄 엑셀 명단 자동 등록</div>
+          <select id="import-year" class="border border-amber-200 rounded-xl px-3 py-2 font-bold bg-white"></select>
+          <select id="import-month" class="border border-amber-200 rounded-xl px-3 py-2 font-bold bg-white"></select>
+          <input type="file" id="import-files" class="flex-1 bg-white border border-amber-200 rounded-xl px-3 py-2 text-sm" accept=".xlsx" multiple>
+          <button id="btn-analyze-import" class="bg-amber-600 hover:bg-amber-700 text-white font-bold px-5 py-2 rounded-xl shadow-sm">분석하기</button>
+        </div>
+        <p class="mt-2 text-xs text-amber-800">월정액 신청 행만 추출하고, 일식 선택신청 행은 자동 제외합니다. 이름 끝 4자리 숫자는 자동 제거하며 전화번호/ID 열에서는 끝 4자리만 사용합니다.</p>
+      </div>
+    </section>
+
+    <section id="import-preview-section" class="hidden border-b bg-white shrink-0">
+      <div class="p-4 bg-rose-50/50 border-b border-rose-100 flex flex-col gap-3">
+        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+          <div>
+            <h2 class="font-black text-gray-900">엑셀 추출 명단 확인</h2>
+            <p id="import-summary" class="text-sm text-gray-600 mt-1"></p>
+            <p id="import-warning" class="text-sm font-bold text-red-600 mt-1"></p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button id="btn-register-selected-import" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-bold text-sm">선택등록</button>
+            <button id="btn-register-all-import" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl font-bold text-sm">전체등록</button>
+            <button id="btn-delete-selected-import" class="bg-white hover:bg-red-50 text-red-500 px-4 py-2 rounded-xl font-bold text-sm border border-red-100">선택 삭제</button>
+            <button id="btn-clear-import" class="bg-white hover:bg-gray-100 text-gray-500 px-4 py-2 rounded-xl font-bold text-sm border">전체 삭제</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="max-h-[360px] overflow-y-auto bg-white">
+        <table class="w-full text-left whitespace-nowrap text-sm">
+          <thead class="bg-white sticky top-0 z-10 text-xs font-bold text-gray-500 border-b">
+            <tr>
+              <th class="p-3 text-center w-12">선택</th>
+              <th class="p-3 text-center w-16">번호</th>
+              <th class="p-3">이름</th>
+              <th class="p-3">전화번호 뒷자리</th>
+              <th class="p-3 text-center">입금상태</th>
+              <th class="p-3 text-center">미입금 확인</th>
+              <th class="p-3 text-center">삭제</th>
+            </tr>
+          </thead>
+          <tbody id="import-preview-body" class="divide-y divide-gray-100"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <div id="user-table-section" class="flex-1 overflow-y-auto bg-gray-50">
+      <table class="w-full text-left whitespace-nowrap">
+        <thead class="bg-white sticky top-0 z-10 text-xs font-bold text-gray-500 uppercase tracking-wider border-b">
+          <tr>
+            <th class="p-4 w-12 text-center"><input type="checkbox" id="check-all" class="w-4 h-4"></th>
+            <th class="p-4">전화번호 뒷자리 / 성함</th>
+            <th class="p-4 text-center">시작일</th>
+            <th class="p-4 text-center" id="th-endDate">지정 날짜 목록</th>
+            <th class="p-4 text-center bg-red-50 text-red-600">삭제 예정일</th>
+            <th class="p-4 text-right">정보 / 기간 / 삭제</th>
+          </tr>
+        </thead>
+        <tbody id="user-list-body" class="divide-y divide-gray-200"></tbody>
+      </table>
+    </div>
+
+    <div id="bulk-action-section" class="p-4 bg-white border-t flex justify-between items-center shrink-0">
+      <button onclick="bulkDelete()" class="bg-red-50 hover:bg-red-100 text-red-500 px-4 py-2 rounded-xl font-bold text-sm border border-red-100 transition">🗑️ 선택 삭제</button>
+      <div id="monthly-bulk-actions" class="flex gap-2 hidden">
+        <button onclick="bulkChange('shorten')" class="bg-orange-50 hover:bg-orange-100 text-orange-600 px-4 py-2 rounded-xl font-bold text-sm border border-orange-200">➖ 선택 단축</button>
+        <button onclick="bulkChange('extend')" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-xl font-bold text-sm shadow-md">➕ 선택 연장</button>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="/js/admin_bootstrap.js?v=20260701-path-repair2"></script>
+</body>
+</html>

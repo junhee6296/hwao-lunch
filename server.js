@@ -312,6 +312,7 @@ app.use('/CSS', express.static(CSS_DIR, { fallthrough: true, maxAge: '1h' }));
 app.use('/JS', express.static(JS_DIR, { fallthrough: true, maxAge: '0', setHeaders: res => res.setHeader('Cache-Control', 'no-store') }));
 app.use('/audio', express.static(path.join(ROOT_DIR, 'audio'), { fallthrough: true, maxAge: '1h' }));
 app.use('/img', express.static(path.join(ROOT_DIR, 'img'), { fallthrough: true, maxAge: '1d' }));
+app.use('/html', express.static(HTML_DIR, { fallthrough: true, maxAge: '0', setHeaders: res => res.setHeader('Cache-Control', 'no-store') }));
 app.get('/manifest.json', (req, res) => res.sendFile(path.join(ROOT_DIR, 'manifest.json')));
 app.get('/sw.js', (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
@@ -324,7 +325,6 @@ const sendHtml = (res, fileName) => {
   res.setHeader('Cache-Control', 'no-store');
   const candidates = [
     path.join(HTML_DIR, fileName),
-    path.join(ROOT_DIR, fileName),
     path.join(ROOT_DIR, 'html', fileName)
   ];
   const target = candidates.find(file => fs.existsSync(file));
