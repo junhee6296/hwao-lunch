@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "check": "node --check server.js && node --check JS/config.js && node --check JS/qr_app.js && node --check JS/scanner_app.js && node --check JS/admin_list_app.js && node --check JS/camera.js && node --check JS/admin_app.js && node --check JS/auth.js"
+    "check": "node --check server.js && node --check js/config.js && node --check js/qr_app.js && node --check js/scanner_app.js && node --check js/admin_list_app.js && node --check js/camera.js && node --check js/admin_app.js && node --check js/auth.js && node --check js/scanner_bootstrap.js && node --check js/admin_bootstrap.js"
   },
   "dependencies": {
     "dotenv": "^16.4.7",

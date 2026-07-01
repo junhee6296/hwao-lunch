@@ -6,12 +6,9 @@
   <title>Lunch Check 관리자 메뉴</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
-  <link rel="icon" href="/img/icon.png?v=20260610-transparentcorners" type="image/png">
-  <link rel="stylesheet" href="CSS/style.css">
-  <style>
-    input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; opacity: 0.7; transition: 0.2s; }
-    .hidden { display: none !important; }
-  </style>
+  <link rel="icon" href="/img/icon.png?v=20260701-refactor-qrcolor-audio" type="image/png">
+  <link rel="stylesheet" href="/css/common.css?v=20260701-refactor-qrcolor-audio">
+  <link rel="stylesheet" href="/css/admin.css?v=20260701-refactor-qrcolor-audio">
 </head>
 <body class="bg-gray-100 p-4 lg:p-6">
   <div id="auth-overlay" class="fixed inset-0 bg-gray-900 z-[100] flex items-center justify-center p-4">
@@ -38,7 +35,7 @@
   <div id="main-content" class="max-w-7xl mx-auto bg-white rounded-3xl shadow-xl overflow-hidden flex flex-col min-h-[90vh] hidden">
     <header class="p-5 lg:p-6 border-b bg-gray-50 flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4 shrink-0">
       <div class="flex items-center gap-3">
-        <h1 class="text-2xl lg:text-3xl font-black text-gray-800 flex items-center gap-2"><img src="/img/icon.png?v=20260610-transparentcorners" alt="Lunch Check" class="w-10 h-10 rounded-2xl"> <span>👥 Lunch Check 관리자</span></h1>
+        <h1 class="text-2xl lg:text-3xl font-black text-gray-800 flex items-center gap-2"><img src="/img/icon.png?v=20260701-refactor-qrcolor-audio" alt="Lunch Check" class="w-10 h-10 rounded-2xl"> <span>👥 Lunch Check 관리자</span></h1>
         <span id="admin-email-label" class="hidden lg:inline-flex text-xs font-bold text-gray-400 bg-white border px-2 py-1 rounded-lg"></span>
       </div>
       <div class="flex flex-wrap gap-2 items-center">
@@ -208,10 +205,6 @@
       </div>
     </div>
   </div>
-
-  <script type="module">
-    import { initAdminList } from './JS/admin_list_app.js?v=20260610-lunchcheck';
-    initAdminList();
-  </script>
+  <script type="module" src="/js/admin_bootstrap.js?v=20260701-refactor-qrcolor-audio"></script>
 </body>
 </html>

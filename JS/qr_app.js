@@ -7,6 +7,11 @@ let currentQRName = '';
 let currentQRPhoneLast4 = '';
 let currentQRExpiresAt = 0;
 let menuModalScrollY = 0;
+let currentQRColor = '#000000';
+
+const $ = (id) => document.getElementById(id);
+const nameInput = () => $('userName');
+const phoneInput = () => $('phoneLast4');
 
 
 if ('scrollRestoration' in window.history) {
@@ -35,6 +40,32 @@ const formatKoreanDate = (dateStr) => {
 };
 
 const getCurrentMonth = () => getTodayStr().slice(0, 7);
+
+
+function getRelativeLuminance({ r, g, b }) {
+  const normalize = (channel) => {
+    const value = channel / 255;
+    return value <= 0.03928 ? value / 12.92 : Math.pow((value + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * normalize(r) + 0.7152 * normalize(g) + 0.0722 * normalize(b);
+}
+
+function pickReadableQRColor() {
+  // QR 인식성을 위해 흰 배경과 충분한 명도 대비가 나는 어두운 색만 사용합니다.
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    const color = {
+      r: Math.floor(Math.random() * 116),
+      g: Math.floor(Math.random() * 116),
+      b: Math.floor(Math.random() * 116)
+    };
+    const luminance = getRelativeLuminance(color);
+    const contrastWithWhite = (1.05) / (luminance + 0.05);
+    if (contrastWithWhite >= 7.2) {
+      return `rgb(${color.r}, ${color.g}, ${color.b})`;
+    }
+  }
+  return '#000000';
+}
 
 function syncModalViewportHeight() {
   const height = Math.round(window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight || 0);
@@ -120,6 +151,7 @@ function applyRenderedQRElementStyles() {
     node.style.objectFit = 'contain';
     node.style.background = '#ffffff';
     node.style.backgroundColor = '#ffffff';
+    node.setAttribute('data-darkreader-ignore', '');
     if (node.tagName === 'TABLE') {
       node.style.borderCollapse = 'collapse';
       node.style.borderSpacing = '0';
@@ -140,7 +172,7 @@ function renderQRToContainer(token) {
     text: token,
     width: size,
     height: size,
-    colorDark: '#000000',
+    colorDark: currentQRColor,
     colorLight: '#ffffff',
     correctLevel: window.QRCode?.CorrectLevel?.H ?? 2
   });
@@ -451,6 +483,7 @@ function renderQR(token, name, phoneLast4, expiresAt) {
   currentQRName = name;
   currentQRPhoneLast4 = phoneLast4;
   currentQRExpiresAt = Number(expiresAt || 0);
+  currentQRColor = pickReadableQRColor();
   $('qr-form-container')?.classList.add('hidden');
   $('qrcode-container')?.classList.remove('hidden');
 

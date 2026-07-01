@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="color-scheme" content="light">
+  <title>Lunch Check 스캐너 : 화성오산교육청</title>
+
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+  <link rel="icon" href="/img/icon.png?v=20260619-scanner4" type="image/png">
+  <link rel="stylesheet" href="/css/common.css?v=20260701-refactor-qrcolor-audio">
+  <link rel="stylesheet" href="/css/scanner.css?v=20260701-refactor-qrcolor-audio">
+</head>
+<body>
+  <div id="scanner-dashboard">
+    <main id="scanner-stage" aria-label="Lunch Check QR 스캐너">
+      <div id="reader"></div>
+      <div class="scan-guide" aria-hidden="true"></div>
+
+      <div class="scanner-control-bar">
+        <button id="custom-flip-btn" type="button" class="scanner-top-btn scanner-flip-btn" aria-label="후면 카메라로 전환">
+          <span aria-hidden="true">🔄</span>
+          <span>전면/후면 전환</span>
+        </button>
+
+        <div class="scanner-link-actions">
+          <a href="/qr.html" class="scanner-top-btn scanner-qr-btn">
+            <span aria-hidden="true">📱</span>
+            <span>QR 발급</span>
+          </a>
+          <a href="/admin.html" class="scanner-top-btn scanner-admin-btn">
+            <span aria-hidden="true">🔐</span>
+            <span>관리자</span>
+          </a>
+        </div>
+      </div>
+
+      <div id="scan-result-panel" data-state="idle" role="status" aria-live="polite">
+        <p id="scan-msg">QR 코드를 보여주세요</p>
+        <p id="scan-sub-msg">인식 시 자동으로 식사 처리됩니다</p>
+      </div>
+    </main>
+
+    <section class="scanner-info-zone" aria-label="스캐너 부가 정보">
+      <aside class="scanner-glass-panel scanner-menu-panel" aria-label="식단표">
+        <div class="scanner-panel-head">
+          <h2 class="scanner-panel-title">🍱 식단표</h2>
+          <span id="scanner-menu-date" class="scanner-panel-meta"></span>
+        </div>
+        <div class="scanner-menu-content">
+          <div id="scanner-menu-days" class="scanner-menu-days"></div>
+        </div>
+      </aside>
+
+      <aside class="scanner-glass-panel scanner-attendee-panel" aria-label="실시간 식사 명단">
+        <div class="scanner-panel-head">
+          <h2 class="scanner-panel-title">📋 실시간 식사 명단</h2>
+          <span id="scanner-attendee-count" class="scanner-panel-meta">0명</span>
+        </div>
+        <div id="scanner-attendee-list" class="scanner-attendee-list">
+          <p class="scanner-attendee-empty">아직 식사자가 없습니다.</p>
+        </div>
+      </aside>
+
+    </section>
+  </div>
+
+  <script type="module" src="/js/scanner_app.js?v=20260701-refactor-qrcolor-audio"></script>
+  <script type="module" src="/js/scanner_bootstrap.js?v=20260701-refactor-qrcolor-audio"></script>
+</body>
+</html>

@@ -1,24 +1,4 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <meta name="theme-color" content="#334155">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="Lunch Check">
-  <meta name="color-scheme" content="light">
-  <title>Lunch Check : 점심 QR</title>
-  <link rel="manifest" href="/manifest.json">
-  <link rel="icon" href="/img/icon.png?v=20260610-transparentcorners" type="image/png">
-  <link rel="apple-touch-icon" href="/img/icon.png?v=20260610-transparentcorners">
-
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <link rel="stylesheet" href="CSS/style.css?v=20260701-no-permanent-qr-darkfix">
-
-  <style>
-    :root {
+:root {
       --primary-color: #334155;
       --primary-dark: #0f172a;
       --cool-bg: #e5e7eb;
@@ -355,148 +335,52 @@
       .btn { height: 72px; font-size: 1.15rem; }
       .quick-action { min-height: 58px; font-size: 0.92rem; border-radius: 18px; }
     }
-  </style>
-</head>
-<body class="qr-page-body">
-  <div id="qr-page-shell" class="max-w-4xl mx-auto flex flex-col warm-shell shadow-2xl">
-    <div class="qr-topbar flex justify-between items-center px-4 sm:px-6">
-      <div class="flex items-center gap-2 text-slate-700 font-black">
-        <span class="brand-plate brand-plate-sm"><img src="/img/icon.png?v=20260610-transparentcorners" alt="Lunch Check 아이콘" class="w-10 h-10 rounded-2xl brand-icon"></span>
-        <span>Lunch Check</span>
-      </div>
-      <a href="/scanner.html" class="quiet-link font-black py-2 px-3 rounded-2xl text-sm flex items-center gap-1 shadow-sm transition-colors">
-        📷 스캐너 열기
-      </a>
-    </div>
 
-    <header id="qr-page-header" class="pb-7 pt-6 px-5 text-center">
-      <span class="brand-plate brand-plate-lg mb-4"><img src="/img/icon.png?v=20260610-transparentcorners" alt="Lunch Check" class="w-28 h-28 mx-auto rounded-[1.6rem] brand-icon"></span>
-      <h1 class="text-4xl sm:text-5xl font-black text-slate-900 leading-tight">Lunch Check</h1>
-    </header>
 
-    <main id="qr-page-main" class="flex-1 px-5 sm:px-6 pb-8 flex flex-col items-center justify-center">
-      <div id="qr-form-container" class="w-full max-w-md p-6 sm:p-8 rounded-[2rem] border-2 warm-card">
-        <div class="input-row">
-          <label for="userName" class="input-label text-slate-900">이름</label>
-          <input type="text" id="userName" class="form-input border-slate-200 bg-slate-50 focus:border-slate-400" placeholder="성함을 입력하세요" autocomplete="name">
-        </div>
-
-        <div class="input-row">
-          <label for="phoneLast4" class="input-label text-slate-900">전화번호 뒷자리</label>
-          <input type="text" id="phoneLast4" class="form-input border-slate-200 bg-slate-50 focus:border-slate-400" placeholder="전화번호 뒷 4자리를 입력하세요" maxlength="4" inputmode="numeric" autocomplete="off">
-        </div>
-
-        <button id="btn-generate-qr" class="btn btn-primary w-full mt-6 text-2xl h-20 rounded-3xl font-black shadow-xl shadow-slate-300/60">
-          오늘의 점심 QR 생성
-        </button>
-
-        <div class="grid grid-cols-2 gap-3 mt-5">
-          <button id="btn-open-menu" type="button" class="quick-action">
-            🍱 식단표 보기
-          </button>
-          <button id="btn-add-shortcut" type="button" class="quick-action">
-            📲 홈 화면<br>바로가기 추가
-          </button>
-        </div>
-      </div>
-
-      <div id="qrcode-container" class="hidden w-full text-center p-6 sm:p-8 rounded-[2rem] border-2 warm-card">
-        <div id="qrcode" class="bg-white border-4 border-slate-400 rounded-[2rem] shadow-2xl" data-darkreader-ignore data-lunchcheck-qr="true"></div>
-        <h2 id="qr-result-name" class="text-3xl font-black text-slate-900 mb-2"></h2>
-        <p id="qr-validity-text" class="text-slate-500 text-lg mb-6 font-bold">이 QR은 <span id="timer" class="text-red-500 font-black">15:00</span> 동안 유효합니다.</p>
-
-        <button id="btn-reissue-qr" class="btn btn-primary w-full h-16 rounded-2xl font-black">QR 다시 발급받기</button>
-        <button id="btn-back-to-form" type="button" class="w-full mt-3 h-14 rounded-2xl font-black text-slate-700 bg-slate-50 border-2 border-slate-200 hover:bg-slate-100 transition">
-          QR 생성페이지로 돌아가기
-        </button>
-      </div>
-    </main>
-
-    <div id="menu-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex justify-center backdrop-blur-sm">
-      <div id="menu-modal-panel" class="bg-white rounded-[2rem] max-w-2xl w-full shadow-2xl border-4 border-slate-200">
-        <div id="menu-modal-header" class="p-5 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div>
-            <h3 class="text-2xl font-black text-slate-900">🍱 식단표 보기</h3>
-            <p class="text-sm text-slate-500 font-bold">날짜별 메뉴와 원산지를 확인할 수 있습니다.</p>
-          </div>
-          <button id="btn-close-menu" class="bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-xl px-4 py-2 font-black">닫기</button>
-        </div>
-        <div id="menu-modal-controls" class="p-5 border-b border-slate-200 flex flex-col sm:flex-row gap-3">
-          <input type="month" id="menu-month" class="flex-1 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 font-black text-slate-700 outline-none">
-          <button id="btn-load-menu" class="bg-slate-500 hover:bg-slate-800 text-white rounded-2xl px-5 py-3 font-black shadow">식단 조회</button>
-        </div>
-        <div id="menu-list" class="p-5 space-y-3 bg-slate-50/60">
-          <div class="text-center text-slate-600 font-bold py-10">식단표를 불러오는 중입니다.</div>
-        </div>
-      </div>
-    </div>
-
-    <div id="ios-install-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="install-guide-title">
-      <div id="ios-install-panel" class="bg-white rounded-3xl p-5 sm:p-6 max-w-lg w-full text-left shadow-2xl border-2 border-slate-200">
-        <div class="flex items-center gap-3 mb-5">
-          <img src="/img/shareicon.png" alt="공유 버튼" class="w-12 h-12 rounded-2xl shadow-sm bg-white p-1 border border-slate-100">
-          <div>
-            <h3 id="install-guide-title" class="text-2xl sm:text-3xl font-black text-gray-900">홈 화면에 추가</h3>
-            <p class="text-sm font-bold text-slate-500 mt-1">공유 버튼과 홈 화면에 추가만 찾으면 됩니다.</p>
-          </div>
-        </div>
-
-        <ol class="space-y-4 mb-5">
-          <li class="rounded-2xl border-2 border-slate-200 bg-slate-50 p-4 shadow-sm">
-            <div class="flex items-start gap-3">
-              <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-900 text-lg font-black text-white">1</span>
-              <div class="min-w-0">
-                <h4 class="text-lg sm:text-xl font-black text-slate-900">공유 버튼 누르기</h4>
-                <p class="mt-2 text-base font-bold leading-relaxed text-slate-700">
-                  레이아웃의 <b>하단 또는 상단</b>에서
-                  <img src="/img/shareicon.png" alt="공유 버튼" class="inline-block w-7 h-7 mx-1 align-[-7px] rounded-lg bg-white p-0.5 border border-slate-200">
-                  을 탭하십시오.
-                </p>
-              </div>
-            </div>
-          </li>
-
-          <li class="rounded-2xl border-2 border-slate-200 bg-slate-50 p-4 shadow-sm">
-            <div class="flex items-start gap-3">
-              <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-900 text-lg font-black text-white">2</span>
-              <div class="min-w-0">
-                <h4 class="text-lg sm:text-xl font-black text-slate-900">홈 화면에 추가 누르기</h4>
-                <p class="mt-2 text-base font-bold leading-relaxed text-slate-700">
-                  옵션목록을 아래로 스크롤한 다음, <b>'홈 화면에 추가'</b>를 탭하십시오.
-                </p>
-              </div>
-            </div>
-          </li>
-        </ol>
-
-        <div class="rounded-2xl border border-slate-200 bg-white p-4 text-sm font-bold leading-relaxed text-slate-700 mb-4">
-          기종과 브라우저 설정에 따라 공유 버튼은 화면 <b>위쪽</b> 또는 <b>아래쪽</b>에 있을 수 있습니다. 항목이 보이지 않으면 옵션목록을 더 아래로 내려보세요.
-        </div>
-
-        <section id="external-browser-section" class="hidden rounded-2xl border-2 border-amber-200 bg-amber-50 p-4 mb-4">
-          <h4 class="font-black text-slate-900">현재 브라우저에서 항목이 보이지 않나요?</h4>
-          <p id="external-browser-hint" class="mt-1 text-sm font-bold leading-relaxed text-slate-700">
-            네이버·카카오톡 같은 앱 내부 브라우저에서는 제한될 수 있습니다. 주소를 복사해 다른 브라우저에서 다시 열어주세요.
-          </p>
-          <button id="btn-copy-page-link" type="button" class="mt-3 h-11 w-full rounded-xl bg-white border-2 border-amber-200 text-slate-700 font-black">주소 복사</button>
-        </section>
-
-        <div class="flex flex-col sm:flex-row gap-3">
-          <a id="browser-official-guide" href="https://support.apple.com/ko-kr/guide/iphone/iph42ab2f3a7/ios" target="_blank" rel="noopener noreferrer" class="flex-1 h-12 rounded-2xl bg-white border-2 border-slate-200 text-slate-700 font-black inline-flex items-center justify-center">
-            Apple 공식 안내
-          </a>
-          <button id="btn-close-ios-modal" class="flex-1 h-12 rounded-2xl font-black text-white bg-slate-800 hover:bg-slate-900">
-            확인
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <footer class="py-6 text-center text-slate-500 text-sm font-bold">
-      © 화성오산교육지원청 기획경영과 2026. All rights reserved.
-    </footer>
-  </div>
-
-  <script type="module" src="JS/qr_app.js?v=20260701-no-permanent-qr-darkfix"></script>
-</body>
-</html>
+.monthly-qr-notice {
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.96), rgba(241, 245, 249, 0.92));
+  color: #334155;
+  border-radius: 1.25rem;
+  padding: 0.9rem 1rem;
+  margin-top: 0.25rem;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+}
+.monthly-qr-notice strong {
+  display: block;
+  color: #0f172a;
+  font-size: 0.95rem;
+  font-weight: 900;
+  margin-bottom: 0.25rem;
+}
+.monthly-qr-notice p {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  font-weight: 700;
+}
+#qrcode[data-lunchcheck-qr="true"] {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  color-scheme: only light !important;
+  forced-color-adjust: none !important;
+  filter: none !important;
+  mix-blend-mode: normal !important;
+}
+#qrcode[data-lunchcheck-qr="true"] canvas,
+#qrcode[data-lunchcheck-qr="true"] img,
+#qrcode[data-lunchcheck-qr="true"] table {
+  background-color: #ffffff !important;
+  color-scheme: only light !important;
+  forced-color-adjust: none !important;
+  filter: none !important;
+  mix-blend-mode: normal !important;
+}
+@media (prefers-color-scheme: dark) {
+  #qrcode, #qrcode * {
+    color-scheme: only light !important;
+    forced-color-adjust: none !important;
+    filter: none !important;
+    mix-blend-mode: normal !important;
+  }
+}

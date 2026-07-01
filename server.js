@@ -19,6 +19,9 @@ if (trustProxySetting) {
 }
 
 const ROOT_DIR = __dirname;
+const HTML_DIR = path.join(ROOT_DIR, 'html');
+const JS_DIR = path.join(ROOT_DIR, 'js');
+const CSS_DIR = path.join(ROOT_DIR, 'css');
 const DATA_DIR = path.resolve(process.env.DATA_DIR || ROOT_DIR);
 const dbPath = path.join(DATA_DIR, 'data.json');
 const userListPath = path.join(DATA_DIR, 'allowed_users.json');
@@ -296,8 +299,11 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use('/CSS', express.static(path.join(ROOT_DIR, 'CSS'), { fallthrough: false, maxAge: '1h' }));
-app.use('/JS', express.static(path.join(ROOT_DIR, 'JS'), { fallthrough: false, maxAge: '0', setHeaders: res => res.setHeader('Cache-Control', 'no-store') }));
+app.use('/css', express.static(CSS_DIR, { fallthrough: false, maxAge: '1h' }));
+app.use('/js', express.static(JS_DIR, { fallthrough: false, maxAge: '0', setHeaders: res => res.setHeader('Cache-Control', 'no-store') }));
+// 구버전 캐시 호환용 별칭입니다. 실제 소스는 css/js 폴더 한 곳에서만 관리합니다.
+app.use('/CSS', express.static(CSS_DIR, { fallthrough: false, maxAge: '1h' }));
+app.use('/JS', express.static(JS_DIR, { fallthrough: false, maxAge: '0', setHeaders: res => res.setHeader('Cache-Control', 'no-store') }));
 app.use('/audio', express.static(path.join(ROOT_DIR, 'audio'), { fallthrough: true, maxAge: '1h' }));
 app.use('/img', express.static(path.join(ROOT_DIR, 'img'), { fallthrough: false, maxAge: '1d' }));
 app.get('/manifest.json', (req, res) => res.sendFile(path.join(ROOT_DIR, 'manifest.json')));
@@ -310,7 +316,7 @@ app.get('/sw.js', (req, res) => {
 
 const sendHtml = (res, fileName) => {
   res.setHeader('Cache-Control', 'no-store');
-  res.sendFile(path.join(ROOT_DIR, fileName));
+  res.sendFile(path.join(HTML_DIR, fileName));
 };
 
 app.get('/', (req, res) => sendHtml(res, 'qr.html'));
@@ -320,31 +326,6 @@ app.get('/scanner.html', (req, res) => sendHtml(res, 'scanner.html'));
 app.get('/admin', (req, res) => sendHtml(res, 'admin.html'));
 app.get('/admin.html', (req, res) => sendHtml(res, 'admin.html'));
 app.get('/admin_list.html', (req, res) => res.redirect(302, '/admin.html'));
-
-// 스캐너 음원은 실제 audio 폴더를 기준으로 동적으로 제공합니다.
-// 파일 추가/삭제 시 프론트 코드를 다시 수정하지 않아도 됩니다.
-const listScannerAudioFiles = (folderName) => {
-  const targetDir = path.join(ROOT_DIR, 'audio', folderName);
-  try {
-    return fs.readdirSync(targetDir, { withFileTypes: true })
-      .filter(entry => entry.isFile() && /\.mp3$/i.test(entry.name))
-      .filter(entry => !/[\s()]/.test(entry.name))
-      .map(entry => entry.name)
-      .sort((a, b) => a.localeCompare(b, 'en', { numeric: true }))
-      .map(fileName => `/audio/${folderName}/${encodeURIComponent(fileName)}`);
-  } catch (_) {
-    return [];
-  }
-};
-
-app.get('/api/scanner/audio-manifest', (req, res) => {
-  res.setHeader('Cache-Control', 'no-store');
-  res.json({
-    scan: fs.existsSync(path.join(ROOT_DIR, 'audio', 'scansound.mp3')) ? '/audio/scansound.mp3' : null,
-    success: listScannerAudioFiles('success'),
-    fail: listScannerAudioFiles('fail')
-  });
-});
 
 // ==========================================
 // 인증 / 관리자 세션

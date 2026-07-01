@@ -1,11 +1,11 @@
-const CACHE_NAME = 'lunch-check-shell-v20260630';
+const CACHE_NAME = 'lunch-check-shell-v20260701-refactor';
 const APP_SHELL = [
   '/qr.html',
   '/scanner.html',
-  '/CSS/style.css',
-  '/JS/config.js',
-  '/JS/qr_app.js',
-  '/JS/scanner_app.js',
+  '/css/common.css',
+  '/js/config.js',
+  '/js/qr_app.js',
+  '/js/scanner_app.js',
   '/img/icon.png',
   '/img/icon-192.png',
   '/img/icon-512.png',

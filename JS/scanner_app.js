@@ -4,39 +4,12 @@ window.html5QrCode = null;
 window.isScanningAction = false;
 window.currentScannerFacingMode = 'user';
 
-const DEFAULT_AUDIO_MANIFEST = Object.freeze({
-  scan: '/audio/scansound.mp3',
-  success: [
-    '/audio/success/voice_1.mp3',
-    '/audio/success/voice_2.mp3',
-    '/audio/success/voice_3.mp3',
-    '/audio/success/voice_4.mp3',
-    '/audio/success/voice_5.mp3',
-    '/audio/success/voice_6.mp3',
-    '/audio/success/voice_7.mp3'
-  ],
-  fail: [
-    '/audio/fail/fail_1.mp3',
-    '/audio/fail/fail_2.mp3',
-    '/audio/fail/fail_3.mp3',
-    '/audio/fail/fail_4.mp3'
-  ]
+const SCANNER_AUDIO = Object.freeze({
+  success: '/audio/scansound.mp3',
+  fail: '/audio/failsound.mp3'
 });
 
-const fallbackTexts = Object.freeze({
-  success: ['맛있게 드세요', '점심 맛있게 드세요', '식사 맛있게 하세요', '좋은 점심 되세요'],
-  fail: ['처리하지 못했습니다', '다시 확인해 주세요', 'QR 코드를 다시 보여주세요']
-});
-
-let audioManifest = {
-  scan: DEFAULT_AUDIO_MANIFEST.scan,
-  success: [...DEFAULT_AUDIO_MANIFEST.success],
-  fail: [...DEFAULT_AUDIO_MANIFEST.fail]
-};
 let currentAudio = null;
-let currentAudioFinish = null;
-let audioSequenceId = 0;
-let audioUnlocked = false;
 let currentServiceDate = getTodayStr();
 let lastDecodedText = '';
 let lastDecodedAt = 0;
@@ -201,143 +174,47 @@ async function loadUpcomingMenus(date = currentServiceDate) {
   renderUpcomingMenus(mergedDays, dates);
 }
 
-function pickRandomAudio(type) {
-  const items = Array.isArray(audioManifest[type]) ? audioManifest[type] : [];
-  if (!items.length) return '';
-  if (items.length === 1) return items[0];
-
-  let index = Math.floor(Math.random() * items.length);
-  if (index === lastRandomIndex[type]) index = (index + 1) % items.length;
-  lastRandomIndex[type] = index;
-  return items[index];
-}
-
-function speakFallback(type) {
-  if (!('speechSynthesis' in window)) return;
-  const texts = fallbackTexts[type] || ['확인되었습니다'];
-  const text = texts[Math.floor(Math.random() * texts.length)];
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = 'ko-KR';
-  utterance.rate = 1.02;
-  utterance.pitch = type === 'fail' ? 0.92 : 1;
-  window.speechSynthesis.cancel();
-  window.speechSynthesis.speak(utterance);
-}
-
 function stopCurrentAudio() {
-  if (currentAudio) {
-    try {
-      currentAudio.pause();
-      currentAudio.currentTime = 0;
-    } catch (_) {
-      // 재생 종료 중 발생하는 브라우저별 예외는 무시합니다.
-    }
+  if (!currentAudio) return;
+  try {
+    currentAudio.pause();
+    currentAudio.currentTime = 0;
+  } catch (_) {
+    // 브라우저별 오디오 중지 예외는 무시합니다.
   }
-  if (typeof currentAudioFinish === 'function') currentAudioFinish(false);
   currentAudio = null;
-  currentAudioFinish = null;
 }
 
-function playAudioFile(src, sequenceId, timeoutMs = 20000) {
-  return new Promise((resolve) => {
-    if (!src || sequenceId !== audioSequenceId) return resolve(false);
-
+function playScanFeedback(outcome) {
+  const src = outcome === 'success' ? SCANNER_AUDIO.success : SCANNER_AUDIO.fail;
+  if (!src) return;
+  stopCurrentAudio();
+  try {
     const audio = new Audio(src);
     audio.preload = 'auto';
     audio.playsInline = true;
-    let settled = false;
-    let timer = null;
-
-    const finish = (played) => {
-      if (settled) return;
-      settled = true;
-      if (timer) window.clearTimeout(timer);
-      audio.onended = null;
-      audio.onerror = null;
-      audio.onabort = null;
-      if (currentAudio === audio) {
-        currentAudio = null;
-        currentAudioFinish = null;
-      }
-      resolve(Boolean(played));
-    };
-
     currentAudio = audio;
-    currentAudioFinish = finish;
-    audio.onended = () => finish(true);
-    audio.onerror = () => finish(false);
-    audio.onabort = () => finish(false);
-    timer = window.setTimeout(() => finish(false), timeoutMs);
-
-    const playPromise = audio.play();
-    if (playPromise && typeof playPromise.catch === 'function') {
-      playPromise.catch(() => finish(false));
+    audio.onended = () => { if (currentAudio === audio) currentAudio = null; };
+    audio.onerror = () => { if (currentAudio === audio) currentAudio = null; };
+    const promise = audio.play();
+    if (promise && typeof promise.catch === 'function') {
+      promise.catch(() => { if (currentAudio === audio) currentAudio = null; });
     }
-  });
-}
-
-function beginScanAudio() {
-  audioSequenceId += 1;
-  const sequenceId = audioSequenceId;
-  stopCurrentAudio();
-  return {
-    sequenceId,
-    scanPromise: playAudioFile(audioManifest.scan, sequenceId, 5000)
-  };
-}
-
-async function finishScanAudio(sequence, outcome) {
-  await sequence.scanPromise;
-  if (sequence.sequenceId !== audioSequenceId) return;
-
-  const outcomeSrc = pickRandomAudio(outcome);
-  const played = await playAudioFile(outcomeSrc, sequence.sequenceId);
-  if (!played && sequence.sequenceId === audioSequenceId) speakFallback(outcome);
-}
-
-async function loadAudioManifest() {
-  try {
-    const res = await fetch(`${API_BASE_URL}/scanner/audio-manifest`, { cache: 'no-store' });
-    if (!res.ok) throw new Error('audio manifest unavailable');
-    const data = await res.json();
-    audioManifest = {
-      scan: typeof data.scan === 'string' && data.scan ? data.scan : DEFAULT_AUDIO_MANIFEST.scan,
-      success: Array.isArray(data.success) && data.success.length ? data.success : [...DEFAULT_AUDIO_MANIFEST.success],
-      fail: Array.isArray(data.fail) && data.fail.length ? data.fail : [...DEFAULT_AUDIO_MANIFEST.fail]
-    };
   } catch (_) {
-    audioManifest = {
-      scan: DEFAULT_AUDIO_MANIFEST.scan,
-      success: [...DEFAULT_AUDIO_MANIFEST.success],
-      fail: [...DEFAULT_AUDIO_MANIFEST.fail]
-    };
+    currentAudio = null;
   }
-
-  const allSources = [audioManifest.scan, ...audioManifest.success, ...audioManifest.fail].filter(Boolean);
-  allSources.forEach((src) => {
-    try {
-      const audio = new Audio();
-      audio.preload = 'auto';
-      audio.src = src;
-      audio.load();
-    } catch (_) {
-      // 일부 브라우저는 명시적 사용자 입력 전 preload를 제한합니다.
-    }
-  });
 }
 
 async function unlockAudio() {
-  if (audioUnlocked || !audioManifest.scan) return;
-  audioUnlocked = true;
   try {
-    const audio = new Audio(audioManifest.scan);
+    const audio = new Audio(SCANNER_AUDIO.success);
     audio.muted = true;
     audio.volume = 0;
     await audio.play();
     audio.pause();
     audio.currentTime = 0;
   } catch (_) {
-    audioUnlocked = false;
+    // 사용자 제스처 전 오디오 제한은 무시합니다.
   }
 }
 
@@ -388,6 +265,8 @@ function showScanResult(state, message, subMessage) {
   if (!panel || !msgEl || !subMsgEl) return;
 
   panel.dataset.state = state;
+  const guide = document.querySelector('.scan-guide');
+  if (guide) guide.dataset.state = state;
   msgEl.textContent = message;
   subMsgEl.textContent = subMessage;
 
@@ -395,6 +274,7 @@ function showScanResult(state, message, subMessage) {
   if (state !== 'idle') {
     resultResetTimer = window.setTimeout(() => {
       panel.dataset.state = 'idle';
+      if (guide) guide.dataset.state = 'idle';
       msgEl.textContent = 'QR 코드를 보여주세요';
       subMsgEl.textContent = '인식 시 자동으로 식사 처리됩니다';
     }, 2600);
@@ -453,7 +333,6 @@ async function handleDecodedText(decodedText) {
   lastDecodedAt = now;
   window.isScanningAction = true;
 
-  const audioSequence = beginScanAudio();
   showScanResult('working', 'QR 확인 중', '잠시만 기다려 주세요');
 
   let outcome = 'fail';
@@ -476,7 +355,7 @@ async function handleDecodedText(decodedText) {
     console.error('QR 처리 실패:', error);
     showScanResult('fail', '서버 통신 오류', '네트워크 연결을 확인해 주세요');
   } finally {
-    finishScanAudio(audioSequence, outcome);
+    playScanFeedback(outcome);
     window.setTimeout(() => {
       window.isScanningAction = false;
     }, PROCESSING_COOLDOWN_MS);
@@ -644,7 +523,6 @@ function initScannerPage() {
   showScanResult('idle', 'QR 코드를 보여주세요', '인식 시 자동으로 식사 처리됩니다');
   calculateScanBox(window.innerWidth, window.innerHeight);
 
-  loadAudioManifest();
   loadScannerStats(currentServiceDate);
   loadUpcomingMenus(currentServiceDate);
   window.startScanner('user').catch(() => {});
