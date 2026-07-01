@@ -1061,3 +1061,47 @@
     linear-gradient(#ef4444,#ef4444) right bottom / 29% 5px no-repeat,
     linear-gradient(#ef4444,#ef4444) right bottom / 5px 29% no-repeat !important;
 }
+
+/* emergency scan feedback fallback: data-state + class based */
+.scan-guide.is-success,
+.scan-guide[data-state="success"] {
+  border-color: rgba(22, 163, 74, 0.98) !important;
+  box-shadow:
+    0 0 0 9999px rgba(15,14,24,.58),
+    0 0 0 3px rgba(22,163,74,.95),
+    0 0 36px rgba(22,163,74,.82),
+    inset 0 0 30px rgba(22,163,74,.20) !important;
+}
+.scan-guide.is-success::before,
+.scan-guide[data-state="success"]::before {
+  background:
+    linear-gradient(#16a34a,#16a34a) left top / 29% 5px no-repeat,
+    linear-gradient(#16a34a,#16a34a) left top / 5px 29% no-repeat,
+    linear-gradient(#16a34a,#16a34a) right top / 29% 5px no-repeat,
+    linear-gradient(#16a34a,#16a34a) right top / 5px 29% no-repeat,
+    linear-gradient(#16a34a,#16a34a) left bottom / 29% 5px no-repeat,
+    linear-gradient(#16a34a,#16a34a) left bottom / 5px 29% no-repeat,
+    linear-gradient(#16a34a,#16a34a) right bottom / 29% 5px no-repeat,
+    linear-gradient(#16a34a,#16a34a) right bottom / 5px 29% no-repeat !important;
+}
+.scan-guide.is-fail,
+.scan-guide[data-state="fail"] {
+  border-color: rgba(220, 38, 38, 0.98) !important;
+  box-shadow:
+    0 0 0 9999px rgba(15,14,24,.58),
+    0 0 0 3px rgba(220,38,38,.95),
+    0 0 36px rgba(220,38,38,.82),
+    inset 0 0 30px rgba(220,38,38,.20) !important;
+}
+.scan-guide.is-fail::before,
+.scan-guide[data-state="fail"]::before {
+  background:
+    linear-gradient(#dc2626,#dc2626) left top / 29% 5px no-repeat,
+    linear-gradient(#dc2626,#dc2626) left top / 5px 29% no-repeat,
+    linear-gradient(#dc2626,#dc2626) right top / 29% 5px no-repeat,
+    linear-gradient(#dc2626,#dc2626) right top / 5px 29% no-repeat,
+    linear-gradient(#dc2626,#dc2626) left bottom / 29% 5px no-repeat,
+    linear-gradient(#dc2626,#dc2626) left bottom / 5px 29% no-repeat,
+    linear-gradient(#dc2626,#dc2626) right bottom / 29% 5px no-repeat,
+    linear-gradient(#dc2626,#dc2626) right bottom / 5px 29% no-repeat !important;
+}

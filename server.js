@@ -307,9 +307,6 @@ app.use((req, res, next) => {
 
 app.use('/css', express.static(CSS_DIR, { fallthrough: true, maxAge: '1h' }));
 app.use('/js', express.static(JS_DIR, { fallthrough: true, maxAge: '0', setHeaders: res => res.setHeader('Cache-Control', 'no-store') }));
-// 구버전 캐시 호환용 별칭입니다. 실제 소스는 css/js 폴더 한 곳에서만 관리합니다.
-app.use('/CSS', express.static(CSS_DIR, { fallthrough: true, maxAge: '1h' }));
-app.use('/JS', express.static(JS_DIR, { fallthrough: true, maxAge: '0', setHeaders: res => res.setHeader('Cache-Control', 'no-store') }));
 app.use('/audio', express.static(path.join(ROOT_DIR, 'audio'), { fallthrough: true, maxAge: '1h' }));
 app.use('/img', express.static(path.join(ROOT_DIR, 'img'), { fallthrough: true, maxAge: '1d' }));
 app.use('/html', express.static(HTML_DIR, { fallthrough: true, maxAge: '0', setHeaders: res => res.setHeader('Cache-Control', 'no-store') }));
@@ -321,44 +318,10 @@ app.get('/sw.js', (req, res) => {
   res.sendFile(path.join(ROOT_DIR, 'sw.js'));
 });
 
-app.get(['/config.js', '/qr_app.js', '/scanner_app.js', '/scanner_bootstrap.js', '/admin_bootstrap.js', '/admin_list_app.js', '/camera.js', '/auth.js', '/admin_app.js'], (req, res) => {
-  res.setHeader('Cache-Control', 'no-store');
-  res.type('application/javascript');
-  const fileName = path.basename(req.path);
-  const candidates = [
-    path.join(JS_DIR, fileName),
-    path.join(ROOT_DIR, 'js', fileName),
-    path.join(ROOT_DIR, 'JS', fileName),
-    path.join(ROOT_DIR, fileName)
-  ];
-  const target = candidates.find(file => fs.existsSync(file));
-  if (!target) return res.status(404).type('text/plain').send(`${fileName} not found`);
-  return res.sendFile(target);
-});
-
-app.get(['/common.css', '/qr.css', '/scanner.css', '/admin.css', '/admin_list.css'], (req, res) => {
-  res.setHeader('Cache-Control', 'no-store');
-  res.type('text/css');
-  const fileName = path.basename(req.path);
-  const candidates = [
-    path.join(CSS_DIR, fileName),
-    path.join(ROOT_DIR, 'css', fileName),
-    path.join(ROOT_DIR, 'CSS', fileName),
-    path.join(ROOT_DIR, fileName)
-  ];
-  const target = candidates.find(file => fs.existsSync(file));
-  if (!target) return res.status(404).type('text/plain').send(`${fileName} not found`);
-  return res.sendFile(target);
-});
-
 const sendHtml = (res, fileName) => {
   res.setHeader('Cache-Control', 'no-store');
-  const candidates = [
-    path.join(HTML_DIR, fileName),
-    path.join(ROOT_DIR, 'html', fileName)
-  ];
-  const target = candidates.find(file => fs.existsSync(file));
-  if (!target) return res.status(404).type('text/plain').send(`${fileName} not found`);
+  const target = path.join(HTML_DIR, fileName);
+  if (!fs.existsSync(target)) return res.status(404).type('text/plain').send(`${fileName} not found`);
   return res.sendFile(target);
 };
 
@@ -369,7 +332,7 @@ app.get('/scanner', (req, res) => sendHtml(res, 'scanner.html'));
 app.get('/scanner.html', (req, res) => sendHtml(res, 'scanner.html'));
 app.get('/admin', (req, res) => sendHtml(res, 'admin.html'));
 app.get('/admin.html', (req, res) => sendHtml(res, 'admin.html'));
-app.get('/admin_list.html', (req, res) => res.redirect(302, '/admin.html'));
+app.get('/admin_list.html', (req, res) => sendHtml(res, 'admin_list.html'));
 
 // ==========================================
 // 인증 / 관리자 세션

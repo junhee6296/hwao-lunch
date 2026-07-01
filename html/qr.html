@@ -10,19 +10,19 @@
   <meta name="color-scheme" content="light">
   <title>Lunch Check : 점심 QR</title>
   <link rel="manifest" href="/manifest.json">
-  <link rel="icon" href="/img/icon.png?v=20260701-emergency-fallback" type="image/png">
-  <link rel="apple-touch-icon" href="/img/icon.png?v=20260701-emergency-fallback">
+  <link rel="icon" href="/img/icon.png?v=20260701-folder-clean" type="image/png">
+  <link rel="apple-touch-icon" href="/img/icon.png?v=20260701-folder-clean">
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <link rel="stylesheet" href="/css/common.css?v=20260701-emergency-fallback">
-  <link rel="stylesheet" href="/css/qr.css?v=20260701-emergency-fallback">
+  <link rel="stylesheet" href="/css/common.css?v=20260701-folder-clean">
+  <link rel="stylesheet" href="/css/qr.css?v=20260701-folder-clean">
 </head>
 <body class="qr-page-body">
   <div id="qr-page-shell" class="max-w-4xl mx-auto flex flex-col warm-shell shadow-2xl">
     <div class="qr-topbar flex justify-between items-center px-4 sm:px-6">
       <div class="flex items-center gap-2 text-slate-700 font-black">
-        <span class="brand-plate brand-plate-sm"><img src="/img/icon.png?v=20260701-emergency-fallback" alt="Lunch Check 아이콘" class="w-10 h-10 rounded-2xl brand-icon"></span>
+        <span class="brand-plate brand-plate-sm"><img src="/img/icon.png?v=20260701-folder-clean" alt="Lunch Check 아이콘" class="w-10 h-10 rounded-2xl brand-icon"></span>
         <span>Lunch Check</span>
       </div>
       <a href="/scanner.html" class="quiet-link font-black py-2 px-3 rounded-2xl text-sm flex items-center gap-1 shadow-sm transition-colors">
@@ -31,7 +31,7 @@
     </div>
 
     <header id="qr-page-header" class="pb-7 pt-6 px-5 text-center">
-      <span class="brand-plate brand-plate-lg mb-4"><img src="/img/icon.png?v=20260701-emergency-fallback" alt="Lunch Check" class="w-28 h-28 mx-auto rounded-[1.6rem] brand-icon"></span>
+      <span class="brand-plate brand-plate-lg mb-4"><img src="/img/icon.png?v=20260701-folder-clean" alt="Lunch Check" class="w-28 h-28 mx-auto rounded-[1.6rem] brand-icon"></span>
       <h1 class="text-4xl sm:text-5xl font-black text-slate-900 leading-tight">Lunch Check</h1>
     </header>
 
@@ -163,23 +163,6 @@
     </footer>
   </div>
 
-  <script type="module">
-    const importWithFallback = async (files) => {
-      let lastError;
-      for (const file of files) {
-        try { return await import(file); } catch (error) { lastError = error; }
-      }
-      console.error('Lunch Check QR script load failed', lastError);
-      const msg = document.createElement('div');
-      msg.style.cssText = 'position:fixed;left:12px;right:12px;bottom:12px;z-index:99999;padding:14px;border-radius:14px;background:#fee2e2;color:#991b1b;font-weight:900;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.18)';
-      msg.textContent = 'QR 화면 스크립트를 불러오지 못했습니다. 서버의 js/JS 폴더 배포 상태를 확인해 주세요.';
-      document.body.appendChild(msg);
-    };
-    importWithFallback([
-      '/js/qr_app.js?v=20260701-emergency-fallback',
-      '/JS/qr_app.js?v=20260701-emergency-fallback',
-      '/qr_app.js?v=20260701-emergency-fallback'
-    ]);
-  </script>
+  <script type="module" src="/js/qr_app.js?v=20260701-folder-clean2"></script>
 </body>
 </html>

@@ -266,7 +266,11 @@ function showScanResult(state, message, subMessage) {
 
   panel.dataset.state = state;
   const guide = document.querySelector('.scan-guide');
-  if (guide) guide.dataset.state = state;
+  if (guide) {
+    guide.dataset.state = state;
+    guide.classList.toggle('is-success', state === 'success');
+    guide.classList.toggle('is-fail', state === 'fail');
+  }
   msgEl.textContent = message;
   subMsgEl.textContent = subMessage;
 
@@ -274,7 +278,10 @@ function showScanResult(state, message, subMessage) {
   if (state !== 'idle') {
     resultResetTimer = window.setTimeout(() => {
       panel.dataset.state = 'idle';
-      if (guide) guide.dataset.state = 'idle';
+      if (guide) {
+        guide.dataset.state = 'idle';
+        guide.classList.remove('is-success', 'is-fail');
+      }
       msgEl.textContent = 'QR 코드를 보여주세요';
       subMsgEl.textContent = '인식 시 자동으로 식사 처리됩니다';
     }, 2600);
