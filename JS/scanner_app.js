@@ -15,6 +15,7 @@ let lastDecodedText = '';
 let lastDecodedAt = 0;
 let resultResetTimer = null;
 let scannerRestartPromise = null;
+let scannerStartPromise = null;
 let orientationRestartTimer = null;
 let lastRandomIndex = { success: -1, fail: -1 };
 let cameraListCache = null;
@@ -458,6 +459,19 @@ function createScannerInstance() {
   return window.html5QrCode;
 }
 
+function isScannerRunning() {
+  const scanner = window.html5QrCode;
+  if (scanner?.isScanning) return true;
+  if (typeof scanner?.getState === 'function' && window.Html5QrcodeScannerState?.SCANNING !== undefined) {
+    try {
+      if (scanner.getState() === window.Html5QrcodeScannerState.SCANNING) return true;
+    } catch (_) {}
+  }
+
+  const track = document.querySelector('#reader video')?.srcObject?.getVideoTracks?.()[0];
+  return Boolean(track && track.readyState === 'live');
+}
+
 async function handleDecodedText(decodedText) {
   const token = String(decodedText || '').trim();
   if (!token) return;
@@ -541,12 +555,28 @@ async function detectStartedCameraMode() {
   return detectCameraModeFromLabel(track.label || '');
 }
 
-async function buildCameraCandidates(requestedMode, allowFallback) {
-  const cameras = await getAvailableCameras();
+async function buildCameraCandidates(requestedMode, allowFallback, includeDeviceIds = false) {
   const candidates = [
+    { source: { facingMode: requestedMode }, mode: requestedMode },
     { source: { facingMode: { ideal: requestedMode } }, mode: requestedMode },
-    { source: { facingMode: requestedMode }, mode: requestedMode }
+    { source: { facingMode: { exact: requestedMode } }, mode: requestedMode }
   ];
+
+  if (requestedMode === 'user') {
+    if (allowFallback) {
+      candidates.push({ source: { facingMode: 'environment' }, mode: 'environment' });
+      candidates.push({ source: { facingMode: { ideal: 'environment' } }, mode: 'environment' });
+    }
+  } else {
+    if (allowFallback) {
+      candidates.push({ source: { facingMode: 'user' }, mode: 'user' });
+      candidates.push({ source: { facingMode: { ideal: 'user' } }, mode: 'user' });
+    }
+  }
+
+  if (!includeDeviceIds) return candidates;
+
+  const cameras = await getAvailableCameras(true);
   const usedIds = new Set();
 
   const addId = (camera, mode) => {
@@ -563,28 +593,18 @@ async function buildCameraCandidates(requestedMode, allowFallback) {
     front.forEach(camera => addId(camera, 'user'));
     if (!front.length && cameras.length > 1) addId(cameras[cameras.length - 1], 'user');
     unknown.slice().reverse().forEach(camera => addId(camera, 'user'));
-    candidates.push({ source: { facingMode: { exact: 'user' } }, mode: 'user' });
-    candidates.push({ source: { facingMode: { ideal: 'user' } }, mode: 'user' });
-    if (allowFallback) {
-      rear.forEach(camera => addId(camera, 'environment'));
-      candidates.push({ source: { facingMode: { ideal: 'environment' } }, mode: 'environment' });
-    }
+    if (allowFallback) rear.forEach(camera => addId(camera, 'environment'));
   } else {
     rear.forEach(camera => addId(camera, 'environment'));
     if (!rear.length && cameras.length > 1) addId(cameras[0], 'environment');
     unknown.forEach(camera => addId(camera, 'environment'));
-    candidates.push({ source: { facingMode: { exact: 'environment' } }, mode: 'environment' });
-    candidates.push({ source: { facingMode: { ideal: 'environment' } }, mode: 'environment' });
-    if (allowFallback) {
-      front.forEach(camera => addId(camera, 'user'));
-      candidates.push({ source: { facingMode: { ideal: 'user' } }, mode: 'user' });
-    }
+    if (allowFallback) front.forEach(camera => addId(camera, 'user'));
   }
 
   return candidates;
 }
 
-window.startScanner = async function startScanner(facingMode = 'user', allowFallback = true) {
+async function startScannerInternal(facingMode = 'user', allowFallback = true) {
   await waitForScannerRuntime();
   const scanner = createScannerInstance();
   const requestedMode = facingMode === 'environment' ? 'environment' : 'user';
@@ -602,7 +622,7 @@ window.startScanner = async function startScanner(facingMode = 'user', allowFall
     experimentalFeatures: { useBarCodeDetectorIfSupported: true }
   };
 
-  const candidates = await buildCameraCandidates(requestedMode, allowFallback);
+  const candidates = await buildCameraCandidates(requestedMode, allowFallback, false);
   let lastError = null;
 
   for (const candidate of candidates) {
@@ -624,7 +644,29 @@ window.startScanner = async function startScanner(facingMode = 'user', allowFall
     } catch (error) {
       lastError = error;
       console.warn(`카메라 시작 후보 실패 (${candidate.mode}):`, error);
-      if (scanner.isScanning) {
+      if (isScannerRunning()) {
+        try { await scanner.stop(); } catch (_) {}
+      }
+    }
+  }
+
+  const deviceCandidates = await buildCameraCandidates(requestedMode, allowFallback, true);
+  for (const candidate of deviceCandidates.slice(candidates.length)) {
+    try {
+      await scanner.start(candidate.source, config, handleDecodedText, () => {});
+      const detectedMode = await detectStartedCameraMode();
+      const finalMode = detectedMode || candidate.mode;
+      window.currentScannerFacingMode = finalMode;
+      activeCameraId = candidate.cameraId || '';
+      calculateScanBox(window.innerWidth, window.innerHeight);
+      window.dispatchEvent(new CustomEvent('scanner-camera-started', {
+        detail: { facingMode: finalMode, cameraId: activeCameraId }
+      }));
+      return true;
+    } catch (error) {
+      lastError = error;
+      console.warn(`Camera device-id candidate failed (${candidate.mode}):`, error);
+      if (isScannerRunning()) {
         try { await scanner.stop(); } catch (_) {}
       }
     }
@@ -634,12 +676,24 @@ window.startScanner = async function startScanner(facingMode = 'user', allowFall
   throw lastError || new Error('사용 가능한 카메라가 없습니다.');
 };
 
+window.startScanner = async function startScanner(facingMode = 'user', allowFallback = true) {
+  if (isScannerRunning()) return true;
+  if (scannerStartPromise) return scannerStartPromise;
+
+  scannerStartPromise = startScannerInternal(facingMode, allowFallback);
+  try {
+    return await scannerStartPromise;
+  } finally {
+    scannerStartPromise = null;
+  }
+};
+
 window.restartScanner = async function restartScanner(facingMode = window.currentScannerFacingMode || 'user') {
   if (scannerRestartPromise) return scannerRestartPromise;
 
   scannerRestartPromise = (async () => {
     const scanner = createScannerInstance();
-    if (scanner.isScanning) {
+    if (isScannerRunning()) {
       try {
         await scanner.stop();
       } catch (error) {
@@ -666,7 +720,7 @@ function getCameraErrorHelp(error) {
 }
 
 function ensureScannerRunning() {
-  if (window.html5QrCode?.isScanning || scannerRestartPromise) return;
+  if (isScannerRunning() || scannerStartPromise || scannerRestartPromise) return scannerStartPromise;
   window.startScanner(window.currentScannerFacingMode || 'user')
     .catch(error => {
       console.warn('카메라 자동 시작 실패:', error);
@@ -678,10 +732,18 @@ function scheduleOrientationRestart() {
   window.clearTimeout(orientationRestartTimer);
   orientationRestartTimer = window.setTimeout(() => {
     calculateScanBox(window.innerWidth, window.innerHeight);
-    if (window.html5QrCode?.isScanning) {
+    if (isScannerRunning()) {
       window.restartScanner(window.currentScannerFacingMode || 'user').catch(() => {});
     }
   }, 360);
+}
+
+function scheduleScannerAutostart() {
+  [0, 350, 1200, 3000].forEach(delay => {
+    window.setTimeout(() => {
+      if (!document.hidden) ensureScannerRunning();
+    }, delay);
+  });
 }
 
 function initScannerPage() {
@@ -692,8 +754,8 @@ function initScannerPage() {
   calculateScanBox(window.innerWidth, window.innerHeight);
 
   refreshScannerData(currentServiceDate);
-  window.setTimeout(ensureScannerRunning, 0);
-  window.addEventListener('load', ensureScannerRunning, { once: true });
+  scheduleScannerAutostart();
+  window.addEventListener('load', scheduleScannerAutostart, { once: true });
 
   document.addEventListener('pointerdown', () => {
     unlockAudio();
