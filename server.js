@@ -20,10 +20,27 @@ if (trustProxySetting) {
 
 const ROOT_DIR = __dirname;
 const pickExistingDir = (...dirs) => dirs.find(dir => fs.existsSync(dir)) || dirs[0];
+const uniqueExistingDirs = (...dirs) => {
+  const seen = new Set();
+  return dirs
+    .filter(dir => fs.existsSync(dir))
+    .filter(dir => {
+      const key = fs.realpathSync.native(dir).toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+};
 const HTML_DIR = path.join(ROOT_DIR, 'html');
 const LEGACY_HTML_DIR_EXISTS = fs.existsSync(HTML_DIR);
-const JS_DIR = pickExistingDir(path.join(ROOT_DIR, 'js'), path.join(ROOT_DIR, 'JS'));
-const CSS_DIR = pickExistingDir(path.join(ROOT_DIR, 'css'), path.join(ROOT_DIR, 'CSS'));
+const JS_DIRS = uniqueExistingDirs(path.join(ROOT_DIR, 'js'), path.join(ROOT_DIR, 'JS'));
+const CSS_DIRS = uniqueExistingDirs(path.join(ROOT_DIR, 'css'), path.join(ROOT_DIR, 'CSS'));
+const JS_DIR = JS_DIRS[0] || pickExistingDir(path.join(ROOT_DIR, 'js'), path.join(ROOT_DIR, 'JS'));
+const CSS_DIR = CSS_DIRS[0] || pickExistingDir(path.join(ROOT_DIR, 'css'), path.join(ROOT_DIR, 'CSS'));
+const findStaticFile = (dirs, fileName) => dirs.map(dir => path.join(dir, fileName)).find(file => fs.existsSync(file));
+const mountStaticDirs = (mountPath, dirs, options) => {
+  dirs.forEach(dir => app.use(mountPath, express.static(dir, options)));
+};
 const DATA_DIR = path.resolve(process.env.DATA_DIR || ROOT_DIR);
 const dbPath = path.join(DATA_DIR, 'data.json');
 const userListPath = path.join(DATA_DIR, 'allowed_users.json');
@@ -318,11 +335,11 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use('/css', express.static(CSS_DIR, { fallthrough: true, maxAge: '1h' }));
-app.use('/js', express.static(JS_DIR, { fallthrough: true, maxAge: '0', setHeaders: res => res.setHeader('Cache-Control', 'no-store') }));
+mountStaticDirs('/css', CSS_DIRS.length ? CSS_DIRS : [CSS_DIR], { fallthrough: true, maxAge: '1h' });
+mountStaticDirs('/js', JS_DIRS.length ? JS_DIRS : [JS_DIR], { fallthrough: true, maxAge: '0', setHeaders: res => res.setHeader('Cache-Control', 'no-store') });
 // 구버전 캐시 호환용 별칭입니다. 실제 소스는 css/js 폴더 한 곳에서만 관리합니다.
-app.use('/CSS', express.static(CSS_DIR, { fallthrough: true, maxAge: '1h' }));
-app.use('/JS', express.static(JS_DIR, { fallthrough: true, maxAge: '0', setHeaders: res => res.setHeader('Cache-Control', 'no-store') }));
+mountStaticDirs('/CSS', CSS_DIRS.length ? CSS_DIRS : [CSS_DIR], { fallthrough: true, maxAge: '1h' });
+mountStaticDirs('/JS', JS_DIRS.length ? JS_DIRS : [JS_DIR], { fallthrough: true, maxAge: '0', setHeaders: res => res.setHeader('Cache-Control', 'no-store') });
 app.use('/audio', express.static(path.join(ROOT_DIR, 'audio'), { fallthrough: true, maxAge: '1h' }));
 app.use('/img', express.static(path.join(ROOT_DIR, 'img'), { fallthrough: true, maxAge: '1d' }));
 
@@ -351,8 +368,8 @@ app.get(['/config.js', '/qr_app.js', '/scanner_app.js', '/scanner_bootstrap.js',
   res.setHeader('Cache-Control', 'no-store');
   res.type('application/javascript');
   const fileName = path.basename(req.path);
-  const target = path.join(JS_DIR, fileName);
-  if (!fs.existsSync(target)) return res.status(404).type('text/plain').send(`${fileName} not found`);
+  const target = findStaticFile(JS_DIRS.length ? JS_DIRS : [JS_DIR], fileName);
+  if (!target) return res.status(404).type('text/plain').send(`${fileName} not found`);
   return res.sendFile(target);
 });
 
@@ -360,8 +377,8 @@ app.get(['/common.css', '/qr.css', '/scanner.css', '/admin.css', '/admin_list.cs
   res.setHeader('Cache-Control', 'no-store');
   res.type('text/css');
   const fileName = path.basename(req.path);
-  const target = path.join(CSS_DIR, fileName);
-  if (!fs.existsSync(target)) return res.status(404).type('text/plain').send(`${fileName} not found`);
+  const target = findStaticFile(CSS_DIRS.length ? CSS_DIRS : [CSS_DIR], fileName);
+  if (!target) return res.status(404).type('text/plain').send(`${fileName} not found`);
   return res.sendFile(target);
 });
 

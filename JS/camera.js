@@ -77,10 +77,25 @@ const CameraManager = {
   }
 };
 
-if (document.readyState === 'loading') {
-  window.addEventListener('DOMContentLoaded', () => CameraManager.initObserver(), { once: true });
-} else {
+let cameraToggleBound = false;
+
+function bindCameraToggleButton() {
+  if (cameraToggleBound) return;
+  const button = document.getElementById('custom-flip-btn');
+  if (!button) return;
+  button.addEventListener('click', () => CameraManager.toggleCamera());
+  cameraToggleBound = true;
+}
+
+function initCameraManager() {
   CameraManager.initObserver();
+  bindCameraToggleButton();
+}
+
+if (document.readyState === 'loading') {
+  window.addEventListener('DOMContentLoaded', initCameraManager, { once: true });
+} else {
+  initCameraManager();
 }
 
 globalThis.CameraManager = CameraManager;

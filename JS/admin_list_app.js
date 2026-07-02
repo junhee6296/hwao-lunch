@@ -9,6 +9,7 @@ let selectedDailyDates = new Set();
 let importRows = [];
 let importMeta = null;
 let currentMenuMonthData = null;
+let adminListInitialized = false;
 
 const $ = (id) => document.getElementById(id);
 
@@ -811,6 +812,9 @@ function handleImportPreviewChange(event) {
 }
 
 function initAdminList() {
+  if (adminListInitialized) return;
+  adminListInitialized = true;
+
   $('btn-request-auth')?.addEventListener('click', requestAdminAuth);
   $('btn-verify-auth')?.addEventListener('click', verifyAdminAuth);
   $('btn-reset-auth')?.addEventListener('click', resetAuthUI);
@@ -1015,3 +1019,9 @@ window.deleteImportRow = (index) => {
   importRows.splice(index, 1);
   renderImportPreview();
 };
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initAdminList, { once: true });
+} else {
+  initAdminList();
+}
