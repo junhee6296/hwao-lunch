@@ -1,4 +1,4 @@
-import { API_BASE_URL, getTodayStr, normalizePhoneLast4, escapeHTML } from './config.js';
+const { API_BASE_URL, getTodayStr, normalizePhoneLast4, escapeHTML } = globalThis.LunchCheckConfig;
 
 let currentTab = 'daily';
 let allUsers = [];
@@ -810,7 +810,7 @@ function handleImportPreviewChange(event) {
   }
 }
 
-export function initAdminList() {
+function initAdminList() {
   $('btn-request-auth')?.addEventListener('click', requestAdminAuth);
   $('btn-verify-auth')?.addEventListener('click', verifyAdminAuth);
   $('btn-reset-auth')?.addEventListener('click', resetAuthUI);

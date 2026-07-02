@@ -1,4 +1,4 @@
-import { API_BASE_URL, getTodayStr } from './config.js';
+const { API_BASE_URL, getTodayStr } = globalThis.LunchCheckConfig;
 
 window.html5QrCode = null;
 window.isScanningAction = false;
@@ -248,6 +248,21 @@ async function unlockAudio() {
   } catch (_) {
     // 사용자 제스처 전 오디오 제한은 무시합니다.
   }
+}
+
+function renderScannerLoadState() {
+  const menuWrap = $('scanner-menu-days');
+  if (menuWrap && !menuWrap.children.length) {
+    const loading = document.createElement('p');
+    loading.className = 'scanner-menu-empty';
+    loading.textContent = '식단표를 불러오는 중입니다.';
+    menuWrap.appendChild(loading);
+  }
+}
+
+function refreshScannerData(date = currentServiceDate) {
+  loadScannerStats(date);
+  loadUpcomingMenus(date);
 }
 
 function resetScannerStats() {
@@ -670,14 +685,15 @@ function scheduleOrientationRestart() {
 }
 
 function initScannerPage() {
-  currentServiceDate = getTodayStr();
+  currentServiceDate = getCurrentServiceDate();
+  renderScannerLoadState();
   resetScannerStats();
   showScanResult('idle', 'QR 코드를 보여주세요', '인식 시 자동으로 식사 처리됩니다');
   calculateScanBox(window.innerWidth, window.innerHeight);
 
-  loadScannerStats(currentServiceDate);
-  loadUpcomingMenus(currentServiceDate);
-  ensureScannerRunning();
+  refreshScannerData(currentServiceDate);
+  window.setTimeout(ensureScannerRunning, 0);
+  window.addEventListener('load', ensureScannerRunning, { once: true });
 
   document.addEventListener('pointerdown', () => {
     unlockAudio();
@@ -695,15 +711,13 @@ function initScannerPage() {
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) {
       checkDateRollover();
-      loadScannerStats(currentServiceDate);
-      loadUpcomingMenus(currentServiceDate);
+      refreshScannerData(currentServiceDate);
       ensureScannerRunning();
     }
   });
   window.addEventListener('focus', () => {
     checkDateRollover();
-    loadScannerStats(currentServiceDate);
-    loadUpcomingMenus(currentServiceDate);
+      refreshScannerData(currentServiceDate);
     ensureScannerRunning();
   });
   window.addEventListener('orientationchange', scheduleOrientationRestart);

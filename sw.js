@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lunch-check-shell-v20260702-scriptfix';
+const CACHE_NAME = 'lunch-check-shell-v20260702-classicfix';
 const APP_SHELL = [
   '/qr.html',
   '/scanner.html',

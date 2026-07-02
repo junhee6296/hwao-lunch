@@ -151,6 +151,13 @@ const sanitizeDinerForScanner = (d) => ({
   scannedAt: d.scannedAt
 });
 
+const setFileAppCors = (req, res) => {
+  if (req.get('Origin') === 'null') {
+    res.setHeader('Access-Control-Allow-Origin', 'null');
+    res.setHeader('Vary', 'Origin');
+  }
+};
+
 const sanitizeDinerForAdmin = (d) => ({
   date: d.date,
   name: d.name,
@@ -1860,7 +1867,7 @@ app.get('/api/admin/menu/month/:yearMonth', requireAdmin, async (req, res) => {
 });
 
 app.get('/api/menu/month/:yearMonth', async (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  setFileAppCors(req, res);
   const yearMonth = String(req.params.yearMonth || '');
   if (!/^\d{4}-\d{2}$/.test(yearMonth)) return res.status(400).json({ message: '월 형식은 YYYY-MM이어야 합니다.' });
   res.setHeader('Cache-Control', 'no-store');
@@ -2013,6 +2020,7 @@ app.post('/api/qr/scan', (req, res) => {
 });
 
 app.get('/api/scanner/attendees/:date', (req, res) => {
+  setFileAppCors(req, res);
   const date = req.params.date;
   if (!parseISODate(date)) return res.status(400).json({ message: '날짜 형식이 올바르지 않습니다.' });
   const diners = (db.days[date] || [])

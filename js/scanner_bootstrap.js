@@ -1,7 +1,5 @@
-import CameraManager from './camera.js';
-
 function bindScannerControls() {
-  document.getElementById('custom-flip-btn')?.addEventListener('click', () => CameraManager.toggleCamera());
+  document.getElementById('custom-flip-btn')?.addEventListener('click', () => globalThis.CameraManager?.toggleCamera());
 }
 
 if (document.readyState === 'loading') {

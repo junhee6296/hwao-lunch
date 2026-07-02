@@ -83,4 +83,4 @@ if (document.readyState === 'loading') {
   CameraManager.initObserver();
 }
 
-export default CameraManager;
+globalThis.CameraManager = CameraManager;

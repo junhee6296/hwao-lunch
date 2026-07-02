@@ -1,4 +1,4 @@
-import { API_BASE_URL, getTodayStr, isWeekend, normalizePhoneLast4, escapeHTML } from './config.js';
+const { API_BASE_URL, getTodayStr, isWeekend, normalizePhoneLast4, escapeHTML } = globalThis.LunchCheckConfig;
 
 let timerInterval;
 let deferredPrompt;
@@ -85,27 +85,65 @@ window.addEventListener('orientationchange', () => window.setTimeout(syncModalVi
 
 // 앱 시작 시 저장된 이름과 전화번호 뒷자리를 자동으로 불러옴
 // 예전 버전의 부서 저장값은 더 이상 사용하지 않습니다.
-document.addEventListener('DOMContentLoaded', () => {
-  const savedName = localStorage.getItem('hwao_lunch_name');
-  const savedPhoneLast4 = localStorage.getItem('hwao_lunch_phoneLast4');
+function safeStorageGet(key) {
+  try { return localStorage.getItem(key) || ''; } catch (_) { return ''; }
+}
 
-  if (savedName && nameInput()) nameInput().value = savedName;
-  if (savedPhoneLast4 && phoneInput()) phoneInput().value = savedPhoneLast4;
+function safeStorageSet(key, value) {
+  try {
+    const text = String(value || '').trim();
+    if (text) localStorage.setItem(key, text);
+    else localStorage.removeItem(key);
+  } catch (_) {}
+}
 
-  phoneInput()?.addEventListener('input', (e) => {
-    e.target.value = normalizePhoneLast4(e.target.value);
+function restoreSavedUserInputs() {
+  const savedName = safeStorageGet('hwao_lunch_name');
+  const savedPhoneLast4 = normalizePhoneLast4(safeStorageGet('hwao_lunch_phoneLast4'));
+  const nameEl = nameInput();
+  const phoneEl = phoneInput();
+
+  if (nameEl && !nameEl.value && savedName) nameEl.value = savedName;
+  if (phoneEl && !phoneEl.value && savedPhoneLast4) phoneEl.value = savedPhoneLast4;
+}
+
+function bindUserInputPersistence() {
+  const nameEl = nameInput();
+  const phoneEl = phoneInput();
+
+  nameEl?.addEventListener('input', (event) => {
+    safeStorageSet('hwao_lunch_name', event.target.value);
   });
 
+  phoneEl?.addEventListener('input', (event) => {
+    const value = normalizePhoneLast4(event.target.value);
+    event.target.value = value;
+    safeStorageSet('hwao_lunch_phoneLast4', value);
+  });
+}
+
+function initQRPage() {
+  restoreSavedUserInputs();
+  bindUserInputPersistence();
+
   if ($('menu-month')) $('menu-month').value = getCurrentMonth();
-  ['lunchcheck_permanent_qr_enabled', 'lunchcheck_permanent_qr_warning_confirmed', 'lunchcheck_permanent_qr_cache_v1'].forEach(key => localStorage.removeItem(key));
+  ['lunchcheck_permanent_qr_enabled', 'lunchcheck_permanent_qr_warning_confirmed', 'lunchcheck_permanent_qr_cache_v1'].forEach(key => {
+    try { localStorage.removeItem(key); } catch (_) {}
+  });
   ensureModalPortals();
   bindQRPageEvents();
   if ('serviceWorker' in navigator && window.isSecureContext) {
     navigator.serviceWorker.register('/sw.js').catch(() => {});
   }
   schedulePageTopReset();
-});
+}
 
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initQRPage, { once: true });
+} else {
+  initQRPage();
+}
+window.addEventListener('pageshow', restoreSavedUserInputs);
 
 function getOptimalQRSize() {
   const container = $('qrcode-container');
@@ -169,6 +207,12 @@ function renderQRToContainer(token) {
   qrDiv.innerHTML = '';
   qrDiv.style.setProperty('--qr-render-size', `${size}px`);
   qrDiv.style.opacity = '1';
+  if (typeof window.QRCode !== 'function') {
+    alert('QR 생성 스크립트를 불러오지 못했습니다. 네트워크 상태를 확인한 뒤 새로고침해 주세요.');
+    resetToForm();
+    return;
+  }
+
   new QRCode(qrDiv, {
     text: token,
     width: size,
@@ -195,7 +239,7 @@ window.addEventListener('orientationchange', () => window.setTimeout(rerenderCur
 // ==========================================
 // 스마트폰 홈 화면 바로가기(PWA) 설치 로직
 // ==========================================
-const isStandaloneMode = () => window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+const isStandaloneMode = () => (typeof window.matchMedia === 'function' && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true;
 
 function detectInstallContext() {
   const ua = navigator.userAgent || '';
@@ -293,7 +337,9 @@ window.addEventListener('appinstalled', () => {
   updateInstallButtonState();
 });
 
-window.matchMedia('(display-mode: standalone)').addEventListener?.('change', updateInstallButtonState);
+const standaloneMediaQuery = typeof window.matchMedia === 'function' ? window.matchMedia('(display-mode: standalone)') : null;
+standaloneMediaQuery?.addEventListener?.('change', updateInstallButtonState);
+standaloneMediaQuery?.addListener?.(updateInstallButtonState);
 
 async function handleAddShortcutClick() {
   if (isStandaloneMode()) {
@@ -442,8 +488,9 @@ async function generateLunchQR(isReissue = false) {
   let phoneLast4;
 
   if (isReissue) {
-    name = localStorage.getItem('hwao_lunch_name') || '';
-    phoneLast4 = localStorage.getItem('hwao_lunch_phoneLast4') || '';
+    restoreSavedUserInputs();
+    name = safeStorageGet('hwao_lunch_name') || nameInput()?.value?.trim() || '';
+    phoneLast4 = normalizePhoneLast4(safeStorageGet('hwao_lunch_phoneLast4') || phoneInput()?.value || '');
   } else {
     name = nameInput().value.trim();
     phoneLast4 = normalizePhoneLast4(phoneInput().value);
@@ -452,8 +499,8 @@ async function generateLunchQR(isReissue = false) {
     if (!name) return alert('이름을 입력해 주세요.');
     if (!/^\d{4}$/.test(phoneLast4)) return alert('전화번호 뒷자리는 숫자 4자리로 입력해 주세요.');
 
-    localStorage.setItem('hwao_lunch_name', name);
-    localStorage.setItem('hwao_lunch_phoneLast4', phoneLast4);
+    safeStorageSet('hwao_lunch_name', name);
+    safeStorageSet('hwao_lunch_phoneLast4', phoneLast4);
   }
 
   if (!name || !/^\d{4}$/.test(phoneLast4)) {
@@ -553,5 +600,3 @@ function bindQRPageEvents() {
   bindOnce($('btn-back-to-form'), 'click', resetToForm);
 }
 
-document.addEventListener('DOMContentLoaded', bindQRPageEvents);
-if (document.readyState !== 'loading') bindQRPageEvents();

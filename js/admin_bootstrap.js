@@ -1,2 +1,3 @@
-import { initAdminList } from './admin_list_app.js';
-initAdminList();
+if (typeof initAdminList === 'function') {
+  initAdminList();
+}
