@@ -7,9 +7,9 @@
   <title>Lunch Check 스캐너 : 화성오산교육청</title>
 
   <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
-  <link rel="icon" href="/img/icon.png?v=20260701-emergency-fallback" type="image/png">
-  <link rel="stylesheet" href="/css/common.css?v=20260701-emergency-fallback">
-  <link rel="stylesheet" href="/css/scanner.css?v=20260701-emergency-fallback">
+  <link rel="icon" href="./img/icon.png?v=20260701-emergency-fallback" type="image/png">
+  <link rel="stylesheet" href="./css/common.css?v=20260701-emergency-fallback">
+  <link rel="stylesheet" href="./css/scanner.css?v=20260701-emergency-fallback">
 </head>
 <body>
   <div id="scanner-dashboard">
@@ -24,11 +24,11 @@
         </button>
 
         <div class="scanner-link-actions">
-          <a href="/qr.html" class="scanner-top-btn scanner-qr-btn">
+          <a href="./qr.html" class="scanner-top-btn scanner-qr-btn">
             <span aria-hidden="true">📱</span>
             <span>QR 발급</span>
           </a>
-          <a href="/admin.html" class="scanner-top-btn scanner-admin-btn">
+          <a href="./admin.html" class="scanner-top-btn scanner-admin-btn">
             <span aria-hidden="true">🔐</span>
             <span>관리자</span>
           </a>
@@ -74,8 +74,8 @@
       throw lastError;
     };
     try {
-      await importWithFallback(['/js/scanner_app.js?v=20260701-emergency-fallback', '/JS/scanner_app.js?v=20260701-emergency-fallback', '/scanner_app.js?v=20260701-emergency-fallback']);
-      await importWithFallback(['/js/scanner_bootstrap.js?v=20260701-emergency-fallback', '/JS/scanner_bootstrap.js?v=20260701-emergency-fallback', '/scanner_bootstrap.js?v=20260701-emergency-fallback']);
+      await importWithFallback(['./js/scanner_app.js?v=20260701-emergency-fallback', '/js/scanner_app.js?v=20260701-emergency-fallback', '/JS/scanner_app.js?v=20260701-emergency-fallback', './scanner_app.js?v=20260701-emergency-fallback', '/scanner_app.js?v=20260701-emergency-fallback']);
+      await importWithFallback(['./js/scanner_bootstrap.js?v=20260701-emergency-fallback', '/js/scanner_bootstrap.js?v=20260701-emergency-fallback', '/JS/scanner_bootstrap.js?v=20260701-emergency-fallback', './scanner_bootstrap.js?v=20260701-emergency-fallback', '/scanner_bootstrap.js?v=20260701-emergency-fallback']);
     } catch (error) {
       console.error('Lunch Check scanner script load failed', error);
       const msg = document.createElement('div');

@@ -2,7 +2,7 @@ import { API_BASE_URL, getTodayStr } from './config.js';
 
 window.html5QrCode = null;
 window.isScanningAction = false;
-window.currentScannerFacingMode = 'user';
+window.currentScannerFacingMode = 'environment';
 
 const SCANNER_AUDIO = Object.freeze({
   success: '/audio/scansound.mp3',
@@ -332,6 +332,14 @@ function calculateScanBox(viewWidth, viewHeight) {
   return size;
 }
 
+async function waitForHtml5Qrcode() {
+  for (let i = 0; i < 40; i += 1) {
+    if (window.Html5Qrcode) return;
+    await new Promise(resolve => window.setTimeout(resolve, 100));
+  }
+  throw new Error('html5-qrcode library is not loaded.');
+}
+
 function createScannerInstance() {
   if (window.html5QrCode) return window.html5QrCode;
 
@@ -419,7 +427,10 @@ async function detectStartedCameraMode() {
 
 async function buildCameraCandidates(requestedMode, allowFallback) {
   const cameras = await getAvailableCameras();
-  const candidates = [];
+  const candidates = [
+    { source: { facingMode: { ideal: requestedMode } }, mode: requestedMode },
+    { source: { facingMode: requestedMode }, mode: requestedMode }
+  ];
   const usedIds = new Set();
 
   const addId = (camera, mode) => {
@@ -457,7 +468,8 @@ async function buildCameraCandidates(requestedMode, allowFallback) {
   return candidates;
 }
 
-window.startScanner = async function startScanner(facingMode = 'user', allowFallback = true) {
+window.startScanner = async function startScanner(facingMode = 'environment', allowFallback = true) {
+  await waitForHtml5Qrcode();
   const scanner = createScannerInstance();
   const requestedMode = facingMode === 'environment' ? 'environment' : 'user';
   window.currentScannerFacingMode = requestedMode;
@@ -482,9 +494,7 @@ window.startScanner = async function startScanner(facingMode = 'user', allowFall
       await scanner.start(candidate.source, config, handleDecodedText, () => {});
       const detectedMode = await detectStartedCameraMode();
       if (detectedMode && detectedMode !== requestedMode && candidate.mode === requestedMode) {
-        console.warn(`요청한 ${requestedMode} 카메라 대신 ${detectedMode} 카메라가 열려 다음 후보를 시도합니다.`);
-        try { await scanner.stop(); } catch (_) {}
-        continue;
+        console.warn(`요청한 ${requestedMode} 카메라 대신 ${detectedMode} 카메라가 열렸지만, 즉시 스캔할 수 있도록 유지합니다.`);
       }
 
       const finalMode = detectedMode || candidate.mode;
@@ -548,7 +558,7 @@ function initScannerPage() {
 
   loadScannerStats(currentServiceDate);
   loadUpcomingMenus(currentServiceDate);
-  window.startScanner('user').catch(() => {});
+  window.startScanner('environment').catch(() => {});
 
   document.addEventListener('pointerdown', unlockAudio, { once: true, capture: true });
   document.addEventListener('keydown', unlockAudio, { once: true, capture: true });
