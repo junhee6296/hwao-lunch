@@ -49,9 +49,9 @@
     </header>
 
     <div class="flex border-b bg-white shrink-0">
-      <button onclick="switchTab('daily')" id="tab-daily" class="flex-1 py-4 font-black text-blue-600 border-b-4 border-blue-600">🌞 일식 다중 날짜 관리</button>
-      <button onclick="switchTab('monthly')" id="tab-monthly" class="flex-1 py-4 font-bold text-gray-400 bg-gray-50 hover:bg-gray-100">🌙 월식 명단 관리</button>
-      <button onclick="switchTab('menu')" id="tab-menu" class="flex-1 py-4 font-bold text-gray-400 bg-gray-50 hover:bg-gray-100">🍱 식단표 관리</button>
+      <button id="tab-daily" class="flex-1 py-4 font-black text-blue-600 border-b-4 border-blue-600">🌞 일식 다중 날짜 관리</button>
+      <button id="tab-monthly" class="flex-1 py-4 font-bold text-gray-400 bg-gray-50 hover:bg-gray-100">🌙 월식 명단 관리</button>
+      <button id="tab-menu" class="flex-1 py-4 font-bold text-gray-400 bg-gray-50 hover:bg-gray-100">🍱 식단표 관리</button>
     </div>
 
     <section id="menu-management-section" class="hidden p-5 border-b bg-amber-50/70 shrink-0">
@@ -199,30 +199,13 @@
     </div>
 
     <div id="bulk-action-section" class="p-4 bg-white border-t flex justify-between items-center shrink-0">
-      <button onclick="bulkDelete()" class="bg-red-50 hover:bg-red-100 text-red-500 px-4 py-2 rounded-xl font-bold text-sm border border-red-100 transition">🗑️ 선택 삭제</button>
+      <button id="btn-bulk-delete" class="bg-red-50 hover:bg-red-100 text-red-500 px-4 py-2 rounded-xl font-bold text-sm border border-red-100 transition">🗑️ 선택 삭제</button>
       <div id="monthly-bulk-actions" class="flex gap-2 hidden">
-        <button onclick="bulkChange('shorten')" class="bg-orange-50 hover:bg-orange-100 text-orange-600 px-4 py-2 rounded-xl font-bold text-sm border border-orange-200">➖ 선택 단축</button>
-        <button onclick="bulkChange('extend')" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-xl font-bold text-sm shadow-md">➕ 선택 연장</button>
+        <button id="btn-bulk-shorten" class="bg-orange-50 hover:bg-orange-100 text-orange-600 px-4 py-2 rounded-xl font-bold text-sm border border-orange-200">➖ 선택 단축</button>
+        <button id="btn-bulk-extend" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-xl font-bold text-sm shadow-md">➕ 선택 연장</button>
       </div>
     </div>
   </div>
-  <script type="module">
-    const importWithFallback = async (files) => {
-      let lastError;
-      for (const file of files) {
-        try { return await import(file); } catch (error) { lastError = error; }
-      }
-      console.error('Lunch Check admin script load failed', lastError);
-      const msg = document.createElement('div');
-      msg.style.cssText = 'position:fixed;left:12px;right:12px;bottom:12px;z-index:99999;padding:14px;border-radius:14px;background:#fee2e2;color:#991b1b;font-weight:900;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.18)';
-      msg.textContent = '관리자 스크립트를 불러오지 못했습니다. 서버의 js/JS 폴더 배포 상태를 확인해 주세요.';
-      document.body.appendChild(msg);
-    };
-    importWithFallback([
-      '/js/admin_bootstrap.js?v=20260701-emergency-fallback',
-      '/JS/admin_bootstrap.js?v=20260701-emergency-fallback',
-      '/admin_bootstrap.js?v=20260701-emergency-fallback'
-    ]);
-  </script>
+  <script type="module" src="./js/admin_loader.js?v=20260702-final-refactor"></script>
 </body>
 </html>

@@ -20,7 +20,8 @@ if (trustProxySetting) {
 
 const ROOT_DIR = __dirname;
 const pickExistingDir = (...dirs) => dirs.find(dir => fs.existsSync(dir)) || dirs[0];
-const HTML_DIR = pickExistingDir(path.join(ROOT_DIR, 'html'), ROOT_DIR);
+const HTML_DIR = path.join(ROOT_DIR, 'html');
+const LEGACY_HTML_DIR_EXISTS = fs.existsSync(HTML_DIR);
 const JS_DIR = pickExistingDir(path.join(ROOT_DIR, 'js'), path.join(ROOT_DIR, 'JS'));
 const CSS_DIR = pickExistingDir(path.join(ROOT_DIR, 'css'), path.join(ROOT_DIR, 'CSS'));
 const DATA_DIR = path.resolve(process.env.DATA_DIR || ROOT_DIR);
@@ -327,7 +328,9 @@ Object.entries(HTML_CANONICAL_ROUTES).forEach(([legacyPath, canonicalPath]) => {
   app.get(legacyPath, (req, res) => res.redirect(308, canonicalPath));
 });
 
-app.use('/html', express.static(HTML_DIR, { fallthrough: true, maxAge: '0', setHeaders: res => res.setHeader('Cache-Control', 'no-store') }));
+if (LEGACY_HTML_DIR_EXISTS) {
+  app.use('/html', express.static(HTML_DIR, { fallthrough: true, maxAge: '0', setHeaders: res => res.setHeader('Cache-Control', 'no-store') }));
+}
 app.get('/manifest.json', (req, res) => res.sendFile(path.join(ROOT_DIR, 'manifest.json')));
 app.get('/sw.js', (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
@@ -358,9 +361,8 @@ const sendHtml = (res, fileName) => {
   res.setHeader('Cache-Control', 'no-store');
   const candidates = [
     path.join(ROOT_DIR, fileName),
-    path.join(HTML_DIR, fileName),
-    path.join(ROOT_DIR, 'html', fileName)
-  ];
+    LEGACY_HTML_DIR_EXISTS ? path.join(HTML_DIR, fileName) : null
+  ].filter(Boolean);
   const target = candidates.find(file => fs.existsSync(file));
   if (!target) return res.status(404).type('text/plain').send(`${fileName} not found`);
   return res.sendFile(target);

@@ -77,6 +77,10 @@ const CameraManager = {
   }
 };
 
-window.addEventListener('DOMContentLoaded', () => CameraManager.initObserver());
+if (document.readyState === 'loading') {
+  window.addEventListener('DOMContentLoaded', () => CameraManager.initObserver(), { once: true });
+} else {
+  CameraManager.initObserver();
+}
 
 export default CameraManager;

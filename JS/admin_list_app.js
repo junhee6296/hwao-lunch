@@ -801,6 +801,13 @@ export function initAdminList() {
     renderImportPreview();
   });
 
+  $('tab-daily')?.addEventListener('click', () => window.switchTab('daily'));
+  $('tab-monthly')?.addEventListener('click', () => window.switchTab('monthly'));
+  $('tab-menu')?.addEventListener('click', () => window.switchTab('menu'));
+  $('btn-bulk-delete')?.addEventListener('click', () => window.bulkDelete());
+  $('btn-bulk-shorten')?.addEventListener('click', () => window.bulkChange('shorten'));
+  $('btn-bulk-extend')?.addEventListener('click', () => window.bulkChange('extend'));
+
   $('check-all')?.addEventListener('change', (e) => {
     document.querySelectorAll('.user-check').forEach(cb => { cb.checked = e.target.checked; });
   });

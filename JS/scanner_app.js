@@ -2,7 +2,7 @@ import { API_BASE_URL, getTodayStr } from './config.js';
 
 window.html5QrCode = null;
 window.isScanningAction = false;
-window.currentScannerFacingMode = 'environment';
+window.currentScannerFacingMode = 'user';
 
 const SCANNER_AUDIO = Object.freeze({
   success: '/audio/scansound.mp3',
@@ -10,7 +10,7 @@ const SCANNER_AUDIO = Object.freeze({
 });
 
 let currentAudio = null;
-let currentServiceDate = getTodayStr();
+let currentServiceDate = getCurrentServiceDate();
 let lastDecodedText = '';
 let lastDecodedAt = 0;
 let resultResetTimer = null;
@@ -62,9 +62,15 @@ function getUpcomingServiceDates(startDate, count = 3) {
   return dates;
 }
 
-function getRelativeMenuLabel(index, date, dates, baseDate) {
-  if (date === baseDate) return '오늘';
-  const futureIndex = index - (dates[0] === baseDate ? 1 : 0);
+function getCurrentServiceDate() {
+  const today = getTodayStr();
+  return getUpcomingServiceDates(today, 1)[0] || today;
+}
+
+function getRelativeMenuLabel(index, date, dates) {
+  const today = getTodayStr();
+  if (date === today) return '오늘';
+  const futureIndex = index - (dates[0] === today ? 1 : 0);
   return ['다음 급식일', '다다음 급식일', '세 번째 급식일'][futureIndex] || `${futureIndex + 1}번째 급식일`;
 }
 
@@ -270,17 +276,17 @@ async function loadScannerStats(date = currentServiceDate) {
 }
 
 function checkDateRollover() {
-  const today = getTodayStr();
-  if (today === currentServiceDate) return false;
+  const nextServiceDate = getCurrentServiceDate();
+  if (nextServiceDate === currentServiceDate) return false;
 
-  currentServiceDate = today;
+  currentServiceDate = nextServiceDate;
   lastDecodedText = '';
   lastDecodedAt = 0;
   window.isScanningAction = false;
   resetScannerStats();
-  loadScannerStats(today);
-  loadUpcomingMenus(today);
-  showScanResult('idle', 'QR 코드를 보여주세요', '새 날짜의 식수 집계를 시작합니다');
+  loadScannerStats(nextServiceDate);
+  loadUpcomingMenus(nextServiceDate);
+  showScanResult('idle', 'QR 코드를 보여주세요', '새 급식일의 식수 집계를 시작합니다');
   return true;
 }
 
@@ -346,7 +352,7 @@ async function waitForScannerRuntime() {
 function normalizeCameraSource(source) {
   if (typeof source === 'string') return { deviceId: { exact: source } };
   if (source?.facingMode) return { facingMode: source.facingMode };
-  return { facingMode: { ideal: window.currentScannerFacingMode || 'environment' } };
+  return { facingMode: { ideal: window.currentScannerFacingMode || 'user' } };
 }
 
 function createNativeQrScanner() {
@@ -563,7 +569,7 @@ async function buildCameraCandidates(requestedMode, allowFallback) {
   return candidates;
 }
 
-window.startScanner = async function startScanner(facingMode = 'environment', allowFallback = true) {
+window.startScanner = async function startScanner(facingMode = 'user', allowFallback = true) {
   await waitForScannerRuntime();
   const scanner = createScannerInstance();
   const requestedMode = facingMode === 'environment' ? 'environment' : 'user';
@@ -646,7 +652,7 @@ function getCameraErrorHelp(error) {
 
 function ensureScannerRunning() {
   if (window.html5QrCode?.isScanning || scannerRestartPromise) return;
-  window.startScanner(window.currentScannerFacingMode || 'environment')
+  window.startScanner(window.currentScannerFacingMode || 'user')
     .catch(error => {
       console.warn('카메라 자동 시작 실패:', error);
       showScanResult('fail', '카메라를 시작할 수 없습니다', getCameraErrorHelp(error));
