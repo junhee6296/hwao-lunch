@@ -243,6 +243,14 @@ const isStandaloneMode = () => (typeof window.matchMedia === 'function' && windo
 
 function detectInstallContext() {
   const ua = navigator.userAgent || '';
+  const platform = navigator.userAgentData?.platform || navigator.platform || '';
+  const isIOS = /iPad|iPhone|iPod/i.test(ua)
+    || (platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isAndroid = /Android/i.test(ua);
+  const isChrome = /Chrome|CriOS/i.test(ua) && !/Edg|OPR|SamsungBrowser/i.test(ua);
+  const isEdge = /Edg/i.test(ua);
+  const isSamsung = /SamsungBrowser/i.test(ua);
+  const isSafari = /^((?!chrome|android).)*safari/i.test(ua) && isIOS;
   const restrictedBrowsers = [
     ['네이버 앱 내부 브라우저', /NAVER|NaverSearchApp/i],
     ['카카오톡 내부 브라우저', /KAKAOTALK/i],
@@ -252,21 +260,39 @@ function detectInstallContext() {
     ['다음 앱 내부 브라우저', /DaumApps/i]
   ];
   const restricted = restrictedBrowsers.find(([, pattern]) => pattern.test(ua));
-  return restricted
-    ? { restricted: true, name: restricted[0] }
-    : { restricted: false, name: '현재 브라우저' };
+  let os = 'desktop';
+  if (isIOS) os = 'ios';
+  else if (isAndroid) os = 'android';
+
+  let name = '현재 브라우저';
+  if (restricted) name = restricted[0];
+  else if (isSamsung) name = '삼성 인터넷';
+  else if (isEdge) name = 'Microsoft Edge';
+  else if (isChrome) name = 'Chrome';
+  else if (isSafari) name = 'Safari';
+
+  return {
+    os,
+    restricted: Boolean(restricted),
+    name,
+    canUseNativePrompt: Boolean(deferredPrompt) && !isIOS && !restricted,
+    officialGuideUrl: isIOS
+      ? 'https://support.apple.com/ko-kr/guide/iphone/iph42ab2f3a7/ios'
+      : 'https://support.google.com/chrome/answer/9658361?hl=ko'
+  };
 }
 
 function updateInstallButtonState() {
   const button = $('btn-add-shortcut');
   if (!button) return;
   if (isStandaloneMode()) {
-    button.innerHTML = '✅ 홈 화면에<br>추가됨';
-    button.setAttribute('aria-label', '이미 홈 화면에 추가됨');
+    button.innerHTML = '설치 완료';
+    button.setAttribute('aria-label', '이미 앱으로 설치됨');
     button.dataset.installed = 'true';
   } else {
-    button.innerHTML = '📲 홈 화면<br>바로가기 추가';
-    button.setAttribute('aria-label', '홈 화면 바로가기 추가');
+    const context = detectInstallContext();
+    button.innerHTML = context.os === 'ios' ? '홈 화면<br>추가' : '앱 설치';
+    button.setAttribute('aria-label', context.os === 'ios' ? '홈 화면에 추가' : '앱 설치');
     delete button.dataset.installed;
   }
 }
@@ -281,14 +307,64 @@ function unlockInstallOverlay() {
   document.body.classList.remove('install-guide-open');
 }
 
-function openInstallGuide() {
+function setText(id, value) {
+  const element = $(id);
+  if (element) element.textContent = value;
+}
+
+function setHTML(id, value) {
+  const element = $(id);
+  if (element) element.innerHTML = value;
+}
+
+function applyInstallGuideContent(context) {
+  const guideLink = $('browser-official-guide');
+  if (guideLink) guideLink.href = context.officialGuideUrl;
+
+  if (context.os === 'ios') {
+    $('install-guide-icon')?.setAttribute('src', '/img/shareicon.png');
+    setText('install-guide-title', '홈 화면에 추가');
+    setText('install-guide-subtitle', 'iPhone과 iPad는 Safari 공유 메뉴에서 추가합니다.');
+    setText('install-step-1-title', '공유 버튼 누르기');
+    setHTML('install-step-1-body', 'Safari 화면의 <b>하단 또는 상단</b>에서 공유 버튼을 탭하세요.');
+    setText('install-step-2-title', '홈 화면에 추가 선택');
+    setHTML('install-step-2-body', '목록을 아래로 내려 <b>홈 화면에 추가</b>를 누른 뒤 추가를 완료하세요.');
+    setHTML('install-guide-note', '공유 버튼 위치는 iOS 버전과 화면 크기에 따라 달라질 수 있습니다. 항목이 보이지 않으면 공유 메뉴를 아래로 더 내려보세요.');
+    if (guideLink) guideLink.textContent = 'Apple 공식 안내';
+    return;
+  }
+
+  $('install-guide-icon')?.setAttribute('src', '/img/icon.png?v=20260701-emergency-fallback');
+  if (context.os === 'android') {
+    setText('install-guide-title', '앱 설치');
+    setText('install-guide-subtitle', 'Android에서는 브라우저 메뉴에서 Lunch Check를 앱처럼 설치할 수 있습니다.');
+    setText('install-step-1-title', 'Chrome 또는 삼성 인터넷으로 열기');
+    setHTML('install-step-1-body', '주소창 옆 또는 화면 오른쪽 위의 <b>⋮ 메뉴</b>를 여세요.');
+    setText('install-step-2-title', '앱 설치 찾기');
+    setHTML('install-step-2-body', '<b>앱 설치</b>, <b>홈 화면에 추가</b>, 또는 <b>페이지를 앱으로 설치</b>를 선택하세요.');
+    setHTML('install-guide-note', '설치 버튼이 바로 뜨면 이 안내창 없이 브라우저 설치창이 먼저 열립니다. 메뉴에 항목이 없다면 Chrome에서 다시 열어주세요.');
+    if (guideLink) guideLink.textContent = 'Chrome 설치 안내';
+    return;
+  }
+
+  setText('install-guide-title', 'PC에서 앱 설치');
+  setText('install-guide-subtitle', 'Chrome 또는 Edge에서 Lunch Check를 데스크톱 앱처럼 설치할 수 있습니다.');
+  setText('install-step-1-title', '주소창의 설치 아이콘 찾기');
+  setHTML('install-step-1-body', '주소창 오른쪽의 <b>설치 아이콘</b>을 누르거나 브라우저 메뉴를 여세요.');
+  setText('install-step-2-title', '앱 설치 선택');
+  setHTML('install-step-2-body', 'Chrome은 <b>저장 및 공유 &gt; 페이지를 앱으로 설치</b>, Edge는 <b>앱 &gt; 이 사이트를 앱으로 설치</b>를 선택하세요.');
+  setHTML('install-guide-note', '회사 PC나 일부 브라우저 설정에서는 설치 항목이 숨겨질 수 있습니다. 이 경우 Chrome 또는 Edge 최신 버전에서 다시 시도해 주세요.');
+  if (guideLink) guideLink.textContent = 'Chrome 설치 안내';
+}
+
+function openInstallGuide(context = detectInstallContext()) {
   ensureModalPortals();
   syncModalViewportHeight();
-  const context = detectInstallContext();
+  applyInstallGuideContent(context);
   const external = $('external-browser-section');
   external?.classList.toggle('hidden', !context.restricted);
   if ($('external-browser-hint') && context.restricted) {
-    $('external-browser-hint').textContent = `${context.name}에서는 홈 화면 추가가 제한될 수 있습니다. 주소를 복사해 다른 브라우저에서 다시 열어주세요.`;
+    $('external-browser-hint').textContent = `${context.name}에서는 앱 설치가 제한될 수 있습니다. 주소를 복사해 Chrome, Safari, Edge 같은 일반 브라우저에서 다시 열어주세요.`;
   }
   lockInstallOverlay();
   $('ios-install-modal')?.classList.remove('hidden');
@@ -329,6 +405,7 @@ async function copyCurrentPageUrl() {
 window.addEventListener('beforeinstallprompt', event => {
   event.preventDefault();
   deferredPrompt = event;
+  updateInstallButtonState();
 });
 
 window.addEventListener('appinstalled', () => {
@@ -343,20 +420,22 @@ standaloneMediaQuery?.addListener?.(updateInstallButtonState);
 
 async function handleAddShortcutClick() {
   if (isStandaloneMode()) {
-    alert('이미 홈 화면에서 앱으로 실행 중입니다.');
+    alert('이미 앱으로 설치되어 실행 중입니다.');
     return;
   }
 
-  if (deferredPrompt) {
+  const context = detectInstallContext();
+  if (context.canUseNativePrompt) {
     const promptEvent = deferredPrompt;
     deferredPrompt = null;
     await promptEvent.prompt();
     const choice = await promptEvent.userChoice.catch(() => null);
     if (choice?.outcome === 'accepted') updateInstallButtonState();
+    else openInstallGuide(context);
     return;
   }
 
-  openInstallGuide();
+  openInstallGuide(context);
 }
 
 function handleInstallModalBackdropClick(event) {
@@ -599,4 +678,3 @@ function bindQRPageEvents() {
   bindOnce($('btn-reissue-qr'), 'click', () => generateLunchQR(true));
   bindOnce($('btn-back-to-form'), 'click', resetToForm);
 }
-

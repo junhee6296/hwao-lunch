@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lunch-check-shell-v20260702-camerafix';
+const CACHE_NAME = 'lunch-check-shell-v20260702-installfix';
 const APP_SHELL = [
   '/qr.html',
   '/scanner.html',
