@@ -357,6 +357,7 @@ app.get(['/common.css', '/qr.css', '/scanner.css', '/admin.css', '/admin_list.cs
 const sendHtml = (res, fileName) => {
   res.setHeader('Cache-Control', 'no-store');
   const candidates = [
+    path.join(ROOT_DIR, fileName),
     path.join(HTML_DIR, fileName),
     path.join(ROOT_DIR, 'html', fileName)
   ];
