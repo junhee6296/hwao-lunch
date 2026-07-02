@@ -282,9 +282,9 @@ function renderUsers() {
       : '';
 
     const actionButtons = u.mealType === 'monthly'
-      ? `<button onclick="window.changePeriod(${u._index}, 'shorten')" class="text-xs font-bold text-orange-500 bg-white border px-3 py-1.5 rounded-lg hover:bg-orange-50">단축</button>
-         <button onclick="window.changePeriod(${u._index}, 'extend')" class="text-xs font-bold text-blue-600 bg-blue-50 border px-3 py-1.5 rounded-lg ml-1 hover:bg-blue-100">연장</button>`
-      : `<button onclick="window.editDailyDates(${u._index})" class="text-xs font-bold text-blue-600 bg-blue-50 border px-3 py-1.5 rounded-lg hover:bg-blue-100">날짜 변경</button>`;
+      ? `<button type="button" data-user-action="change-period" data-index="${u._index}" data-period-action="shorten" class="text-xs font-bold text-orange-500 bg-white border px-3 py-1.5 rounded-lg hover:bg-orange-50">단축</button>
+         <button type="button" data-user-action="change-period" data-index="${u._index}" data-period-action="extend" class="text-xs font-bold text-blue-600 bg-blue-50 border px-3 py-1.5 rounded-lg ml-1 hover:bg-blue-100">연장</button>`
+      : `<button type="button" data-user-action="edit-daily-dates" data-index="${u._index}" class="text-xs font-bold text-blue-600 bg-blue-50 border px-3 py-1.5 rounded-lg hover:bg-blue-100">날짜 변경</button>`;
 
     return `
       <tr class="hover:bg-blue-50/50 transition ${isExpired ? 'bg-red-50/30' : 'bg-white'}">
@@ -294,9 +294,9 @@ function renderUsers() {
         <td class="p-4 text-center font-mono text-sm border-r ${isExpired ? 'text-red-600 font-bold' : 'text-blue-600 font-bold'}">${escapeHTML(dateDisplay)}</td>
         <td class="p-4 text-center font-mono text-sm border-r bg-red-50/20 text-gray-600">${escapeHTML(deleteDateStr)} ${dDayBadge}</td>
         <td class="p-4 text-right">
-          <button onclick="window.editUserInfo(${u._index})" class="text-xs font-bold text-gray-700 bg-white border px-3 py-1.5 rounded-lg hover:bg-gray-50">정보 수정</button>
+          <button type="button" data-user-action="edit-info" data-index="${u._index}" class="text-xs font-bold text-gray-700 bg-white border px-3 py-1.5 rounded-lg hover:bg-gray-50">정보 수정</button>
           ${actionButtons}
-          <button onclick="window.deleteUser(${u._index})" class="text-xs font-bold text-gray-400 hover:text-red-500 ml-3">삭제</button>
+          <button type="button" data-user-action="delete-user" data-index="${u._index}" class="text-xs font-bold text-gray-400 hover:text-red-500 ml-3">삭제</button>
         </td>
       </tr>`;
   }).join('');
@@ -486,7 +486,7 @@ function renderAdminMenuPreview(data) {
       <article class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
         <div class="flex items-start justify-between gap-3 mb-2">
           <h3 class="font-black text-slate-900">${escapeHTML(formatAdminMenuDate(date))}</h3>
-          <button onclick="window.editMenuDay('${date}')" class="text-xs font-bold text-blue-600 bg-blue-50 border border-blue-100 px-3 py-1.5 rounded-lg hover:bg-blue-100">수정</button>
+          <button type="button" data-menu-date="${escapeAttr(date)}" class="text-xs font-bold text-blue-600 bg-blue-50 border border-blue-100 px-3 py-1.5 rounded-lg hover:bg-blue-100">수정</button>
         </div>
         <div class="text-xs font-black text-slate-600 mb-1">메뉴</div>
         ${isHoliday ? `<div class="text-sm font-black text-red-600 mb-3">공휴일${day.holidayName && day.holidayName !== '공휴일' ? ` <span class="text-xs text-red-400">(${escapeHTML(day.holidayName)})</span>` : ''}</div>` : `<ul class="text-sm font-bold text-gray-900 space-y-0.5 mb-3">${menus.length ? menus.map(item => `<li>• ${escapeHTML(item)}</li>`).join('') : '<li class="text-gray-400">없음</li>'}</ul>`}
@@ -706,7 +706,7 @@ function renderImportPreview(scrollToUnpaid = false) {
     const confirmCell = isUnpaid
       ? row.unpaidConfirmed
         ? '<span class="inline-flex text-green-700 bg-green-100 px-3 py-1 rounded-full text-xs font-black">확인 완료</span>'
-        : `<button onclick="window.confirmUnpaidImport(${index})" class="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold">확인</button>`
+        : `<button type="button" data-import-action="confirm-unpaid" data-index="${index}" class="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold">확인</button>`
       : '<span class="text-gray-400 text-xs">-</span>';
 
     const statusLabel = isUnpaid
@@ -715,13 +715,13 @@ function renderImportPreview(scrollToUnpaid = false) {
 
     return `
       <tr id="import-row-${index}" class="${rowClass}">
-        <td class="p-3 text-center"><input type="checkbox" class="import-check w-4 h-4" ${row.selected ? 'checked' : ''} onchange="window.toggleImportSelection(${index}, this.checked)" ${row.alreadyRegistered ? 'disabled' : ''}></td>
+        <td class="p-3 text-center"><input type="checkbox" class="import-check w-4 h-4" data-index="${index}" ${row.selected ? 'checked' : ''} ${row.alreadyRegistered ? 'disabled' : ''}></td>
         <td class="p-3 text-center font-mono font-bold">${index + 1}</td>
-        <td class="p-3"><input value="${escapeAttr(row.name)}" onchange="window.updateImportRow(${index}, 'name', this.value)" class="w-44 border rounded-lg px-3 py-2 bg-white"></td>
-        <td class="p-3"><input value="${escapeAttr(row.phoneLast4)}" onchange="window.updateImportRow(${index}, 'phoneLast4', this.value)" maxlength="4" inputmode="numeric" class="w-32 border rounded-lg px-3 py-2 font-mono bg-white"></td>
+        <td class="p-3"><input value="${escapeAttr(row.name)}" data-import-field="name" data-index="${index}" class="w-44 border rounded-lg px-3 py-2 bg-white"></td>
+        <td class="p-3"><input value="${escapeAttr(row.phoneLast4)}" data-import-field="phoneLast4" data-index="${index}" maxlength="4" inputmode="numeric" class="w-32 border rounded-lg px-3 py-2 font-mono bg-white"></td>
         <td class="p-3 text-center">${statusLabel}${row.alreadyRegistered ? '<div class="text-xs text-gray-500 mt-1">이미 등록됨</div>' : ''}</td>
         <td class="p-3 text-center">${confirmCell}</td>
-        <td class="p-3 text-center"><button onclick="window.deleteImportRow(${index})" class="text-xs font-bold text-gray-400 hover:text-red-500">삭제</button></td>
+        <td class="p-3 text-center"><button type="button" data-import-action="delete-row" data-index="${index}" class="text-xs font-bold text-gray-400 hover:text-red-500">삭제</button></td>
       </tr>`;
   }).join('');
 
@@ -766,6 +766,50 @@ async function registerImportRows(mode) {
   loadUsers();
 }
 
+
+function handleUserTableClick(event) {
+  const button = event.target.closest('[data-user-action]');
+  if (!button) return;
+  const index = Number(button.dataset.index);
+  if (!Number.isInteger(index)) return;
+
+  if (button.dataset.userAction === 'change-period') return window.changePeriod(index, button.dataset.periodAction);
+  if (button.dataset.userAction === 'edit-daily-dates') return window.editDailyDates(index);
+  if (button.dataset.userAction === 'edit-info') return window.editUserInfo(index);
+  if (button.dataset.userAction === 'delete-user') return window.deleteUser(index);
+}
+
+function handleMenuPreviewClick(event) {
+  const button = event.target.closest('[data-menu-date]');
+  if (!button) return;
+  window.editMenuDay(button.dataset.menuDate);
+}
+
+function handleImportPreviewClick(event) {
+  const button = event.target.closest('[data-import-action]');
+  if (!button) return;
+  const index = Number(button.dataset.index);
+  if (!Number.isInteger(index)) return;
+
+  if (button.dataset.importAction === 'confirm-unpaid') return window.confirmUnpaidImport(index);
+  if (button.dataset.importAction === 'delete-row') return window.deleteImportRow(index);
+}
+
+function handleImportPreviewChange(event) {
+  const target = event.target;
+  const index = Number(target.dataset.index);
+  if (!Number.isInteger(index)) return;
+
+  if (target.classList.contains('import-check')) {
+    window.toggleImportSelection(index, target.checked);
+    return;
+  }
+
+  if (target.dataset.importField === 'name' || target.dataset.importField === 'phoneLast4') {
+    window.updateImportRow(index, target.dataset.importField, target.value);
+  }
+}
+
 export function initAdminList() {
   $('btn-request-auth')?.addEventListener('click', requestAdminAuth);
   $('btn-verify-auth')?.addEventListener('click', verifyAdminAuth);
@@ -807,6 +851,11 @@ export function initAdminList() {
   $('btn-bulk-delete')?.addEventListener('click', () => window.bulkDelete());
   $('btn-bulk-shorten')?.addEventListener('click', () => window.bulkChange('shorten'));
   $('btn-bulk-extend')?.addEventListener('click', () => window.bulkChange('extend'));
+
+  $('user-list-body')?.addEventListener('click', handleUserTableClick);
+  $('menu-admin-preview')?.addEventListener('click', handleMenuPreviewClick);
+  $('import-preview-body')?.addEventListener('click', handleImportPreviewClick);
+  $('import-preview-body')?.addEventListener('change', handleImportPreviewChange);
 
   $('check-all')?.addEventListener('change', (e) => {
     document.querySelectorAll('.user-check').forEach(cb => { cb.checked = e.target.checked; });

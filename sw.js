@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lunch-check-shell-v20260702-final-refactor';
+const CACHE_NAME = 'lunch-check-shell-v20260702-scriptfix';
 const APP_SHELL = [
   '/qr.html',
   '/scanner.html',
@@ -7,9 +7,7 @@ const APP_SHELL = [
   '/css/scanner.css',
   '/js/config.js',
   '/js/redirect.js',
-  '/js/qr_loader.js',
   '/js/qr_app.js',
-  '/js/scanner_loader.js',
   '/js/scanner_app.js',
   '/js/scanner_bootstrap.js',
   '/js/camera.js',
@@ -47,11 +45,16 @@ self.addEventListener('fetch', event => {
     return;
   }
 
+  const isFreshAsset = /\.(?:js|css)$/i.test(url.pathname);
+  const fetchAndCache = fetch(request).then(response => {
+    const copy = response.clone();
+    if (response.ok) caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
+    return response;
+  });
+
   event.respondWith(
-    caches.match(request).then(cached => cached || fetch(request).then(response => {
-      const copy = response.clone();
-      if (response.ok) caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
-      return response;
-    }))
+    isFreshAsset
+      ? fetchAndCache.catch(() => caches.match(request))
+      : caches.match(request).then(cached => cached || fetchAndCache)
   );
 });
