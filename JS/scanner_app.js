@@ -41,8 +41,31 @@ function addDaysToDateStr(dateStr, amount) {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
 }
 
-function getRelativeMenuLabel(index) {
-  return ['오늘', '내일', '모레'][index] || '';
+function isWeekendDateStr(dateStr) {
+  const [year, month, day] = String(dateStr || '').split('-').map(Number);
+  if (!year || !month || !day) return false;
+  const weekDay = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  return weekDay === 0 || weekDay === 6;
+}
+
+function getUpcomingServiceDates(startDate, count = 3) {
+  const dates = [];
+  let cursor = startDate;
+  let guard = 0;
+
+  while (dates.length < count && guard < 14) {
+    if (!isWeekendDateStr(cursor)) dates.push(cursor);
+    cursor = addDaysToDateStr(cursor, 1);
+    guard += 1;
+  }
+
+  return dates;
+}
+
+function getRelativeMenuLabel(index, date, dates, baseDate) {
+  if (date === baseDate) return '오늘';
+  const futureIndex = index - (dates[0] === baseDate ? 1 : 0);
+  return ['다음 급식일', '다다음 급식일', '세 번째 급식일'][futureIndex] || `${futureIndex + 1}번째 급식일`;
 }
 
 function formatScannerTime(value) {
@@ -90,7 +113,7 @@ function renderAttendeeList(attendees) {
   });
 }
 
-function renderUpcomingMenus(daysByDate, dates) {
+function renderUpcomingMenus(daysByDate, dates, baseDate = currentServiceDate) {
   const wrap = $('scanner-menu-days');
   const dateLabel = $('scanner-menu-date');
   if (!wrap) return;
@@ -109,7 +132,7 @@ function renderUpcomingMenus(daysByDate, dates) {
     const isHoliday = Boolean(day?.holidayName) || menus.includes('공휴일');
 
     const article = document.createElement('article');
-    article.className = `scanner-menu-day${index === 0 ? ' is-today' : ''}`;
+    article.className = `scanner-menu-day${date === baseDate ? ' is-today' : ''}`;
 
     const header = document.createElement('div');
     header.className = 'scanner-menu-day-head';
@@ -120,7 +143,7 @@ function renderUpcomingMenus(daysByDate, dates) {
 
     const badge = document.createElement('span');
     badge.className = 'scanner-menu-day-badge';
-    badge.textContent = getRelativeMenuLabel(index);
+    badge.textContent = getRelativeMenuLabel(index, date, safeDates, baseDate);
 
     header.append(title, badge);
     article.appendChild(header);
@@ -154,7 +177,7 @@ function renderUpcomingMenus(daysByDate, dates) {
 
 async function loadUpcomingMenus(date = currentServiceDate) {
   const requestedDate = date;
-  const dates = [0, 1, 2].map(offset => addDaysToDateStr(requestedDate, offset));
+  const dates = getUpcomingServiceDates(requestedDate, 3);
   const yearMonths = [...new Set(dates.map(item => item.slice(0, 7)))];
 
   const responses = await Promise.all(yearMonths.map(async (yearMonth) => {
@@ -171,7 +194,7 @@ async function loadUpcomingMenus(date = currentServiceDate) {
   if (requestedDate !== currentServiceDate) return;
   const mergedDays = {};
   responses.forEach(data => Object.assign(mergedDays, data?.days || {}));
-  renderUpcomingMenus(mergedDays, dates);
+  renderUpcomingMenus(mergedDays, dates, requestedDate);
 }
 
 function stopCurrentAudio() {

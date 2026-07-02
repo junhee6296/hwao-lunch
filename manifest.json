@@ -1,11 +1,11 @@
 {
-  "id": "/html/qr.html",
+  "id": "/qr.html",
   "name": "Lunch Check",
   "short_name": "Lunch Check",
   "description": "화성오산교육지원청 점심 식사 QR 체크 앱",
   "lang": "ko-KR",
   "dir": "ltr",
-  "start_url": "/html/qr.html",
+  "start_url": "/qr.html",
   "scope": "/",
   "display": "standalone",
   "background_color": "#e5e7eb",

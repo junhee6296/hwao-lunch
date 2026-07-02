@@ -59,13 +59,17 @@ const adminEmails = (process.env.ADMIN_EMAILS || '')
   .map(e => e.trim().toLowerCase())
   .filter(Boolean);
 
-const transporter = nodemailer.createTransport({
+const isProduction = process.env.NODE_ENV === 'production';
+const hasMailConfig = Boolean(process.env.EMAIL_USER && process.env.EMAIL_PASS);
+const allowDevAuthCode = !isProduction && !hasMailConfig;
+
+const transporter = hasMailConfig ? nodemailer.createTransport({
   service: 'gmail',
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS
   }
-});
+}) : null;
 
 // ==========================================
 // 공통 유틸
@@ -312,6 +316,17 @@ app.use('/CSS', express.static(CSS_DIR, { fallthrough: true, maxAge: '1h' }));
 app.use('/JS', express.static(JS_DIR, { fallthrough: true, maxAge: '0', setHeaders: res => res.setHeader('Cache-Control', 'no-store') }));
 app.use('/audio', express.static(path.join(ROOT_DIR, 'audio'), { fallthrough: true, maxAge: '1h' }));
 app.use('/img', express.static(path.join(ROOT_DIR, 'img'), { fallthrough: true, maxAge: '1d' }));
+
+const HTML_CANONICAL_ROUTES = {
+  '/html/qr.html': '/qr.html',
+  '/html/scanner.html': '/scanner.html',
+  '/html/admin.html': '/admin.html',
+  '/html/admin_list.html': '/admin.html'
+};
+Object.entries(HTML_CANONICAL_ROUTES).forEach(([legacyPath, canonicalPath]) => {
+  app.get(legacyPath, (req, res) => res.redirect(308, canonicalPath));
+});
+
 app.use('/html', express.static(HTML_DIR, { fallthrough: true, maxAge: '0', setHeaders: res => res.setHeader('Cache-Control', 'no-store') }));
 app.get('/manifest.json', (req, res) => res.sendFile(path.join(ROOT_DIR, 'manifest.json')));
 app.get('/sw.js', (req, res) => {
@@ -325,14 +340,8 @@ app.get(['/config.js', '/qr_app.js', '/scanner_app.js', '/scanner_bootstrap.js',
   res.setHeader('Cache-Control', 'no-store');
   res.type('application/javascript');
   const fileName = path.basename(req.path);
-  const candidates = [
-    path.join(JS_DIR, fileName),
-    path.join(ROOT_DIR, 'js', fileName),
-    path.join(ROOT_DIR, 'JS', fileName),
-    path.join(ROOT_DIR, fileName)
-  ];
-  const target = candidates.find(file => fs.existsSync(file));
-  if (!target) return res.status(404).type('text/plain').send(`${fileName} not found`);
+  const target = path.join(JS_DIR, fileName);
+  if (!fs.existsSync(target)) return res.status(404).type('text/plain').send(`${fileName} not found`);
   return res.sendFile(target);
 });
 
@@ -340,14 +349,8 @@ app.get(['/common.css', '/qr.css', '/scanner.css', '/admin.css', '/admin_list.cs
   res.setHeader('Cache-Control', 'no-store');
   res.type('text/css');
   const fileName = path.basename(req.path);
-  const candidates = [
-    path.join(CSS_DIR, fileName),
-    path.join(ROOT_DIR, 'css', fileName),
-    path.join(ROOT_DIR, 'CSS', fileName),
-    path.join(ROOT_DIR, fileName)
-  ];
-  const target = candidates.find(file => fs.existsSync(file));
-  if (!target) return res.status(404).type('text/plain').send(`${fileName} not found`);
+  const target = path.join(CSS_DIR, fileName);
+  if (!fs.existsSync(target)) return res.status(404).type('text/plain').send(`${fileName} not found`);
   return res.sendFile(target);
 });
 
@@ -369,7 +372,7 @@ app.get('/scanner', (req, res) => sendHtml(res, 'scanner.html'));
 app.get('/scanner.html', (req, res) => sendHtml(res, 'scanner.html'));
 app.get('/admin', (req, res) => sendHtml(res, 'admin.html'));
 app.get('/admin.html', (req, res) => sendHtml(res, 'admin.html'));
-app.get('/admin_list.html', (req, res) => res.redirect(302, '/admin.html'));
+app.get('/admin_list.html', (req, res) => res.redirect(308, '/admin.html'));
 
 // ==========================================
 // 인증 / 관리자 세션
@@ -383,7 +386,6 @@ const parseCookies = (cookieHeader = '') => Object.fromEntries(
 );
 
 const hashCode = (code, email) => crypto.createHash('sha256').update(`${email}:${code}:${AUTH_SECRET}`).digest('hex');
-const isProduction = process.env.NODE_ENV === 'production';
 const cookieSecure = process.env.COOKIE_SECURE === 'true' || (isProduction && /^https:/i.test(process.env.PUBLIC_ORIGIN || ''));
 
 const setSessionCookie = (res, sessionId) => {
@@ -491,11 +493,17 @@ app.post('/api/admin/request-code', async (req, res) => {
   const existing = authCodes.get(email);
   if (existing && Date.now() - existing.requestedAt < CODE_COOLDOWN_MS) {
     const retryAfter = Math.ceil((CODE_COOLDOWN_MS - (Date.now() - existing.requestedAt)) / 1000);
-    return res.status(429).json({
+    const response = {
       message: `인증번호는 ${retryAfter}초 후 다시 요청할 수 있습니다.`,
       retryAfter,
+      expiresInSeconds: Math.max(1, Math.ceil((existing.expiresAt - Date.now()) / 1000)),
       sent: false
-    });
+    };
+    if (allowDevAuthCode && existing.devCode) {
+      response.devMode = true;
+      response.devCode = existing.devCode;
+    }
+    return res.status(429).json(response);
   }
 
   const code = String(crypto.randomInt(100000, 1000000));
@@ -506,7 +514,23 @@ app.post('/api/admin/request-code', async (req, res) => {
     requestedAt: Date.now(),
     attempts: 0
   };
+  if (allowDevAuthCode) auth.devCode = code;
   authCodes.set(email, auth);
+
+  if (!transporter) {
+    if (allowDevAuthCode) {
+      return res.json({
+        message: '개발 환경에서는 메일 대신 화면에 인증번호를 표시합니다.',
+        cooldownSeconds: 30,
+        expiresInSeconds: 180,
+        sent: false,
+        devMode: true,
+        devCode: code
+      });
+    }
+    authCodes.delete(email);
+    return res.status(500).json({ message: '메일 발송 실패. 서버 메일 설정을 확인해 주세요.' });
+  }
 
   try {
     await transporter.sendMail({

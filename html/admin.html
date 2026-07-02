@@ -25,6 +25,7 @@
 
       <div id="step-code" class="hidden text-left">
         <input type="text" id="2fa-code" class="w-full border-2 border-gray-100 p-3 rounded-xl text-center text-2xl tracking-widest mb-3 focus:border-blue-500 outline-none" placeholder="000000" maxlength="6" inputmode="numeric">
+        <p id="auth-dev-code-hint" class="hidden mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-center text-sm font-black text-amber-700"></p>
         <button id="btn-verify-auth" class="w-full py-3 bg-gray-800 hover:bg-black transition text-white rounded-xl font-bold">인증 확인</button>
         <button id="btn-reset-auth" class="w-full py-2 mt-2 text-gray-400 text-sm underline">이메일 다시 입력</button>
       </div>
@@ -214,14 +215,10 @@
       console.error('Lunch Check admin script load failed', lastError);
       const msg = document.createElement('div');
       msg.style.cssText = 'position:fixed;left:12px;right:12px;bottom:12px;z-index:99999;padding:14px;border-radius:14px;background:#fee2e2;color:#991b1b;font-weight:900;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.18)';
-      msg.textContent = '관리자 스크립트를 불러오지 못했습니다. 서버의 js/JS 폴더 배포 상태를 확인해 주세요.';
+      msg.textContent = '관리자 스크립트를 불러오지 못했습니다. 서버의 js 폴더 배포 상태를 확인해 주세요.';
       document.body.appendChild(msg);
     };
-    importWithFallback([
-      '/js/admin_bootstrap.js?v=20260701-emergency-fallback',
-      '/JS/admin_bootstrap.js?v=20260701-emergency-fallback',
-      '/admin_bootstrap.js?v=20260701-emergency-fallback'
-    ]);
+    importWithFallback(['/js/admin_bootstrap.js?v=20260701-emergency-fallback']);
   </script>
 </body>
 </html>

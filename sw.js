@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lunch-check-shell-v20260701-refactor';
+const CACHE_NAME = 'lunch-check-shell-v20260702-canonical';
 const APP_SHELL = [
   '/qr.html',
   '/scanner.html',

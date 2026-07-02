@@ -11,6 +11,15 @@ let importMeta = null;
 let currentMenuMonthData = null;
 
 const $ = (id) => document.getElementById(id);
+
+function setDevCodeHint(devCode) {
+  const hint = $('auth-dev-code-hint');
+  if (!hint) return;
+  const code = String(devCode || '').trim();
+  hint.textContent = code ? `개발용 인증번호: ${code}` : '';
+  hint.classList.toggle('hidden', !code);
+}
+
 const pad2 = value => String(value).padStart(2, '0');
 const escapeAttr = escapeHTML;
 
@@ -19,6 +28,7 @@ function resetAuthUI() {
   $('step-code')?.classList.add('hidden');
   $('step-email')?.classList.remove('hidden');
   if ($('2fa-code')) $('2fa-code').value = '';
+  setDevCodeHint('');
   if ($('btn-verify-auth')) $('btn-verify-auth').textContent = '인증 확인';
 }
 
@@ -131,10 +141,21 @@ async function requestAdminAuth() {
       loggedInEmail = email;
       $('step-email').classList.add('hidden');
       $('step-code').classList.remove('hidden');
-      alert('✅ 인증번호가 발송되었습니다. 3분 안에 입력해주세요.');
+      const devCode = data.devCode ? String(data.devCode) : '';
+      setDevCodeHint(devCode);
+      $('2fa-code')?.focus();
+      alert(devCode ? `개발 환경용 인증번호: ${devCode}\n3분 안에 입력해주세요.` : '✅ 인증번호가 발송되었습니다. 3분 안에 입력해주세요.');
       startAuthTimer(data.expiresInSeconds || 180);
       startRequestCooldown(data.cooldownSeconds || 30);
     } else {
+      if (data.devCode) {
+        loggedInEmail = email;
+        $('step-email')?.classList.add('hidden');
+        $('step-code')?.classList.remove('hidden');
+        setDevCodeHint(String(data.devCode));
+        $('2fa-code')?.focus();
+        startAuthTimer(data.expiresInSeconds || 180);
+      }
       alert(`⚠️ ${data.message}`);
       if (data.retryAfter) startRequestCooldown(data.retryAfter);
       else {
