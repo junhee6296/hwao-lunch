@@ -113,7 +113,7 @@ function renderAttendeeList(attendees) {
   });
 }
 
-function renderUpcomingMenus(daysByDate, dates, baseDate = currentServiceDate) {
+function renderUpcomingMenus(daysByDate, dates, baseDate = currentServiceDate, menuUnavailable = false) {
   const wrap = $('scanner-menu-days');
   const dateLabel = $('scanner-menu-date');
   if (!wrap) return;
@@ -167,7 +167,9 @@ function renderUpcomingMenus(daysByDate, dates, baseDate = currentServiceDate) {
     } else {
       const empty = document.createElement('p');
       empty.className = 'scanner-menu-empty';
-      empty.textContent = '등록된 식단이 없습니다.';
+      empty.textContent = menuUnavailable
+        ? '서버에 연결되면 식단표가 표시됩니다.'
+        : '등록된 식단이 없습니다.';
       article.appendChild(empty);
     }
 
@@ -182,19 +184,20 @@ async function loadUpcomingMenus(date = currentServiceDate) {
 
   const responses = await Promise.all(yearMonths.map(async (yearMonth) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/menu/month/${encodeURIComponent(yearMonth)}`, { cache: 'no-store' });
+      const res = await fetch(`${API_BASE_URL}/menu/month/${encodeURIComponent(yearMonth)}`, { cache: 'no-store', mode: 'cors' });
       if (!res.ok) throw new Error(`식단표 조회 실패: ${res.status}`);
       return await res.json();
     } catch (error) {
       console.error(`${yearMonth} 식단표 로드 실패:`, error);
-      return { days: {} };
+      return { days: {}, unavailable: true };
     }
   }));
 
   if (requestedDate !== currentServiceDate) return;
   const mergedDays = {};
+  const unavailable = responses.every(data => data?.unavailable);
   responses.forEach(data => Object.assign(mergedDays, data?.days || {}));
-  renderUpcomingMenus(mergedDays, dates, requestedDate);
+  renderUpcomingMenus(mergedDays, dates, requestedDate, unavailable);
 }
 
 function stopCurrentAudio() {
@@ -332,22 +335,105 @@ function calculateScanBox(viewWidth, viewHeight) {
   return size;
 }
 
-async function waitForHtml5Qrcode() {
+async function waitForScannerRuntime() {
   for (let i = 0; i < 40; i += 1) {
-    if (window.Html5Qrcode) return;
+    if (window.Html5Qrcode || navigator.mediaDevices?.getUserMedia) return;
     await new Promise(resolve => window.setTimeout(resolve, 100));
   }
-  throw new Error('html5-qrcode library is not loaded.');
+  throw new Error('Camera API is not available in this browser context.');
+}
+
+function normalizeCameraSource(source) {
+  if (typeof source === 'string') return { deviceId: { exact: source } };
+  if (source?.facingMode) return { facingMode: source.facingMode };
+  return { facingMode: { ideal: window.currentScannerFacingMode || 'environment' } };
+}
+
+function createNativeQrScanner() {
+  let stream = null;
+  let detector = null;
+  let scanning = false;
+  let frameTimer = 0;
+
+  const stopTracks = () => {
+    stream?.getTracks?.().forEach(track => track.stop());
+    stream = null;
+  };
+
+  return {
+    get isScanning() { return scanning; },
+    async start(source, _config, onSuccess) {
+      if (!navigator.mediaDevices?.getUserMedia) throw new Error('Camera API is not available.');
+
+      const reader = document.getElementById('reader');
+      if (!reader) throw new Error('Scanner container was not found.');
+
+      stopTracks();
+      window.cancelAnimationFrame(frameTimer);
+
+      const constraints = {
+        audio: false,
+        video: {
+          ...normalizeCameraSource(source),
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
+      };
+      stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+      reader.replaceChildren();
+      const video = document.createElement('video');
+      video.autoplay = true;
+      video.muted = true;
+      video.playsInline = true;
+      video.srcObject = stream;
+      video.style.width = '100%';
+      video.style.height = '100%';
+      video.style.objectFit = 'cover';
+      reader.appendChild(video);
+      await video.play();
+
+      detector = 'BarcodeDetector' in window
+        ? new window.BarcodeDetector({ formats: ['qr_code'] })
+        : null;
+      scanning = true;
+
+      const tick = async () => {
+        if (!scanning) return;
+        if (detector && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+          try {
+            const codes = await detector.detect(video);
+            const value = codes?.[0]?.rawValue;
+            if (value) onSuccess(value);
+          } catch (_) {
+            // 일부 브라우저는 프레임 준비 전 감지 예외를 던져서 다음 프레임에서 재시도합니다.
+          }
+        }
+        frameTimer = window.requestAnimationFrame(tick);
+      };
+      tick();
+    },
+    async stop() {
+      scanning = false;
+      window.cancelAnimationFrame(frameTimer);
+      stopTracks();
+      document.querySelectorAll('#reader video').forEach(video => video.remove());
+    }
+  };
 }
 
 function createScannerInstance() {
   if (window.html5QrCode) return window.html5QrCode;
 
-  const constructorConfig = { verbose: false };
-  if (window.Html5QrcodeSupportedFormats?.QR_CODE !== undefined) {
-    constructorConfig.formatsToSupport = [window.Html5QrcodeSupportedFormats.QR_CODE];
+  if (window.Html5Qrcode) {
+    const constructorConfig = { verbose: false };
+    if (window.Html5QrcodeSupportedFormats?.QR_CODE !== undefined) {
+      constructorConfig.formatsToSupport = [window.Html5QrcodeSupportedFormats.QR_CODE];
+    }
+    window.html5QrCode = new window.Html5Qrcode('reader', constructorConfig);
+  } else {
+    window.html5QrCode = createNativeQrScanner();
   }
-  window.html5QrCode = new window.Html5Qrcode('reader', constructorConfig);
   return window.html5QrCode;
 }
 
@@ -406,8 +492,17 @@ function detectCameraModeFromLabel(label) {
 async function getAvailableCameras(force = false) {
   if (!force && Array.isArray(cameraListCache) && cameraListCache.length) return cameraListCache;
   try {
-    const cameras = await window.Html5Qrcode.getCameras();
-    cameraListCache = Array.isArray(cameras) ? cameras : [];
+    if (window.Html5Qrcode?.getCameras) {
+      const cameras = await window.Html5Qrcode.getCameras();
+      cameraListCache = Array.isArray(cameras) ? cameras : [];
+    } else if (navigator.mediaDevices?.enumerateDevices) {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      cameraListCache = devices
+        .filter(device => device.kind === 'videoinput')
+        .map((device, index) => ({ id: device.deviceId, label: device.label || `Camera ${index + 1}` }));
+    } else {
+      cameraListCache = [];
+    }
   } catch (error) {
     console.warn('카메라 목록 조회 실패:', error);
     cameraListCache = [];
@@ -469,7 +564,7 @@ async function buildCameraCandidates(requestedMode, allowFallback) {
 }
 
 window.startScanner = async function startScanner(facingMode = 'environment', allowFallback = true) {
-  await waitForHtml5Qrcode();
+  await waitForScannerRuntime();
   const scanner = createScannerInstance();
   const requestedMode = facingMode === 'environment' ? 'environment' : 'user';
   window.currentScannerFacingMode = requestedMode;
@@ -540,6 +635,24 @@ window.restartScanner = async function restartScanner(facingMode = window.curren
   }
 };
 
+function getCameraErrorHelp(error) {
+  const name = String(error?.name || '');
+  const message = String(error?.message || '');
+  if (!window.isSecureContext) return 'HTTPS 또는 localhost 주소로 접속해 주세요.';
+  if (/NotAllowed|Permission|denied/i.test(name + message)) return '브라우저 카메라 권한을 허용한 뒤 화면을 한 번 눌러 주세요.';
+  if (/NotFound|DevicesNotFound/i.test(name + message)) return '사용 가능한 카메라가 있는지 확인해 주세요.';
+  return '권한을 허용한 뒤 화면을 한 번 누르면 다시 시도합니다.';
+}
+
+function ensureScannerRunning() {
+  if (window.html5QrCode?.isScanning || scannerRestartPromise) return;
+  window.startScanner(window.currentScannerFacingMode || 'environment')
+    .catch(error => {
+      console.warn('카메라 자동 시작 실패:', error);
+      showScanResult('fail', '카메라를 시작할 수 없습니다', getCameraErrorHelp(error));
+    });
+}
+
 function scheduleOrientationRestart() {
   window.clearTimeout(orientationRestartTimer);
   orientationRestartTimer = window.setTimeout(() => {
@@ -558,9 +671,12 @@ function initScannerPage() {
 
   loadScannerStats(currentServiceDate);
   loadUpcomingMenus(currentServiceDate);
-  window.startScanner('environment').catch(() => {});
+  ensureScannerRunning();
 
-  document.addEventListener('pointerdown', unlockAudio, { once: true, capture: true });
+  document.addEventListener('pointerdown', () => {
+    unlockAudio();
+    ensureScannerRunning();
+  }, { capture: true });
   document.addEventListener('keydown', unlockAudio, { once: true, capture: true });
 
   window.setInterval(() => {
@@ -575,12 +691,14 @@ function initScannerPage() {
       checkDateRollover();
       loadScannerStats(currentServiceDate);
       loadUpcomingMenus(currentServiceDate);
+      ensureScannerRunning();
     }
   });
   window.addEventListener('focus', () => {
     checkDateRollover();
     loadScannerStats(currentServiceDate);
     loadUpcomingMenus(currentServiceDate);
+    ensureScannerRunning();
   });
   window.addEventListener('orientationchange', scheduleOrientationRestart);
   window.screen?.orientation?.addEventListener?.('change', scheduleOrientationRestart);
@@ -588,4 +706,8 @@ function initScannerPage() {
   window.visualViewport?.addEventListener?.('resize', () => calculateScanBox(window.visualViewport.width, window.visualViewport.height));
 }
 
-document.addEventListener('DOMContentLoaded', initScannerPage);
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initScannerPage, { once: true });
+} else {
+  initScannerPage();
+}

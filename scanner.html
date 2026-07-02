@@ -6,7 +6,7 @@
   <meta name="color-scheme" content="light">
   <title>Lunch Check 스캐너 : 화성오산교육청</title>
 
-  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript" async></script>
   <link rel="icon" href="./img/icon.png?v=20260701-emergency-fallback" type="image/png">
   <link rel="stylesheet" href="./css/common.css?v=20260701-emergency-fallback">
   <link rel="stylesheet" href="./css/scanner.css?v=20260701-emergency-fallback">
@@ -73,16 +73,19 @@
       }
       throw lastError;
     };
-    try {
-      await importWithFallback(['./js/scanner_app.js?v=20260701-emergency-fallback', '/js/scanner_app.js?v=20260701-emergency-fallback', '/JS/scanner_app.js?v=20260701-emergency-fallback', './scanner_app.js?v=20260701-emergency-fallback', '/scanner_app.js?v=20260701-emergency-fallback']);
-      await importWithFallback(['./js/scanner_bootstrap.js?v=20260701-emergency-fallback', '/js/scanner_bootstrap.js?v=20260701-emergency-fallback', '/JS/scanner_bootstrap.js?v=20260701-emergency-fallback', './scanner_bootstrap.js?v=20260701-emergency-fallback', '/scanner_bootstrap.js?v=20260701-emergency-fallback']);
-    } catch (error) {
-      console.error('Lunch Check scanner script load failed', error);
-      const msg = document.createElement('div');
-      msg.style.cssText = 'position:fixed;left:12px;right:12px;bottom:12px;z-index:99999;padding:14px;border-radius:14px;background:#fee2e2;color:#991b1b;font-weight:900;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.18)';
-      msg.textContent = '스캐너 스크립트를 불러오지 못했습니다. 서버의 js/JS 폴더 배포 상태를 확인해 주세요.';
-      document.body.appendChild(msg);
-    }
+
+    (async () => {
+      try {
+        await importWithFallback(['./js/scanner_app.js?v=20260702-scanner-hotfix', '/js/scanner_app.js?v=20260702-scanner-hotfix', '/JS/scanner_app.js?v=20260702-scanner-hotfix', './scanner_app.js?v=20260702-scanner-hotfix', '/scanner_app.js?v=20260702-scanner-hotfix']);
+        await importWithFallback(['./js/scanner_bootstrap.js?v=20260702-scanner-hotfix', '/js/scanner_bootstrap.js?v=20260702-scanner-hotfix', '/JS/scanner_bootstrap.js?v=20260702-scanner-hotfix', './scanner_bootstrap.js?v=20260702-scanner-hotfix', '/scanner_bootstrap.js?v=20260702-scanner-hotfix']);
+      } catch (error) {
+        console.error('Lunch Check scanner script load failed', error);
+        const msg = document.createElement('div');
+        msg.style.cssText = 'position:fixed;left:12px;right:12px;bottom:12px;z-index:99999;padding:14px;border-radius:14px;background:#fee2e2;color:#991b1b;font-weight:900;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.18)';
+        msg.textContent = '스캐너 스크립트를 불러오지 못했습니다. 서버의 js/JS 폴더 배포 상태를 확인해 주세요.';
+        document.body.appendChild(msg);
+      }
+    })();
   </script>
 </body>
 </html>

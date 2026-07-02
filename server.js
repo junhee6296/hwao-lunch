@@ -1857,6 +1857,7 @@ app.get('/api/admin/menu/month/:yearMonth', requireAdmin, async (req, res) => {
 });
 
 app.get('/api/menu/month/:yearMonth', async (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
   const yearMonth = String(req.params.yearMonth || '');
   if (!/^\d{4}-\d{2}$/.test(yearMonth)) return res.status(400).json({ message: '월 형식은 YYYY-MM이어야 합니다.' });
   res.setHeader('Cache-Control', 'no-store');

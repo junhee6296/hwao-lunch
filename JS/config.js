@@ -1,4 +1,7 @@
-export const API_BASE_URL = '/api';
+const DEFAULT_REMOTE_API_BASE = 'https://hwaolunch.o-r.kr/api';
+
+export const API_BASE_URL = globalThis.LUNCH_CHECK_API_BASE
+  || (globalThis.location?.protocol === 'file:' ? DEFAULT_REMOTE_API_BASE : '/api');
 
 export const getTodayStr = () => {
   const now = new Date();
