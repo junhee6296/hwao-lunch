@@ -75,6 +75,20 @@ const normalizeMailPassword = value => {
   return /^[A-Za-z0-9]{16}$/.test(compact) ? compact : trimmed;
 };
 
+const inferMailProvider = value => {
+  const key = String(value || '').trim().toLowerCase().replace(/^.*@/, '');
+  if (key === 'naver' || key === 'naver.com' || key === 'smtp.naver.com') {
+    return { host: 'smtp.naver.com', port: 465, secure: true };
+  }
+  if (key === 'daum' || key === 'daum.net' || key === 'hanmail.net' || key === 'kakao.com' || key === 'smtp.daum.net') {
+    return { host: 'smtp.daum.net', port: 465, secure: true };
+  }
+  if (key === 'gmail' || key === 'gmail.com' || key === 'googlemail.com') {
+    return { service: 'gmail' };
+  }
+  return null;
+};
+
 const mailUser = getEnv('EMAIL_USER', 'MAIL_USER', 'SMTP_USER', 'GMAIL_USER', 'GMAIL_EMAIL');
 const mailPass = normalizeMailPassword(getEnv(
   'EMAIL_PASS',
@@ -86,12 +100,21 @@ const mailPass = normalizeMailPassword(getEnv(
   'GMAIL_PASS',
   'GMAIL_APP_PASSWORD'
 ));
-const mailFrom = getEnv('EMAIL_FROM', 'MAIL_FROM', 'SMTP_FROM') || mailUser;
+const rawMailFrom = getEnv('EMAIL_FROM', 'MAIL_FROM', 'SMTP_FROM');
+const mailFrom = rawMailFrom
+  ? (rawMailFrom.includes('@') ? rawMailFrom : `${rawMailFrom.replace(/[<>"]/g, '').trim()} <${mailUser}>`)
+  : mailUser;
 const smtpHost = getEnv('SMTP_HOST', 'EMAIL_HOST', 'MAIL_HOST');
 const smtpPortValue = Number(getEnv('SMTP_PORT', 'EMAIL_PORT', 'MAIL_PORT') || 0);
 const smtpSecureValue = getEnv('SMTP_SECURE', 'EMAIL_SECURE', 'MAIL_SECURE');
-const smtpSecure = smtpSecureValue ? /^(1|true|yes)$/i.test(smtpSecureValue) : smtpPortValue === 465;
-const mailService = getEnv('EMAIL_SERVICE', 'MAIL_SERVICE') || (smtpHost ? '' : 'gmail');
+const explicitMailService = getEnv('EMAIL_SERVICE', 'MAIL_SERVICE');
+const inferredMailProvider = inferMailProvider(explicitMailService) || inferMailProvider(mailUser);
+const mailService = explicitMailService && !inferMailProvider(explicitMailService)
+  ? explicitMailService
+  : (!smtpHost && inferredMailProvider && inferredMailProvider.service ? inferredMailProvider.service : '');
+const effectiveSmtpHost = smtpHost || (!mailService && inferredMailProvider ? inferredMailProvider.host : '');
+const effectiveSmtpPort = smtpPortValue || (inferredMailProvider && inferredMailProvider.port) || 0;
+const smtpSecure = smtpSecureValue ? /^(1|true|yes)$/i.test(smtpSecureValue) : ((inferredMailProvider && inferredMailProvider.secure) || effectiveSmtpPort === 465);
 const AUTH_SECRET = process.env.AUTH_SECRET || mailPass || crypto.randomBytes(32).toString('hex');
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -110,13 +133,13 @@ const adminEmails = (process.env.ADMIN_EMAILS || '')
   .filter(Boolean);
 
 const isProduction = process.env.NODE_ENV === 'production';
-const hasMailConfig = Boolean(mailUser && mailPass && (smtpHost || mailService));
+const hasMailConfig = Boolean(mailUser && mailPass && (effectiveSmtpHost || mailService));
 const allowDevAuthCode = !isProduction && !hasMailConfig;
 
-const mailTransportOptions = smtpHost
+const mailTransportOptions = effectiveSmtpHost
   ? {
-      host: smtpHost,
-      port: smtpPortValue || (smtpSecure ? 465 : 587),
+      host: effectiveSmtpHost,
+      port: effectiveSmtpPort || (smtpSecure ? 465 : 587),
       secure: smtpSecure,
       auth: {
         user: mailUser,
@@ -133,6 +156,13 @@ const mailTransportOptions = smtpHost
 const transporter = hasMailConfig ? nodemailer.createTransport(mailTransportOptions) : null;
 if (!hasMailConfig) {
   console.warn('[admin-mail] Mail config is missing. Set EMAIL_USER/EMAIL_PASS or SMTP_HOST/SMTP_USER/SMTP_PASS.');
+} else {
+  console.info('[admin-mail] Mail sender configured:', {
+    userDomain: mailUser.includes('@') ? mailUser.split('@').pop() : 'custom',
+    host: effectiveSmtpHost || mailService,
+    port: effectiveSmtpHost ? mailTransportOptions.port : undefined,
+    secure: effectiveSmtpHost ? mailTransportOptions.secure : undefined
+  });
 }
 
 // ==========================================
