@@ -60,7 +60,39 @@ const MAX_JSON_SIZE = '1mb';
 const MAX_UPLOAD_SIZE = 8 * 1024 * 1024;
 const MAX_MENU_IMAGE_SIZE = 12 * 1024 * 1024;
 const MAX_UPLOAD_FILES = 10;
-const AUTH_SECRET = process.env.AUTH_SECRET || process.env.EMAIL_PASS || crypto.randomBytes(32).toString('hex');
+
+const getEnv = (...names) => {
+  for (const name of names) {
+    const value = process.env[name];
+    if (value !== undefined && String(value).trim()) return String(value).trim();
+  }
+  return '';
+};
+
+const normalizeMailPassword = value => {
+  const trimmed = String(value || '').trim();
+  const compact = trimmed.replace(/\s+/g, '');
+  return /^[A-Za-z0-9]{16}$/.test(compact) ? compact : trimmed;
+};
+
+const mailUser = getEnv('EMAIL_USER', 'MAIL_USER', 'SMTP_USER', 'GMAIL_USER', 'GMAIL_EMAIL');
+const mailPass = normalizeMailPassword(getEnv(
+  'EMAIL_PASS',
+  'EMAIL_PASSWORD',
+  'MAIL_PASS',
+  'MAIL_PASSWORD',
+  'SMTP_PASS',
+  'SMTP_PASSWORD',
+  'GMAIL_PASS',
+  'GMAIL_APP_PASSWORD'
+));
+const mailFrom = getEnv('EMAIL_FROM', 'MAIL_FROM', 'SMTP_FROM') || mailUser;
+const smtpHost = getEnv('SMTP_HOST', 'EMAIL_HOST', 'MAIL_HOST');
+const smtpPortValue = Number(getEnv('SMTP_PORT', 'EMAIL_PORT', 'MAIL_PORT') || 0);
+const smtpSecureValue = getEnv('SMTP_SECURE', 'EMAIL_SECURE', 'MAIL_SECURE');
+const smtpSecure = smtpSecureValue ? /^(1|true|yes)$/i.test(smtpSecureValue) : smtpPortValue === 465;
+const mailService = getEnv('EMAIL_SERVICE', 'MAIL_SERVICE') || (smtpHost ? '' : 'gmail');
+const AUTH_SECRET = process.env.AUTH_SECRET || mailPass || crypto.randomBytes(32).toString('hex');
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
 fs.mkdirSync(menuImageDir, { recursive: true });
@@ -78,16 +110,30 @@ const adminEmails = (process.env.ADMIN_EMAILS || '')
   .filter(Boolean);
 
 const isProduction = process.env.NODE_ENV === 'production';
-const hasMailConfig = Boolean(process.env.EMAIL_USER && process.env.EMAIL_PASS);
+const hasMailConfig = Boolean(mailUser && mailPass && (smtpHost || mailService));
 const allowDevAuthCode = !isProduction && !hasMailConfig;
 
-const transporter = hasMailConfig ? nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  }
-}) : null;
+const mailTransportOptions = smtpHost
+  ? {
+      host: smtpHost,
+      port: smtpPortValue || (smtpSecure ? 465 : 587),
+      secure: smtpSecure,
+      auth: {
+        user: mailUser,
+        pass: mailPass
+      }
+    }
+  : {
+      service: mailService,
+      auth: {
+        user: mailUser,
+        pass: mailPass
+      }
+    };
+const transporter = hasMailConfig ? nodemailer.createTransport(mailTransportOptions) : null;
+if (!hasMailConfig) {
+  console.warn('[admin-mail] Mail config is missing. Set EMAIL_USER/EMAIL_PASS or SMTP_HOST/SMTP_USER/SMTP_PASS.');
+}
 
 // ==========================================
 // 공통 유틸
@@ -562,13 +608,19 @@ app.post('/api/admin/request-code', async (req, res) => {
 
   try {
     await transporter.sendMail({
-      from: process.env.EMAIL_USER,
+      from: mailFrom,
       to: email,
       subject: '[Lunch Check] 관리자 보안 인증번호',
       text: `인증번호: [${code}]\n유효시간: 3분`
     });
     res.json({ message: '인증 메일이 발송되었습니다.', cooldownSeconds: 30, expiresInSeconds: 180, sent: true });
   } catch (e) {
+    console.error('[admin-mail] Failed to send auth code:', {
+      code: e && e.code,
+      command: e && e.command,
+      responseCode: e && e.responseCode,
+      response: e && e.response
+    });
     authCodes.delete(email);
     res.status(500).json({ message: '메일 발송 실패. 서버 메일 설정을 확인해 주세요.' });
   }
