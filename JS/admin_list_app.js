@@ -692,8 +692,9 @@ function renderImportPreview(scrollToUnpaid = false) {
   const alreadyCount = importRows.filter(r => r.alreadyRegistered).length;
   const selectedCount = importRows.filter(r => r.selected).length;
   const summary = importMeta?.summary || {};
+  const dailyImportCount = summary.dailyImportCount || 0;
 
-  $('import-summary').textContent = `추출 ${importRows.length}명 · 선택 ${selectedCount}명 · 미입금 ${unpaidCount}명 · 일식 제외 ${summary.excludedDailyCount || 0}명 · 중복 제외 ${summary.duplicateCount || 0}명 · 이미 등록 ${alreadyCount}명`;
+  $('import-summary').textContent = `추출 ${importRows.length}명 · 선택 ${selectedCount}명 · 미입금 ${unpaidCount}명 · 일식 포함 ${dailyImportCount}명 · 중복 제외 ${summary.duplicateCount || 0}명 · 이미 등록 ${alreadyCount}명`;
 
   const warnings = [];
   if (unpaidCount > 0) warnings.push('미입금자는 빨간색으로 표시됩니다. 등록하려면 각 행의 확인 버튼을 눌러야 합니다.');
@@ -703,7 +704,14 @@ function renderImportPreview(scrollToUnpaid = false) {
 
   tbody.innerHTML = importRows.map((row, index) => {
     const isUnpaid = row.paymentStatus === '미입금';
-    const rowClass = isUnpaid ? 'bg-red-100/80' : row.alreadyRegistered ? 'bg-gray-100 text-gray-400' : 'bg-white';
+    const isDailyImport = row.importMealType === 'daily';
+    const rowClass = row.alreadyRegistered
+      ? 'bg-gray-100 text-gray-400'
+      : isUnpaid
+        ? 'bg-red-100/80'
+        : isDailyImport
+          ? 'bg-sky-50'
+          : 'bg-white';
     const confirmCell = isUnpaid
       ? row.unpaidConfirmed
         ? '<span class="inline-flex text-green-700 bg-green-100 px-3 py-1 rounded-full text-xs font-black">확인 완료</span>'

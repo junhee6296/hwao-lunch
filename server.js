@@ -912,11 +912,11 @@ const analyzeWorkbookRows = ({ rows, fileName, selectedYear, selectedMonth }) =>
   const detected = detectYearMonthFromRows(rows);
   const resultRows = [];
   const errors = [];
-  let excludedDailyCount = 0;
+  let dailyImportCount = 0;
   let skippedInvalidCount = 0;
 
   if (headerIdx === -1) {
-    return { rows: [], errors: [`${fileName}: 이름/전화번호 열을 찾을 수 없습니다.`], detected, excludedDailyCount: 0, skippedInvalidCount: 0 };
+    return { rows: [], errors: [`${fileName}: 이름/전화번호 열을 찾을 수 없습니다.`], detected, dailyImportCount: 0, excludedDailyCount: 0, skippedInvalidCount: 0 };
   }
 
   const headers = rows[headerIdx].map(v => String(v || '').trim());
@@ -930,8 +930,7 @@ const analyzeWorkbookRows = ({ rows, fileName, selectedYear, selectedMonth }) =>
     const classText = String(row[classIdx] || '').trim();
     const isDaily = /일식|날짜\s*선택|선택\s*신청/i.test(classText);
     if (isDaily) {
-      excludedDailyCount += 1;
-      return;
+      dailyImportCount += 1;
     }
 
     const name = stripTrailingPhoneFromName(row[nameIdx]);
@@ -948,6 +947,7 @@ const analyzeWorkbookRows = ({ rows, fileName, selectedYear, selectedMonth }) =>
       sourceRow,
       name,
       phoneLast4,
+      importMealType: isDaily ? 'daily' : 'monthly',
       paymentStatus,
       unpaidConfirmed: paymentStatus !== '미입금',
       selected: true,
@@ -957,20 +957,26 @@ const analyzeWorkbookRows = ({ rows, fileName, selectedYear, selectedMonth }) =>
     });
   });
 
-  return { rows: resultRows, errors, detected, excludedDailyCount, skippedInvalidCount };
+  return { rows: resultRows, errors, detected, dailyImportCount, excludedDailyCount: 0, skippedInvalidCount };
 };
 
 const dedupeImportRows = (rows) => {
   const seen = new Set();
+  const indexByKey = new Map();
   const unique = [];
   let duplicateCount = 0;
   rows.forEach(row => {
     const key = `${row.name}|${row.phoneLast4}`;
     if (seen.has(key)) {
       duplicateCount += 1;
+      const existingIndex = indexByKey.get(key);
+      if (Number.isInteger(existingIndex) && unique[existingIndex]?.importMealType === 'daily' && row.importMealType !== 'daily') {
+        unique[existingIndex] = row;
+      }
       return;
     }
     seen.add(key);
+    indexByKey.set(key, unique.length);
     unique.push(row);
   });
   return { unique, duplicateCount };
@@ -999,6 +1005,7 @@ app.post('/api/admin/monthly-import/analyze', requireAdmin, (req, res) => {
     let allRows = [];
     let errors = [];
     let fileSummaries = [];
+    let dailyImportCount = 0;
     let excludedDailyCount = 0;
     let skippedInvalidCount = 0;
 
@@ -1010,7 +1017,8 @@ app.post('/api/admin/monthly-import/analyze', requireAdmin, (req, res) => {
         const analyzed = analyzeWorkbookRows({ rows, fileName: file.originalname, selectedYear, selectedMonth });
         allRows = allRows.concat(analyzed.rows);
         errors = errors.concat(analyzed.errors);
-        excludedDailyCount += analyzed.excludedDailyCount;
+        dailyImportCount += analyzed.dailyImportCount || 0;
+        excludedDailyCount += analyzed.excludedDailyCount || 0;
         skippedInvalidCount += analyzed.skippedInvalidCount;
         fileSummaries.push({
           fileName: file.originalname,
@@ -1018,7 +1026,8 @@ app.post('/api/admin/monthly-import/analyze', requireAdmin, (req, res) => {
           detectedMonth: analyzed.detected.month,
           monthMismatch: Boolean(analyzed.detected.year && analyzed.detected.month && (analyzed.detected.year !== selectedYear || analyzed.detected.month !== selectedMonth)),
           extractedCount: analyzed.rows.length,
-          excludedDailyCount: analyzed.excludedDailyCount,
+          dailyImportCount: analyzed.dailyImportCount || 0,
+          excludedDailyCount: analyzed.excludedDailyCount || 0,
           skippedInvalidCount: analyzed.skippedInvalidCount
         });
       } catch (e) {
@@ -1047,6 +1056,7 @@ app.post('/api/admin/monthly-import/analyze', requireAdmin, (req, res) => {
         unpaidCount,
         alreadyRegisteredCount,
         duplicateCount: deduped.duplicateCount,
+        dailyImportCount,
         excludedDailyCount,
         skippedInvalidCount,
         monthMismatch
@@ -1093,6 +1103,7 @@ app.post('/api/admin/monthly-import/register', requireAdmin, (req, res) => {
     allowedUsers.push({
       ...cleaned,
       mealType: 'monthly',
+      importedMealType: row.importMealType === 'daily' ? 'daily' : 'monthly',
       startDate,
       endDate,
       validDates: null,
