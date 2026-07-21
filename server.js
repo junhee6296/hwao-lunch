@@ -1241,12 +1241,14 @@ const isHolidayLine = (line) => {
 
 const isOriginLine = (line) => {
   const compact = compactMenuLine(line);
-  return /(원산|국내산|국내|국산|외국산|수입산|중국산|미국산|호주산|러시아산|스페인산|덴마크산|캐나다산|브라질산|베트남산|태국산|칠레산|뉴질랜드산|한우|육우|우육|돈육|계육|대두|고춧가루|쌀[:：]|김치[:：]|오리[:：]|오리\s*국내산)/i.test(compact);
+  if (!compact) return false;
+  if (/원산/i.test(compact)) return true;
+  return /(국내산|국산|외국산|수입산|중국산|미국산|호주산|러시아산|스페인산|덴마크산|캐나다산|브라질산|베트남산|태국산|칠레산|뉴질랜드산|원양산)/i.test(compact);
 };
 
 const isOriginFragmentLine = (line) => {
   const compact = compactMenuLine(line);
-  return /^(국내|국내산|국산|외국산|수입산|중국|중국산|미국|미국산|호주|호주산|러시아|러시아산|스페인|스페인산|덴마크|덴마크산|브라질|브라질산|베트남|베트남산|우육|돈육|계육|대두|고춧가루|원산|원산지)$/.test(compact);
+  return /^(국내|국내산|국산|외국산|수입산|중국|중국산|미국|미국산|호주|호주산|러시아|러시아산|스페인|스페인산|덴마크|덴마크산|브라질|브라질산|베트남|베트남산|우육|돈육|계육|한우|육우|대두|고춧가루|원산|원산지)$/.test(compact);
 };
 
 const isNoiseMenuLine = (line) => {
@@ -1262,6 +1264,8 @@ const cleanMenuCandidate = (line) => {
   let clean = normalizeMenuTextLine(line)
     .replace(/^[•·ㆍ\-–—*★☆★☆\s]+/, '')
     .replace(/[★☆★☆]+/g, '')
+    .replace(/\(\s*\d+(?:[.,]\s*\d+)*\s*\)/g, '')
+    .replace(/(?:^|\s)\d+(?:[.,]\d+)*(?=\s|$)/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
   const compact = compactMenuLine(clean);
@@ -1381,7 +1385,7 @@ const formatOriginSource = (value) => {
 };
 
 const cleanOriginMenuName = (line) => {
-  const clean = cleanMenuCandidate(line);
+  const clean = cleanMenuCandidate(normalizeMenuTextLine(line).replace(/[\s:：/|ㅣ\-–—]+$/g, ''));
   if (!clean) return '';
   if (isOriginLine(clean) || isOriginFragmentLine(clean)) return '';
   if (/^(원산지|원산|중식|월식|메뉴)$/.test(clean)) return '';
@@ -1639,6 +1643,16 @@ const groupWordsIntoRows = (words, tolerance = 18) => {
   return rows;
 };
 
+const getAdaptiveRowTolerance = (words) => {
+  const heights = (Array.isArray(words) ? words : [])
+    .map(word => Number(word.y1) - Number(word.y0))
+    .filter(height => Number.isFinite(height) && height > 0)
+    .sort((a, b) => a - b);
+  if (!heights.length) return 18;
+  const medianHeight = heights[Math.floor(heights.length / 2)];
+  return Math.max(9, Math.min(30, medianHeight * 0.58));
+};
+
 const getQuantile = (values, q) => {
   const sorted = values.filter(Number.isFinite).sort((a, b) => a - b);
   if (!sorted.length) return 0;
@@ -1728,14 +1742,16 @@ const parseMenuOCRLayout = ({ words, selectedYear, selectedMonth }) => {
 
   // 식단표는 좌측에 '중식/원산지' 세로 라벨이 있고, 그 오른쪽 5칸이 월~금입니다.
   // OCR이 날짜 헤더를 놓쳐도 5열×주차 구조로 안정적으로 분배합니다.
-  const xCandidates = cleanWords
-    .filter(w => w.x0 > 35)
-    .map(w => w.x0);
-  const xStart = Math.max(45, getQuantile(xCandidates, 0.03) - 45);
-  const xEnd = Math.max(...cleanWords.map(w => w.x1)) + 10;
+  const columnWords = cleanWords.filter(word => !/^(중식|월식|원산지?|요일)$/.test(compactMenuLine(word.text)));
+  const xCandidates = (columnWords.length >= 15 ? columnWords : cleanWords).filter(w => w.x0 > 35);
+  const leftEdge = getQuantile(xCandidates.map(w => w.x0), 0.02);
+  const rightEdge = getQuantile(xCandidates.map(w => w.x1), 0.98);
+  const horizontalPadding = Math.max(18, Math.min(70, (rightEdge - leftEdge) * 0.05));
+  const xStart = Math.max(35, leftEdge - horizontalPadding);
+  const xEnd = rightEdge + horizontalPadding;
   const colWidth = Math.max(1, (xEnd - xStart) / 5);
 
-  const rows = groupWordsIntoRows(cleanWords, 18);
+  const rows = groupWordsIntoRows(cleanWords, getAdaptiveRowTolerance(cleanWords));
   const calendarBands = buildCalendarWeekBands(rows, firstVisibleMondayDay, lastDay);
   const bands = calendarBands.length ? calendarBands : findMenuWeekBands(rows);
   const days = {};
@@ -1746,7 +1762,16 @@ const parseMenuOCRLayout = ({ words, selectedYear, selectedMonth }) => {
     // 대신 날짜/요일/공휴일/이벤트 문구는 cleanMenuCandidate 쪽에서 제거합니다.
     const menuTop = band.minY - 2;
     // 원산지 행은 보통 각 주차 블록의 하단 20~25%에 배치됩니다. 조금 넉넉하게 잡아 누락을 줄입니다.
-    const originTop = band.minY + bandHeight * 0.74;
+    const detectedOriginRows = band.rows.filter(row => {
+      const rowText = mergeOCRTokens(row.words.map(word => word.text));
+      return /원산/.test(rowText) || extractOriginSourcesDetailed(rowText).length > 0;
+    });
+    const detectedOriginTop = detectedOriginRows.length
+      ? Math.min(...detectedOriginRows.map(row => row.minY))
+      : Number.POSITIVE_INFINITY;
+    const originTop = detectedOriginTop < band.minY + bandHeight * 0.48
+      ? band.minY + bandHeight * 0.74
+      : Math.min(detectedOriginTop, band.minY + bandHeight * 0.74);
 
     band.rows.forEach(row => {
       if (row.maxY < menuTop) return;
@@ -1778,6 +1803,10 @@ const parseMenuOCRLayout = ({ words, selectedYear, selectedMonth }) => {
         const isOriginSection = section === 'origin' || isOriginLine(text) || extractOriginSourcesDetailed(text).length > 0;
         if (isOriginSection) {
           days[date].rawLines.push(normalizeMenuTextLine(text));
+          const originCountBefore = days[date].origins.length;
+          pushOriginCandidate(days[date], text);
+          if (days[date].origins.length > originCountBefore) return;
+
           const cellLeft = xStart + col * colWidth;
           const midX = cellLeft + colWidth * 0.50;
           const leftWords = sortedWords.filter(w => ((w.x0 + w.x1) / 2) < midX);
@@ -1848,22 +1877,46 @@ const mergeMenuParses = (textParsed, layoutParsed) => {
 };
 
 const runMenuOCR = async (buffer) => {
+  let worker = null;
   try {
-    const { recognize } = require('tesseract.js');
+    const { createWorker, PSM, OEM } = require('tesseract.js');
     const lang = process.env.OCR_LANG || 'kor+eng';
-    const result = await recognize(buffer, lang, {
-      logger: () => {},
-      tessedit_pageseg_mode: '4',
+    worker = await createWorker(lang, OEM?.LSTM_ONLY ?? 1, { logger: () => {} });
+    await worker.setParameters({
+      tessedit_pageseg_mode: PSM?.SINGLE_COLUMN ?? '4',
       preserve_interword_spaces: '1',
       user_defined_dpi: '300'
     });
+    const primaryResult = await worker.recognize(buffer);
+
+    let layoutResult = null;
+    try {
+      await worker.setParameters({
+        tessedit_pageseg_mode: PSM?.SPARSE_TEXT ?? '11',
+        preserve_interword_spaces: '1',
+        user_defined_dpi: '300'
+      });
+      layoutResult = await worker.recognize(buffer);
+    } catch (_) {
+      layoutResult = null;
+    }
+
+    const primaryWords = extractWordsFromTesseract(primaryResult?.data);
+    const layoutWords = extractWordsFromTesseract(layoutResult?.data);
+    const words = layoutWords.filter(word => hasHangul(word.text)).length >= 20
+      ? layoutWords
+      : primaryWords;
     return {
-      text: result?.data?.text || '',
-      words: extractWordsFromTesseract(result?.data),
-      engine: `tesseract.js:${lang}:psm4`
+      text: primaryResult?.data?.text || layoutResult?.data?.text || '',
+      words,
+      engine: `tesseract.js:${lang}:psm4+11`
     };
   } catch (e) {
     return { text: '', words: [], engine: 'unavailable', error: e.message };
+  } finally {
+    if (worker) {
+      try { await worker.terminate(); } catch (_) {}
+    }
   }
 };
 

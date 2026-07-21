@@ -42,31 +42,6 @@ const formatKoreanDate = (dateStr) => {
 const getCurrentMonth = () => getTodayStr().slice(0, 7);
 
 
-function getRelativeLuminance({ r, g, b }) {
-  const normalize = (channel) => {
-    const value = channel / 255;
-    return value <= 0.03928 ? value / 12.92 : Math.pow((value + 0.055) / 1.055, 2.4);
-  };
-  return 0.2126 * normalize(r) + 0.7152 * normalize(g) + 0.0722 * normalize(b);
-}
-
-function pickReadableQRColor() {
-  // QR 인식성을 위해 흰 배경과 충분한 명도 대비가 나는 어두운 색만 사용합니다.
-  for (let attempt = 0; attempt < 80; attempt += 1) {
-    const color = {
-      r: Math.floor(Math.random() * 116),
-      g: Math.floor(Math.random() * 116),
-      b: Math.floor(Math.random() * 116)
-    };
-    const luminance = getRelativeLuminance(color);
-    const contrastWithWhite = (1.05) / (luminance + 0.05);
-    if (contrastWithWhite >= 7.2) {
-      return `rgb(${color.r}, ${color.g}, ${color.b})`;
-    }
-  }
-  return '#000000';
-}
-
 function syncModalViewportHeight() {
   const height = Math.round(window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight || 0);
   if (height > 0) document.documentElement.style.setProperty('--modal-viewport-height', `${height}px`);
@@ -198,6 +173,35 @@ function applyRenderedQRElementStyles() {
   });
 }
 
+function freezeQRCodeAsOpaqueImage() {
+  const qrDiv = $('qrcode');
+  const sourceCanvas = qrDiv?.querySelector('canvas');
+  if (!qrDiv || !sourceCanvas || !sourceCanvas.width || !sourceCanvas.height) return;
+
+  try {
+    const opaqueCanvas = document.createElement('canvas');
+    opaqueCanvas.width = sourceCanvas.width;
+    opaqueCanvas.height = sourceCanvas.height;
+    const context = opaqueCanvas.getContext('2d', { alpha: false });
+    if (!context) return;
+
+    context.fillStyle = '#ffffff';
+    context.fillRect(0, 0, opaqueCanvas.width, opaqueCanvas.height);
+    context.drawImage(sourceCanvas, 0, 0);
+
+    const image = new Image();
+    image.alt = '점심 식사 QR 코드';
+    image.draggable = false;
+    image.decoding = 'sync';
+    image.setAttribute('data-darkreader-ignore', '');
+    image.setAttribute('data-lunchcheck-qr-image', 'true');
+    image.src = opaqueCanvas.toDataURL('image/png');
+    qrDiv.replaceChildren(image);
+  } catch (_) {
+    // 일부 구형 브라우저에서는 canvas 변환이 제한될 수 있어 원본 QR을 그대로 유지합니다.
+  }
+}
+
 function renderQRToContainer(token) {
   const qrDiv = $('qrcode');
   if (!qrDiv) return;
@@ -221,6 +225,7 @@ function renderQRToContainer(token) {
     colorLight: '#ffffff',
     correctLevel: window.QRCode?.CorrectLevel?.H ?? 2
   });
+  freezeQRCodeAsOpaqueImage();
   applyRenderedQRElementStyles();
 }
 
@@ -608,7 +613,7 @@ function renderQR(token, name, phoneLast4, expiresAt) {
   currentQRName = name;
   currentQRPhoneLast4 = phoneLast4;
   currentQRExpiresAt = Number(expiresAt || 0);
-  currentQRColor = pickReadableQRColor();
+  currentQRColor = '#000000';
   $('qr-form-container')?.classList.add('hidden');
   $('qrcode-container')?.classList.remove('hidden');
 

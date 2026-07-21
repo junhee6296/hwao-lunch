@@ -14,6 +14,14 @@
       print-color-adjust: exact;
       -webkit-text-size-adjust: 100%;
     }
+    html,
+    .qr-page-body,
+    .qr-page-body *:not(img),
+    .qr-page-body *::before,
+    .qr-page-body *::after {
+      color-scheme: only light !important;
+      forced-color-adjust: none !important;
+    }
     body {
       background:
         radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.86) 0, rgba(255, 255, 255, 0.28) 20%, transparent 42%),
@@ -32,6 +40,7 @@
       width: 100%;
       min-height: 100vh;
       min-height: 100svh;
+      background-color: #f8fafc !important;
       padding-top: max(0.5rem, env(safe-area-inset-top));
       padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
       overflow: visible;
@@ -43,9 +52,9 @@
       color: white !important;
       box-shadow: 0 18px 34px rgba(15, 23, 42, .22) !important;
     }
-    .warm-shell { background: rgba(248, 250, 252, 0.88); backdrop-filter: blur(18px); }
+    .warm-shell { background: #f8fafc; }
     .warm-card {
-      background: rgba(255, 255, 255, 0.92);
+      background: #ffffff;
       border-color: rgba(203, 213, 225, 0.95);
       box-shadow: var(--cool-shadow);
     }
@@ -124,6 +133,9 @@
     #qrcode-container {
       width: min(100%, 34rem);
       margin-inline: auto;
+      background-color: #ffffff !important;
+      color: #0f172a !important;
+      isolation: isolate;
     }
     #qrcode {
       --qr-render-size: 280px;
@@ -164,6 +176,11 @@
       forced-color-adjust: none !important;
       filter: none !important;
       mix-blend-mode: normal !important;
+    }
+    #qrcode img[data-lunchcheck-qr-image="true"] {
+      opacity: 1 !important;
+      visibility: visible !important;
+      image-rendering: pixelated;
     }
     #qrcode canvas,
     #qrcode img,
@@ -383,4 +400,28 @@
     filter: none !important;
     mix-blend-mode: normal !important;
   }
+}
+
+/* Some Android browsers force-dark translucent surfaces despite the page color scheme. */
+body.qr-page-body {
+  background-color: #e5e7eb !important;
+  color: #0f172a !important;
+}
+.qr-page-body #qr-page-shell,
+.qr-page-body .warm-shell {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+}
+.qr-page-body .warm-card,
+.qr-page-body #qrcode-container,
+.qr-page-body #menu-modal-panel,
+.qr-page-body #ios-install-panel {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+.qr-page-body input,
+.qr-page-body select,
+.qr-page-body textarea {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
 }

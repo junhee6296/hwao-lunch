@@ -8,6 +8,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Lunch Check">
   <meta name="color-scheme" content="light">
+  <meta name="supported-color-schemes" content="light">
+  <meta name="darkreader-lock">
   <title>Lunch Check : 점심 QR</title>
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" href="/img/icon.png?v=20260701-emergency-fallback" type="image/png">
@@ -15,11 +17,11 @@
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <link rel="stylesheet" href="/css/common.css?v=20260701-emergency-fallback">
-  <link rel="stylesheet" href="/css/qr.css?v=20260701-emergency-fallback">
+  <link rel="stylesheet" href="/css/common.css?v=20260721-light-lock">
+  <link rel="stylesheet" href="/css/qr.css?v=20260721-light-lock">
 </head>
-<body class="qr-page-body">
-  <div id="qr-page-shell" class="max-w-4xl mx-auto flex flex-col warm-shell shadow-2xl">
+<body class="qr-page-body" data-darkreader-ignore>
+  <div id="qr-page-shell" class="max-w-4xl mx-auto flex flex-col warm-shell shadow-2xl" data-darkreader-ignore>
     <div class="qr-topbar flex justify-between items-center px-4 sm:px-6">
       <div class="flex items-center gap-2 text-slate-700 font-black">
         <span class="brand-plate brand-plate-sm"><img src="/img/icon.png?v=20260701-emergency-fallback" alt="Lunch Check 아이콘" class="w-10 h-10 rounded-2xl brand-icon"></span>
@@ -160,7 +162,7 @@
       © 화성오산교육지원청 기획경영과 2026. All rights reserved.
     </footer>
   </div>
-  <script src="./JS/config.js?v=20260702-installfix"></script>
-  <script src="./JS/qr_app.js?v=20260702-installfix"></script>
+  <script src="./JS/config.js?v=20260721-light-lock"></script>
+  <script src="./JS/qr_app.js?v=20260721-light-lock"></script>
 </body>
 </html>
