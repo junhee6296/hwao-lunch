@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lunch-check-shell-v20260721-light-lock';
+const CACHE_NAME = 'lunch-check-shell-v20260721-samsung-qr';
 const APP_SHELL = [
   '/qr.html',
   '/scanner.html',

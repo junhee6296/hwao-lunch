@@ -7,7 +7,8 @@ let currentQRName = '';
 let currentQRPhoneLast4 = '';
 let currentQRExpiresAt = 0;
 let menuModalScrollY = 0;
-let currentQRColor = '#000000';
+let samsungForcedDarkDetected = false;
+let samsungForcedDarkDetection = Promise.resolve(false);
 
 const $ = (id) => document.getElementById(id);
 const nameInput = () => $('userName');
@@ -28,6 +29,45 @@ function resetPageTop() {
 
 function schedulePageTopReset() {
   [0, 80, 240].forEach(delay => window.setTimeout(resetPageTop, delay));
+}
+
+function isSamsungInternet(userAgent = navigator.userAgent || '') {
+  return /SamsungBrowser/i.test(String(userAgent));
+}
+
+function detectSamsungForcedDarkMode() {
+  if (!isSamsungInternet()) return Promise.resolve(false);
+  if (typeof window.matchMedia === 'function' && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    return Promise.resolve(true);
+  }
+
+  return new Promise(resolve => {
+    let settled = false;
+    const finish = value => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeoutId);
+      resolve(Boolean(value));
+    };
+    const timeoutId = window.setTimeout(() => finish(false), 800);
+    const probe = new Image();
+    probe.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = 1;
+        canvas.height = 1;
+        const context = canvas.getContext('2d', { willReadFrequently: true });
+        if (!context) return finish(false);
+        context.drawImage(probe, 0, 0, 1, 1);
+        const [red, green, blue] = context.getImageData(0, 0, 1, 1).data;
+        finish(red < 245 || green < 245 || blue < 245);
+      } catch (_) {
+        finish(false);
+      }
+    };
+    probe.onerror = () => finish(false);
+    probe.src = 'data:image/svg+xml;charset=utf-8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%221%22 height=%221%22%3E%3Crect width=%221%22 height=%221%22 fill=%22white%22/%3E%3C/svg%3E';
+  });
 }
 
 window.addEventListener('pageshow', schedulePageTopReset);
@@ -98,6 +138,10 @@ function bindUserInputPersistence() {
 }
 
 function initQRPage() {
+  samsungForcedDarkDetection = detectSamsungForcedDarkMode().then(detected => {
+    samsungForcedDarkDetected = detected;
+    return detected;
+  });
   restoreSavedUserInputs();
   bindUserInputPersistence();
 
@@ -155,6 +199,7 @@ function applyRenderedQRElementStyles() {
   });
 
   const renderedNodes = qrDiv.querySelectorAll('canvas, img, table');
+  const compensateSamsungForceDark = qrDiv.getAttribute('data-samsung-dark-compensated') === 'true';
   renderedNodes.forEach(node => {
     node.style.width = '100%';
     node.style.height = '100%';
@@ -165,6 +210,7 @@ function applyRenderedQRElementStyles() {
     node.style.objectFit = 'contain';
     node.style.background = '#ffffff';
     node.style.backgroundColor = '#ffffff';
+    node.style.setProperty('filter', compensateSamsungForceDark ? 'invert(1)' : 'none', 'important');
     node.setAttribute('data-darkreader-ignore', '');
     if (node.tagName === 'TABLE') {
       node.style.borderCollapse = 'collapse';
@@ -173,21 +219,37 @@ function applyRenderedQRElementStyles() {
   });
 }
 
-function freezeQRCodeAsOpaqueImage() {
+function getQRCodePalette(
+  userAgent = navigator.userAgent || '',
+  prefersDark = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-color-scheme: dark)').matches,
+  forcedDarkDetected = samsungForcedDarkDetected
+) {
+  const compensateSamsungForceDark = isSamsungInternet(userAgent) && Boolean(prefersDark || forcedDarkDetected);
+  return {
+    moduleColor: '#000000',
+    backgroundColor: '#ffffff',
+    compensated: compensateSamsungForceDark
+  };
+}
+
+function freezeQRCodeAsOpaqueImage(backgroundColor = '#ffffff') {
   const qrDiv = $('qrcode');
   const sourceCanvas = qrDiv?.querySelector('canvas');
   if (!qrDiv || !sourceCanvas || !sourceCanvas.width || !sourceCanvas.height) return;
 
   try {
+    // QR 판독에 필요한 quiet zone을 CSS 여백이 아닌 이미지 픽셀에 직접 포함합니다.
+    const quietZone = Math.max(16, Math.ceil(Math.max(sourceCanvas.width, sourceCanvas.height) * 0.11));
     const opaqueCanvas = document.createElement('canvas');
-    opaqueCanvas.width = sourceCanvas.width;
-    opaqueCanvas.height = sourceCanvas.height;
+    opaqueCanvas.width = sourceCanvas.width + quietZone * 2;
+    opaqueCanvas.height = sourceCanvas.height + quietZone * 2;
     const context = opaqueCanvas.getContext('2d', { alpha: false });
     if (!context) return;
 
-    context.fillStyle = '#ffffff';
+    context.imageSmoothingEnabled = false;
+    context.fillStyle = backgroundColor;
     context.fillRect(0, 0, opaqueCanvas.width, opaqueCanvas.height);
-    context.drawImage(sourceCanvas, 0, 0);
+    context.drawImage(sourceCanvas, quietZone, quietZone);
 
     const image = new Image();
     image.alt = '점심 식사 QR 코드';
@@ -206,8 +268,10 @@ function renderQRToContainer(token) {
   const qrDiv = $('qrcode');
   if (!qrDiv) return;
   const size = getOptimalQRSize();
+  const palette = getQRCodePalette();
   qrDiv.setAttribute('data-darkreader-ignore', '');
   qrDiv.setAttribute('data-lunchcheck-qr', 'true');
+  qrDiv.setAttribute('data-samsung-dark-compensated', String(palette.compensated));
   qrDiv.innerHTML = '';
   qrDiv.style.setProperty('--qr-render-size', `${size}px`);
   qrDiv.style.opacity = '1';
@@ -221,11 +285,11 @@ function renderQRToContainer(token) {
     text: token,
     width: size,
     height: size,
-    colorDark: currentQRColor,
-    colorLight: '#ffffff',
+    colorDark: palette.moduleColor,
+    colorLight: palette.backgroundColor,
     correctLevel: window.QRCode?.CorrectLevel?.H ?? 2
   });
-  freezeQRCodeAsOpaqueImage();
+  freezeQRCodeAsOpaqueImage(palette.backgroundColor);
   applyRenderedQRElementStyles();
 }
 
@@ -600,20 +664,20 @@ async function generateLunchQR(isReissue = false) {
     });
     const data = await res.json();
 
-    if (res.ok) renderQR(data.qrData, name, phoneLast4, data.expiresAt);
+    if (res.ok) await renderQR(data.qrData, name, phoneLast4, data.expiresAt);
     else alert(data.message);
   } catch (e) {
     alert('서버 연결 실패');
   }
 }
 
-function renderQR(token, name, phoneLast4, expiresAt) {
+async function renderQR(token, name, phoneLast4, expiresAt) {
+  await samsungForcedDarkDetection;
   if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
   currentQRToken = token;
   currentQRName = name;
   currentQRPhoneLast4 = phoneLast4;
   currentQRExpiresAt = Number(expiresAt || 0);
-  currentQRColor = '#000000';
   $('qr-form-container')?.classList.add('hidden');
   $('qrcode-container')?.classList.remove('hidden');
 
