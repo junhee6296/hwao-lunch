@@ -735,11 +735,35 @@ function renderImportPreview(scrollToUnpaid = false) {
   }).join('');
 
   if (scrollToUnpaid) {
-    const firstUnconfirmed = importRows.findIndex(r => r.paymentStatus === '미입금' && !r.unpaidConfirmed);
-    if (firstUnconfirmed >= 0) {
-      setTimeout(() => $('import-row-' + firstUnconfirmed)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
-    }
+    focusUnconfirmedImportRow(findNextUnconfirmedImportIndex());
   }
+}
+
+function findNextUnconfirmedImportIndex(afterIndex = -1) {
+  const isUnconfirmedUnpaid = row => row?.paymentStatus === '미입금' && !row.unpaidConfirmed;
+
+  for (let index = afterIndex + 1; index < importRows.length; index += 1) {
+    if (isUnconfirmedUnpaid(importRows[index])) return index;
+  }
+  for (let index = 0; index <= afterIndex && index < importRows.length; index += 1) {
+    if (isUnconfirmedUnpaid(importRows[index])) return index;
+  }
+  return -1;
+}
+
+function focusUnconfirmedImportRow(index) {
+  if (index < 0) return;
+  window.requestAnimationFrame(() => {
+    const row = $('import-row-' + index);
+    if (!row) return;
+    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const confirmButton = row.querySelector('[data-import-action="confirm-unpaid"]');
+    try {
+      confirmButton?.focus({ preventScroll: true });
+    } catch (_) {
+      confirmButton?.focus();
+    }
+  });
 }
 
 function getSelectedImportRows(mode) {
@@ -1020,7 +1044,9 @@ window.updateImportRow = (index, field, value) => {
 window.confirmUnpaidImport = (index) => {
   if (!importRows[index]) return;
   importRows[index].unpaidConfirmed = true;
+  const nextUnconfirmedIndex = findNextUnconfirmedImportIndex(index);
   renderImportPreview();
+  focusUnconfirmedImportRow(nextUnconfirmedIndex);
 };
 
 window.deleteImportRow = (index) => {
